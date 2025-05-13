@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -228,7 +227,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       // Create marker element
       const markerEl = document.createElement('div');
       
-      // Determine marker color based on status priority (occurrencia > pendente > entregue)
+      // Determine marker color based on status priority (occorrencia > pendente > entregue)
       const hasOcorrencia = group.statuses.includes('ocorrencia');
       const hasPendente = group.statuses.includes('pendente');
       
@@ -556,26 +555,27 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       
       <style>
         {`
-        /* Modern marker styles */
+        /* Updated marker styles to match the reference image */
         .marker-pending, .marker-delivered, .marker-occurrence {
-          width: 36px;
-          height: 36px;
+          width: 34px;
+          height: 34px;
           display: flex;
           align-items: center;
           justify-content: center;
           border-radius: 50%;
           cursor: pointer;
-          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
           transition: all 0.2s ease;
           font-weight: 700;
           font-size: 14px;
           color: white;
           position: relative;
           z-index: 1;
+          border: 2px solid white;
         }
         
         .marker-pending {
-          background-color: #2563EB;
+          background-color: #3b82f6; /* Brighter blue to match reference */
           border: 2px solid white;
         }
         
@@ -585,7 +585,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         }
         
         .marker-occurrence {
-          background-color: #EA384D;
+          background-color: #ef4444; /* Brighter red to match reference */
           border: 2px solid white;
         }
         
@@ -623,7 +623,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         }
         
         .mini-marker-pending {
-          background-color: #2563EB;
+          background-color: #3b82f6;
         }
         
         .mini-marker-delivered {
@@ -631,7 +631,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         }
         
         .mini-marker-occurrence {
-          background-color: #EA384D;
+          background-color: #ef4444;
         }
         
         .location-marker {
@@ -837,7 +837,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm shadow rounded-lg text-sm p-3">
         <h3 className="font-medium text-xs uppercase mb-1 text-gray-500">Legenda</h3>
         <div className="flex items-center mb-1.5">
-          <div className="w-4 h-4 bg-[#2563EB] border-2 border-white mr-2 rounded-full"></div>
+          <div className="w-4 h-4 bg-[#3b82f6] border-2 border-white mr-2 rounded-full"></div>
           <span className="text-xs">Pendente</span>
         </div>
         <div className="flex items-center mb-1.5">
@@ -845,7 +845,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           <span className="text-xs">Entregue</span>
         </div>
         <div className="flex items-center mb-1.5">
-          <div className="w-4 h-4 bg-[#EA384D] border-2 border-white mr-2 rounded-full"></div>
+          <div className="w-4 h-4 bg-[#ef4444] border-2 border-white mr-2 rounded-full"></div>
           <span className="text-xs">Ocorrência</span>
         </div>
         <div className="flex items-center">
