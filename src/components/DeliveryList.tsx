@@ -1,0 +1,106 @@
+
+import React, { useState } from 'react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { DeliveryItem } from '@/utils/deliveryUtils';
+import DeliveryCard from './DeliveryCard';
+
+interface DeliveryListProps {
+  deliveries: DeliveryItem[];
+  onStatusChange: (id: string, status: 'pendente' | 'entregue' | 'ocorrencia') => void;
+  onSelectDelivery: (id: string) => void;
+  selectedDeliveryId: string | null;
+}
+
+const DeliveryList: React.FC<DeliveryListProps> = ({
+  deliveries,
+  onStatusChange,
+  onSelectDelivery,
+  selectedDeliveryId,
+}) => {
+  const [filter, setFilter] = useState<'todos' | 'pendente' | 'entregue' | 'ocorrencia'>('todos');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredDeliveries = deliveries
+    .filter(delivery => 
+      filter === 'todos' || delivery.status === filter
+    )
+    .filter(delivery => {
+      if (!searchQuery) return true;
+      
+      const query = searchQuery.toLowerCase();
+      return (
+        delivery.cliente.toLowerCase().includes(query) ||
+        delivery.endereco.toLowerCase().includes(query) ||
+        delivery.cidade.toLowerCase().includes(query)
+      );
+    });
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="mb-4">
+        <Input
+          placeholder="Buscar por cliente ou endereço..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="mb-2"
+        />
+        
+        <div className="flex gap-1 overflow-x-auto pb-1">
+          <Button
+            size="sm"
+            variant={filter === 'todos' ? 'default' : 'outline'}
+            onClick={() => setFilter('todos')}
+            className="whitespace-nowrap"
+          >
+            Todos
+          </Button>
+          <Button
+            size="sm"
+            variant={filter === 'pendente' ? 'default' : 'outline'}
+            onClick={() => setFilter('pendente')}
+            className="whitespace-nowrap"
+          >
+            Pendentes
+          </Button>
+          <Button
+            size="sm"
+            variant={filter === 'entregue' ? 'default' : 'outline'}
+            onClick={() => setFilter('entregue')}
+            className="whitespace-nowrap"
+          >
+            Entregues
+          </Button>
+          <Button
+            size="sm"
+            variant={filter === 'ocorrencia' ? 'default' : 'outline'}
+            onClick={() => setFilter('ocorrencia')}
+            className="whitespace-nowrap"
+          >
+            Ocorrências
+          </Button>
+        </div>
+      </div>
+      
+      <div className="flex-1 overflow-y-auto pr-1">
+        {filteredDeliveries.length > 0 ? (
+          filteredDeliveries.map((delivery) => (
+            <DeliveryCard
+              key={delivery.id}
+              delivery={delivery}
+              isSelected={selectedDeliveryId === delivery.id}
+              onStatusChange={onStatusChange}
+              onSelect={onSelectDelivery}
+            />
+          ))
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            Nenhuma entrega encontrada com os filtros atuais.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default DeliveryList;
