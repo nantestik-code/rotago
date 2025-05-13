@@ -73,9 +73,9 @@ const Index = () => {
         description: `${geocodedDeliveries.length} endereços foram geocodificados com sucesso.`,
       });
 
-      // On mobile, automatically set to map view after import
+      // On mobile, automatically show map view after import
       if (isMobile) {
-        setSelectedTab('map');
+        setShowFileImport(false);
       }
     } catch (error) {
       toast({
