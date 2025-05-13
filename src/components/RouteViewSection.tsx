@@ -92,16 +92,17 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
               onStartTracking={onStartTracking}
               onStopTracking={onStopTracking}
               onOptimizeRoute={onOptimizeRoute}
+              onStatusChange={onStatusChange}
             />
             
-            {/* Floating Button to show list */}
+            {/* Floating Button to show full list */}
             <Button
               onClick={toggleListOverlay}
               className="absolute bottom-4 left-4 z-10 shadow-lg flex items-center gap-2"
               variant="default"
             >
               <List size={18} />
-              Ver Lista
+              Ver Lista Completa
             </Button>
             
             {/* List overlay */}
@@ -146,6 +147,7 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
               onStartTracking={onStartTracking}
               onStopTracking={onStopTracking}
               onOptimizeRoute={onOptimizeRoute}
+              onStatusChange={onStatusChange}
             />
           </div>
         </div>

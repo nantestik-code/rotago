@@ -7,8 +7,9 @@ import { DeliveryItem } from '@/utils/deliveryUtils';
 import { MapPosition, defaultMapCenter, initMapbox, getMapboxToken, setMapboxToken } from '@/utils/mapUtils';
 import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
-import { Navigation, MapPin } from 'lucide-react';
+import { Navigation, MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
+import DeliveryCard from './DeliveryCard';
 
 interface DeliveryMapProps {
   deliveries: DeliveryItem[];
@@ -19,6 +20,7 @@ interface DeliveryMapProps {
   onStartTracking: () => void;
   onStopTracking: () => void;
   onOptimizeRoute: () => void;
+  onStatusChange?: (id: string, status: 'pendente' | 'entregue' | 'ocorrencia') => void;
 }
 
 const DeliveryMap: React.FC<DeliveryMapProps> = ({
@@ -30,6 +32,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
   onStartTracking,
   onStopTracking,
   onOptimizeRoute,
+  onStatusChange,
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapboxMapRef = useRef<mapboxgl.Map | null>(null);
@@ -41,6 +44,21 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapboxTokenInput, setMapboxTokenInput] = useState(getMapboxToken());
   const [showTokenInput, setShowTokenInput] = useState(!getMapboxToken() || getMapboxToken() === 'pk.eyJ1IjoiZGVtby1hY2NvdW50IiwiYSI6ImNsbTUzNmh1bzBkYmwzY3FwbXpkeGsxcWUifQ.QJC4is2GrXvWYws7OsLb4g');
+  const [currentMobileDeliveryIndex, setCurrentMobileDeliveryIndex] = useState(0);
+
+  // Filter to pending deliveries for mobile view
+  const pendingDeliveries = useMemo(() => {
+    return deliveries
+      .filter(delivery => delivery.status === 'pendente')
+      .sort((a, b) => {
+        if (currentLocation && a.lat && a.lng && b.lat && b.lng) {
+          const distA = calculateDistance(currentLocation.lat, currentLocation.lng, a.lat, a.lng);
+          const distB = calculateDistance(currentLocation.lat, currentLocation.lng, b.lat, b.lng);
+          return distA - distB;
+        }
+        return 0;
+      });
+  }, [deliveries, currentLocation]);
 
   // Group deliveries by exact coordinates for multiple delivery detection
   const addressGroups = useMemo(() => {
@@ -176,7 +194,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     }> = {};
     
     // First, gather all coordinates groups
-    const coordinateGroups: Record<string, {deliveryIds: string[], orderIndices: number[]}> = {};
+    const coordinateGroups: Record<string, {deliveryIds: string[], orderIndices: number[], statuses: string[]}> = {};
     
     sortedDeliveries.forEach((delivery, index) => {
       if (!delivery.lat || !delivery.lng) return;
@@ -187,12 +205,14 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       if (!coordinateGroups[coordKey]) {
         coordinateGroups[coordKey] = {
           deliveryIds: [],
-          orderIndices: []
+          orderIndices: [],
+          statuses: []
         };
       }
       
       coordinateGroups[coordKey].deliveryIds.push(delivery.id);
       coordinateGroups[coordKey].orderIndices.push(index + 1);
+      coordinateGroups[coordKey].statuses.push(delivery.status);
     });
     
     // Now create markers for each coordinate group
@@ -208,13 +228,16 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       // Create marker element
       const markerEl = document.createElement('div');
       
-      // Set marker styles based on status and selection
-      if (delivery.status === 'pendente') {
-        markerEl.className = 'marker-pending';
-      } else if (delivery.status === 'entregue') {
-        markerEl.className = 'marker-delivered';
-      } else {
+      // Determine marker color based on status priority (occurrencia > pendente > entregue)
+      const hasOcorrencia = group.statuses.includes('ocorrencia');
+      const hasPendente = group.statuses.includes('pendente');
+      
+      if (hasOcorrencia) {
         markerEl.className = 'marker-occurrence';
+      } else if (hasPendente) {
+        markerEl.className = 'marker-pending';
+      } else {
+        markerEl.className = 'marker-delivered';
       }
       
       // Add multiple class if this coordinate has multiple deliveries
@@ -245,8 +268,9 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       let miniMarker = null;
       if (miniMapRef.current) {
         const miniMarkerEl = document.createElement('div');
-        miniMarkerEl.className = delivery.status === 'pendente' ? 
-          'mini-marker-pending' : 'mini-marker-delivered';
+        miniMarkerEl.className = hasOcorrencia ? 'mini-marker-occurrence' : 
+                                hasPendente ? 'mini-marker-pending' : 
+                                'mini-marker-delivered';
         
         miniMarker = new mapboxgl.Marker({
           element: miniMarkerEl,
@@ -385,6 +409,25 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     return distance; // Distance in meters
   };
 
+  // Handle mobile delivery navigation
+  const handleNextDelivery = () => {
+    if (pendingDeliveries.length === 0) return;
+    
+    const newIndex = (currentMobileDeliveryIndex + 1) % pendingDeliveries.length;
+    setCurrentMobileDeliveryIndex(newIndex);
+    onSelectDelivery(pendingDeliveries[newIndex].id);
+  };
+
+  const handlePrevDelivery = () => {
+    if (pendingDeliveries.length === 0) return;
+    
+    const newIndex = currentMobileDeliveryIndex === 0 
+      ? pendingDeliveries.length - 1 
+      : currentMobileDeliveryIndex - 1;
+    setCurrentMobileDeliveryIndex(newIndex);
+    onSelectDelivery(pendingDeliveries[newIndex].id);
+  };
+
   // Update current location marker
   useEffect(() => {
     if (!mapLoaded || !mapboxMapRef.current) return;
@@ -490,6 +533,16 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     drawRoute();
   }, [deliveries, selectedDeliveryId, currentLocation, mapLoaded]);
 
+  // Update currentMobileDeliveryIndex when the selected delivery changes
+  useEffect(() => {
+    if (isMobile && selectedDeliveryId && pendingDeliveries.length > 0) {
+      const index = pendingDeliveries.findIndex(d => d.id === selectedDeliveryId);
+      if (index !== -1) {
+        setCurrentMobileDeliveryIndex(index);
+      }
+    }
+  }, [selectedDeliveryId, pendingDeliveries, isMobile]);
+
   if (showTokenInput) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-4 space-y-4">
@@ -579,7 +632,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           border-width: 3px;
         }
         
-        .mini-marker-pending, .mini-marker-delivered {
+        .mini-marker-pending, .mini-marker-delivered, .mini-marker-occurrence {
           width: 8px;
           height: 8px;
           border-radius: 50%;
@@ -592,6 +645,10 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         
         .mini-marker-delivered {
           background-color: #10B981;
+        }
+        
+        .mini-marker-occurrence {
+          background-color: #EA384D;
         }
         
         .location-marker {
@@ -701,6 +758,43 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           border-radius: 8px;
           box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
+        
+        /* Mobile delivery card container */
+        .mobile-delivery-card {
+          position: absolute;
+          bottom: 80px;
+          left: 10px;
+          right: 10px;
+          background: white;
+          border-radius: 8px;
+          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+          transition: all 0.3s ease;
+          z-index: 50;
+        }
+        
+        .swipe-controls {
+          display: flex;
+          justify-content: space-between;
+          padding: 0 8px;
+        }
+        
+        .swipe-button {
+          width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          background-color: #f3f4f6;
+          color: #4b5563;
+        }
+        
+        .delivery-counter {
+          font-size: 12px;
+          color: #6b7280;
+          text-align: center;
+          padding: 6px 0;
+        }
         `}
       </style>
       
@@ -718,6 +812,45 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           {isTrackingActive ? 'Parar Rastreamento' : 'Iniciar Rastreamento'}
         </Button>
       </div>
+      
+      {/* Mobile delivery card with swipe controls */}
+      {isMobile && pendingDeliveries.length > 0 && (
+        <div className="mobile-delivery-card">
+          <div className="delivery-counter">
+            {currentMobileDeliveryIndex + 1} de {pendingDeliveries.length} pendentes
+          </div>
+          
+          <div className="p-2">
+            {pendingDeliveries[currentMobileDeliveryIndex] && (
+              <DeliveryCard
+                delivery={pendingDeliveries[currentMobileDeliveryIndex]}
+                onStatusChange={onStatusChange || (() => {})}
+                onSelect={onSelectDelivery}
+                isSelected={pendingDeliveries[currentMobileDeliveryIndex].id === selectedDeliveryId}
+              />
+            )}
+          </div>
+          
+          <div className="swipe-controls pb-2">
+            <button 
+              className="swipe-button" 
+              onClick={handlePrevDelivery}
+              disabled={pendingDeliveries.length <= 1}
+            >
+              <ChevronLeft size={20} />
+            </button>
+            
+            <button 
+              className="swipe-button" 
+              onClick={handleNextDelivery}
+              disabled={pendingDeliveries.length <= 1}
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
+        </div>
+      )}
+      
       <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm shadow rounded-lg text-sm p-3">
         <h3 className="font-medium text-xs uppercase mb-1 text-gray-500">Legenda</h3>
         <div className="flex items-center mb-1.5">
@@ -727,6 +860,10 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         <div className="flex items-center mb-1.5">
           <div className="w-4 h-4 bg-[#10B981] border-2 border-white mr-2 rounded-full"></div>
           <span className="text-xs">Entregue</span>
+        </div>
+        <div className="flex items-center mb-1.5">
+          <div className="w-4 h-4 bg-[#EA384D] border-2 border-white mr-2 rounded-full"></div>
+          <span className="text-xs">Ocorrência</span>
         </div>
         <div className="flex items-center">
           <div className="w-4 h-4 border-2 border-orange-500 mr-2 rounded-full relative">
