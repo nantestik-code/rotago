@@ -1,8 +1,9 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { DeliveryItem } from '@/utils/deliveryUtils';
 import { MapPosition, defaultMapCenter } from '@/utils/mapUtils';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 
 interface DeliveryMapProps {
   deliveries: DeliveryItem[];
@@ -186,7 +187,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           map: googleMapRef.current,
           icon: {
             url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`
-              <svg xmlns="http://www.w3.org/svg" viewBox="0 0 24 24" width="24" height="24">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
                 <circle cx="12" cy="12" r="10" fill="#FFC107" stroke="#FFA000" stroke-width="2"/>
               </svg>
             `),

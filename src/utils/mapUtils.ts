@@ -1,4 +1,3 @@
-
 import { DeliveryItem } from './deliveryUtils';
 
 export interface MapPosition {
@@ -6,10 +5,11 @@ export interface MapPosition {
   lng: number;
 }
 
+// Campo Grande, MS
 export const defaultMapCenter = {
-  lat: -23.5505,
-  lng: -46.6333,
-}; // São Paulo, Brazil
+  lat: -20.4697,
+  lng: -54.6201,
+}; 
 
 export const getCurrentPosition = (): Promise<MapPosition> => {
   return new Promise((resolve, reject) => {
