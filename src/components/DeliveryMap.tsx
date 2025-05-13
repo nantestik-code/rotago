@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -249,14 +248,10 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       spanEl.textContent = `${index + 1}`;
       markerEl.appendChild(spanEl);
       
-      // Get offset for this marker
-      const offset = markerPositions[delivery.id] || { offsetX: 0, offsetY: 0 };
-      
-      // Create marker with offset
+      // Create marker without offset - place directly on the address coordinates
       const marker = new mapboxgl.Marker({
         element: markerEl,
-        anchor: 'center',
-        offset: [offset.offsetX, offset.offsetY]
+        anchor: 'center'
       })
         .setLngLat([delivery.lng, delivery.lat])
         .addTo(mapboxMapRef.current);
@@ -269,7 +264,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       })
         .setHTML(`
           <div class="popup-content">
-            <h3 class="font-medium">${delivery.cliente}</h3>
+            <h3 class="font-medium">Ordem ${index + 1}</h3>
             <p class="text-sm">${delivery.endereco}</p>
             ${hasMultiple ? `<p class="text-xs font-medium">Ordens: ${multipleOrderNumbers}</p>` : ''}
             <div class="flex items-center gap-1 my-1">
@@ -521,7 +516,6 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           color: white;
           position: relative;
           z-index: 1;
-          overflow: hidden;
         }
         
         .marker-pending {

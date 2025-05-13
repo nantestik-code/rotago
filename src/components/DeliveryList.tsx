@@ -101,6 +101,11 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
             const group = addressGroups[key];
             const orderNumbers = group?.indices.join(', ') || `${index + 1}`;
             
+            const orderIndex = filteredDeliveries.findIndex(d => d.id === delivery.id) + 1;
+            const displayName = group?.items.length > 1 
+              ? `Ordem ${group.indices.find((_, i) => group.items[i].id === delivery.id)}`
+              : `Ordem ${orderIndex}`;
+            
             return (
               <div key={delivery.id}>
                 {group?.items.length > 1 && group?.items[0].id === delivery.id && (
@@ -111,10 +116,7 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
                 <DeliveryCard
                   delivery={{
                     ...delivery,
-                    // Add order number to the client name if there are multiple at same address
-                    cliente: group?.items.length > 1 
-                      ? `[${group.indices.find((_, i) => group.items[i].id === delivery.id)}] ${delivery.cliente}`
-                      : `[${filteredDeliveries.findIndex(d => d.id === delivery.id) + 1}] ${delivery.cliente}`
+                    cliente: displayName
                   }}
                   isSelected={selectedDeliveryId === delivery.id}
                   onStatusChange={onStatusChange}
