@@ -314,7 +314,8 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       <div ref={mapRef} className="h-full w-full rounded-md"></div>
       
       {/* Style for markers */}
-      <style jsx global>{`
+      <style>
+        {`
         .delivery-marker {
           cursor: pointer;
         }
@@ -405,7 +406,8 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           height: 6px;
           border-radius: 50%;
         }
-      `}</style>
+        `}
+      </style>
       
       <div className="absolute bottom-4 right-4 flex flex-col gap-2">
         <Button onClick={onOptimizeRoute} className="bg-primary">

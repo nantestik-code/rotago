@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/Header';
 import FileImport from '@/components/FileImport';
@@ -9,8 +8,8 @@ import { DeliveryItem, getStatusCounts } from '@/utils/deliveryUtils';
 import { exportToCSV } from '@/utils/fileUtils';
 import { MapPosition, getCurrentPosition, watchPosition, stopWatchingPosition, geocodeAddresses, optimizeRoute } from '@/utils/mapUtils';
 import { Button } from '@/components/ui/button';
-import { toast } from '@/components/ui/use-toast';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -60,9 +59,9 @@ const Index = () => {
     setGeocodeProgress(0);
     
     try {
+      // Fix: Remove the third argument (GOOGLE_MAPS_API_KEY) as it's not needed anymore
       const geocodedDeliveries = await geocodeAddresses(
         importedDeliveries,
-        GOOGLE_MAPS_API_KEY,
         (progress) => setGeocodeProgress(progress)
       );
       
@@ -214,10 +213,10 @@ const Index = () => {
     setProcessingOptimization(true);
     
     try {
+      // Fix: Remove the third argument (GOOGLE_MAPS_API_KEY) as it's not needed anymore
       const optimizedDeliveries = await optimizeRoute(
         currentLocation,
-        deliveries,
-        GOOGLE_MAPS_API_KEY
+        deliveries
       );
       
       setDeliveries(optimizedDeliveries);
