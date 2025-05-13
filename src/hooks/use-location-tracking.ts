@@ -1,8 +1,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
-import { MapPosition, getCurrentPosition, watchPosition, stopWatchingPosition } from '@/utils/mapUtils';
+import { MapPosition, getCurrentPosition, watchPosition, stopWatchingPosition, calculateDistance } from '@/utils/mapUtils';
 import { toast } from '@/components/ui/use-toast';
-import { calculateDistance } from '@/utils/deliveryUtils';
 import { DeliveryItem } from '@/utils/deliveryUtils';
 
 export function useLocationTracking(
@@ -46,8 +45,8 @@ export function useLocationTracking(
             const distance = calculateDistance(
               position.lat, 
               position.lng, 
-              delivery.lat!, 
-              delivery.lng!
+              delivery.lat, 
+              delivery.lng
             );
             
             // Notify when within 100 meters of a delivery

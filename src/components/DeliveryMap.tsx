@@ -4,7 +4,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Button } from '@/components/ui/button';
 import { DeliveryItem } from '@/utils/deliveryUtils';
-import { MapPosition, defaultMapCenter, initMapbox, getMapboxToken, setMapboxToken } from '@/utils/mapUtils';
+import { MapPosition, defaultMapCenter, initMapbox, getMapboxToken, setMapboxToken, calculateDistance } from '@/utils/mapUtils';
 import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { Navigation, MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
