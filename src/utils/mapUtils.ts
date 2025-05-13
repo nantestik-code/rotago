@@ -13,8 +13,8 @@ export const defaultMapCenter = {
   lng: -54.6201,
 }; 
 
-// Default Mapbox public token - replace with your own in the UI
-let mapboxToken = 'pk.eyJ1IjoiZGVtby1hY2NvdW50IiwiYSI6ImNsbTUzNmh1bzBkYmwzY3FwbXpkeGsxcWUifQ.QJC4is2GrXvWYws7OsLb4g';
+// Using the provided Mapbox token
+let mapboxToken = 'pk.eyJ1Ijoidml0b3JuYW50ZXMiLCJhIjoiY21hbGZuYjB2MDh2MjJtcTA2bXNxc3NyayJ9.W5yJUirvUawrinZcF6PHCw';
 
 export const setMapboxToken = (token: string) => {
   mapboxToken = token;
