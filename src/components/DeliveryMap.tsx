@@ -139,55 +139,6 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     window.location.reload();
   };
 
-  // Calculate marker positions with a grid layout approach
-  const calculateMarkerPositions = (deliveries: DeliveryItem[]) => {
-    // Group deliveries by location
-    const locationGroups: { [key: string]: DeliveryItem[] } = {};
-    
-    deliveries.forEach(delivery => {
-      if (!delivery.lat || !delivery.lng) return;
-      
-      // Create a key for the location, rounded to 5 decimal places for grouping nearby points
-      const locKey = `${delivery.lat.toFixed(5)},${delivery.lng.toFixed(5)}`;
-      
-      if (!locationGroups[locKey]) {
-        locationGroups[locKey] = [];
-      }
-      locationGroups[locKey].push(delivery);
-    });
-    
-    // For each location group, calculate offset positions
-    const result: { [id: string]: { offsetX: number; offsetY: number } } = {};
-    
-    Object.values(locationGroups).forEach(group => {
-      if (group.length <= 1) {
-        // No offset needed for single markers
-        group.forEach(delivery => {
-          result[delivery.id] = { offsetX: 0, offsetY: 0 };
-        });
-      } else {
-        // Calculate grid layout using a circular pattern for better organization
-        const count = group.length;
-        const radius = Math.min(20 * Math.sqrt(count), 80); // Limit max radius
-        
-        group.forEach((delivery, index) => {
-          if (index === 0) {
-            // First delivery stays in center
-            result[delivery.id] = { offsetX: 0, offsetY: 0 };
-          } else {
-            // Place others in a circle around the center
-            const angle = (index - 1) * (2 * Math.PI / (count - 1));
-            const offsetX = Math.cos(angle) * radius;
-            const offsetY = Math.sin(angle) * radius;
-            result[delivery.id] = { offsetX, offsetY };
-          }
-        });
-      }
-    });
-    
-    return result;
-  };
-
   // Update markers when deliveries or selected delivery changes
   useEffect(() => {
     if (!mapLoaded || !mapboxMapRef.current) return;
@@ -195,9 +146,6 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     // Clear existing markers
     Object.values(markersRef.current).forEach(marker => marker.remove());
     markersRef.current = {};
-    
-    // Calculate marker positions
-    const markerPositions = calculateMarkerPositions(deliveries);
     
     // Add markers for all deliveries - sorted for sequential numbering
     const sortedDeliveries = [...deliveries].sort((a, b) => {
@@ -214,76 +162,145 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       return 0;
     });
     
+    // Criar um mapa para rastrear quais endereços já possuem marcadores
+    // para evitar múltiplos marcadores no mesmo lugar
+    const addressMarkers: Record<string, {
+      marker: mapboxgl.Marker,
+      miniMarker: mapboxgl.Marker | null,
+      deliveryIds: string[],
+      orderIndices: number[]
+    }> = {};
+    
     sortedDeliveries.forEach((delivery, index) => {
       if (!delivery.lat || !delivery.lng) return;
       
-      // Create marker element
-      const markerEl = document.createElement('div');
+      const addressKey = `${delivery.lat.toFixed(7)},${delivery.lng.toFixed(7)}`;
       
-      // Check if this address has multiple deliveries
-      const key = `${delivery.endereco},${delivery.cidade}`.toLowerCase();
-      const hasMultiple = addressGroups.some(g => g.address === key);
-      const multipleItems = addressGroups.find(g => g.address === key)?.items || [];
-      const multipleOrderNumbers = multipleItems.map((_, i) => index + i + 1).join(', ');
-      
-      // Set marker styles based on status and selection
-      if (delivery.status === 'pendente') {
-        markerEl.className = 'marker-pending';
-      } else if (delivery.status === 'entregue') {
-        markerEl.className = 'marker-delivered';
+      // Verificar se já existe um marcador para este endereço
+      if (addressMarkers[addressKey]) {
+        // Adicionar este ID de entrega ao marcador existente
+        addressMarkers[addressKey].deliveryIds.push(delivery.id);
+        addressMarkers[addressKey].orderIndices.push(index + 1);
       } else {
-        markerEl.className = 'marker-occurrence';
+        // Create marker element
+        const markerEl = document.createElement('div');
+        
+        // Check if this address has multiple deliveries
+        const locationKey = `${delivery.endereco},${delivery.cidade}`.toLowerCase();
+        const hasMultiple = addressGroups.some(g => g.address === locationKey);
+        
+        // Set marker styles based on status and selection
+        if (delivery.status === 'pendente') {
+          markerEl.className = 'marker-pending';
+        } else if (delivery.status === 'entregue') {
+          markerEl.className = 'marker-delivered';
+        } else {
+          markerEl.className = 'marker-occurrence';
+        }
+        
+        if (hasMultiple) {
+          markerEl.classList.add('marker-multiple');
+        }
+        
+        if (delivery.id === selectedDeliveryId) {
+          markerEl.classList.add('marker-selected');
+        }
+        
+        // Add delivery number inside the marker
+        const spanEl = document.createElement('span');
+        spanEl.textContent = `${index + 1}`;
+        markerEl.appendChild(spanEl);
+        
+        // Create marker
+        const marker = new mapboxgl.Marker({
+          element: markerEl,
+          anchor: 'center'
+        })
+          .setLngLat([delivery.lng, delivery.lat])
+          .addTo(mapboxMapRef.current);
+          
+        markersRef.current[delivery.id] = marker;
+        
+        // Criar marcador no mini mapa
+        let miniMarker = null;
+        if (miniMapRef.current) {
+          const miniMarkerEl = document.createElement('div');
+          miniMarkerEl.className = delivery.status === 'pendente' ? 
+            'mini-marker-pending' : 'mini-marker-delivered';
+          
+          miniMarker = new mapboxgl.Marker({
+            element: miniMarkerEl,
+            anchor: 'center',
+          })
+            .setLngLat([delivery.lng, delivery.lat])
+            .addTo(miniMapRef.current);
+        }
+        
+        // Adicionar ao mapa de endereços
+        addressMarkers[addressKey] = {
+          marker,
+          miniMarker,
+          deliveryIds: [delivery.id],
+          orderIndices: [index + 1]
+        };
       }
+    });
+    
+    // Adicionar popups a cada marcador
+    Object.entries(addressMarkers).forEach(([addressKey, markerInfo]) => {
+      const { marker, deliveryIds, orderIndices } = markerInfo;
+      const firstDelivery = deliveries.find(d => d.id === deliveryIds[0]);
+      if (!firstDelivery) return;
       
-      if (hasMultiple) {
-        markerEl.classList.add('marker-multiple');
-      }
+      const ordersText = orderIndices.sort((a, b) => a - b).join(', ');
       
-      if (delivery.id === selectedDeliveryId) {
-        markerEl.classList.add('marker-selected');
-      }
+      // Determinar o status do marcador (se houver múltiplos, mostrar o mais crítico)
+      const hasOcorrencia = deliveryIds.some(id => 
+        deliveries.find(d => d.id === id)?.status === 'ocorrencia'
+      );
+      const hasPendente = deliveryIds.some(id => 
+        deliveries.find(d => d.id === id)?.status === 'pendente'
+      );
       
-      // Add delivery number inside the marker
-      const spanEl = document.createElement('span');
-      spanEl.textContent = `${index + 1}`;
-      markerEl.appendChild(spanEl);
+      let statusClass = 'status-entregue';
+      if (hasOcorrencia) statusClass = 'status-ocorrencia';
+      else if (hasPendente) statusClass = 'status-pendente';
       
-      // Create marker without offset - place directly on the address coordinates
-      const marker = new mapboxgl.Marker({
-        element: markerEl,
-        anchor: 'center'
-      })
-        .setLngLat([delivery.lng, delivery.lat])
-        .addTo(mapboxMapRef.current);
-      
-      // Add popup with delivery info and navigation button
+      // Criar popup
       const popup = new mapboxgl.Popup({ 
         offset: 25, 
         closeButton: false,
         className: 'delivery-popup'
       })
-        .setHTML(`
-          <div class="popup-content">
-            <h3 class="font-medium">Ordem ${index + 1}</h3>
-            <p class="text-sm">${delivery.endereco}</p>
-            ${hasMultiple ? `<p class="text-xs font-medium">Ordens: ${multipleOrderNumbers}</p>` : ''}
-            <div class="flex items-center gap-1 my-1">
-              <span class="status-badge status-${delivery.status}">${delivery.status.toUpperCase()}</span>
-              ${hasMultiple ? '<span class="status-badge status-multiple">MÚLTIPLAS</span>' : ''}
-            </div>
-            <button class="nav-button" 
-              data-lat="${delivery.lat}" data-lng="${delivery.lng}">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
-              Navegar
-            </button>
+      .setHTML(`
+        <div class="popup-content">
+          <h3 class="font-medium">${deliveryIds.length > 1 ? 'Ordens ' + ordersText : 'Ordem ' + ordersText}</h3>
+          <p class="text-sm">${firstDelivery.endereco}</p>
+          <p class="text-xs">${firstDelivery.cidade}, ${firstDelivery.estado}</p>
+          <div class="flex items-center gap-1 my-1">
+            <span class="status-badge ${statusClass}">
+              ${hasOcorrencia ? 'OCORRÊNCIA' : hasPendente ? 'PENDENTE' : 'ENTREGUE'}
+            </span>
+            ${deliveryIds.length > 1 ? '<span class="status-badge status-multiple">MÚLTIPLAS</span>' : ''}
           </div>
-        `);
-      
+          <button class="nav-button" 
+            data-lat="${firstDelivery.lat}" data-lng="${firstDelivery.lng}">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+            Navegar
+          </button>
+        </div>
+      `);
+    
       marker.setPopup(popup);
       
       // Add click listener to marker
-      markerEl.addEventListener('click', () => {
-        onSelectDelivery(delivery.id);
+      marker.getElement().addEventListener('click', () => {
+        // Se houver múltiplas entregas no mesmo local, selecionar a primeira pendente
+        const deliveryToSelect = deliveryIds.length > 1 
+          ? deliveryIds.find(id => deliveries.find(d => d.id === id)?.status === 'pendente') || deliveryIds[0]
+          : deliveryIds[0];
+        
+        onSelectDelivery(deliveryToSelect);
       });
       
       // Add click listener to navigation button when popup is open
@@ -305,22 +322,6 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           }
         }, 10);
       });
-      
-      markersRef.current[delivery.id] = marker;
-      
-      // Also add to mini map if it exists
-      if (miniMapRef.current) {
-        const miniMarkerEl = document.createElement('div');
-        miniMarkerEl.className = delivery.status === 'pendente' ? 
-          'mini-marker-pending' : 'mini-marker-delivered';
-        
-        new mapboxgl.Marker({
-          element: miniMarkerEl,
-          anchor: 'center',
-        })
-          .setLngLat([delivery.lng, delivery.lat])
-          .addTo(miniMapRef.current);
-      }
     });
   }, [deliveries, selectedDeliveryId, mapLoaded, onSelectDelivery, addressGroups, currentLocation]);
 
