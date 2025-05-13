@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/Header';
 import FileImport from '@/components/FileImport';
@@ -26,7 +25,6 @@ const Index = () => {
   const [processingGeocode, setProcessingGeocode] = useState(false);
   const [geocodeProgress, setGeocodeProgress] = useState(0);
   const [processingOptimization, setProcessingOptimization] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<'map' | 'list'>(isMobile ? 'map' : 'list');
   const [showListOverlay, setShowListOverlay] = useState(false);
 
   // Initialize location
@@ -329,8 +327,8 @@ const Index = () => {
 
             {isMobile ? (
               <>
-                {/* Full-height map for mobile */}
-                <div className="relative h-[calc(100vh-230px)]">
+                {/* Fixed position map that fills the screen for mobile */}
+                <div className="fixed inset-0 pt-[170px] pb-4 px-4 z-10 bg-white">
                   <DeliveryMap
                     deliveries={deliveries}
                     selectedDeliveryId={selectedDeliveryId}
@@ -354,7 +352,7 @@ const Index = () => {
                   
                   {/* List overlay */}
                   {showListOverlay && (
-                    <div className="fixed inset-0 z-50 bg-white/95 backdrop-blur-sm overflow-y-auto p-4">
+                    <div className="fixed inset-0 z-50 bg-white overflow-y-auto p-4">
                       <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-semibold">Lista de Entregas</h3>
                         <Button variant="ghost" size="icon" onClick={toggleListOverlay}>

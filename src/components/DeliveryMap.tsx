@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -7,7 +6,6 @@ import { DeliveryItem } from '@/utils/deliveryUtils';
 import { MapPosition, defaultMapCenter, initMapbox, getMapboxToken, setMapboxToken } from '@/utils/mapUtils';
 import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
-import { getStatusColor } from '@/utils/deliveryUtils';
 import { Navigation, MapPin } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -141,6 +139,55 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     window.location.reload();
   };
 
+  // Calculate marker positions with a grid layout approach
+  const calculateMarkerPositions = (deliveries: DeliveryItem[]) => {
+    // Group deliveries by location
+    const locationGroups: { [key: string]: DeliveryItem[] } = {};
+    
+    deliveries.forEach(delivery => {
+      if (!delivery.lat || !delivery.lng) return;
+      
+      // Create a key for the location, rounded to 5 decimal places for grouping nearby points
+      const locKey = `${delivery.lat.toFixed(5)},${delivery.lng.toFixed(5)}`;
+      
+      if (!locationGroups[locKey]) {
+        locationGroups[locKey] = [];
+      }
+      locationGroups[locKey].push(delivery);
+    });
+    
+    // For each location group, calculate offset positions
+    const result: { [id: string]: { offsetX: number; offsetY: number } } = {};
+    
+    Object.values(locationGroups).forEach(group => {
+      if (group.length <= 1) {
+        // No offset needed for single markers
+        group.forEach(delivery => {
+          result[delivery.id] = { offsetX: 0, offsetY: 0 };
+        });
+      } else {
+        // Calculate grid layout
+        const sqrt = Math.ceil(Math.sqrt(group.length));
+        const gridSize = sqrt;
+        const offsetBase = 30; // pixels between markers
+        
+        group.forEach((delivery, index) => {
+          // Calculate position in grid
+          const row = Math.floor(index / gridSize);
+          const col = index % gridSize;
+          
+          // Calculate offset from center
+          const offsetX = (col - (gridSize - 1) / 2) * offsetBase;
+          const offsetY = (row - (gridSize - 1) / 2) * offsetBase;
+          
+          result[delivery.id] = { offsetX, offsetY };
+        });
+      }
+    });
+    
+    return result;
+  };
+
   // Update markers when deliveries or selected delivery changes
   useEffect(() => {
     if (!mapLoaded || !mapboxMapRef.current) return;
@@ -148,6 +195,9 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     // Clear existing markers
     Object.values(markersRef.current).forEach(marker => marker.remove());
     markersRef.current = {};
+    
+    // Calculate marker positions
+    const markerPositions = calculateMarkerPositions(deliveries);
     
     // Add markers for all deliveries
     deliveries.forEach((delivery, index) => {
@@ -182,10 +232,14 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       spanEl.textContent = `${index + 1}`;
       markerEl.appendChild(spanEl);
       
-      // Create marker
+      // Get offset for this marker
+      const offset = markerPositions[delivery.id] || { offsetX: 0, offsetY: 0 };
+      
+      // Create marker with offset
       const marker = new mapboxgl.Marker({
         element: markerEl,
         anchor: 'center',
+        offset: [offset.offsetX, offset.offsetY]
       })
         .setLngLat([delivery.lng, delivery.lat])
         .addTo(mapboxMapRef.current);
@@ -418,19 +472,20 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         {`
         /* Modern marker styles */
         .marker-pending, .marker-delivered, .marker-occurrence {
-          width: 30px;
-          height: 30px;
+          width: 32px;
+          height: 32px;
           display: flex;
           align-items: center;
           justify-content: center;
-          border-radius: 6px;
+          border-radius: 4px;
           cursor: pointer;
-          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
           transition: all 0.2s ease;
           border: 2px solid;
           font-weight: 600;
           color: white;
           position: relative;
+          z-index: 1;
         }
         
         .marker-pending {
@@ -452,16 +507,16 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         
         .marker-multiple {
           border-color: #F97316;
-          border-width: 3px;
+          border-width: 2px;
         }
         
         .marker-multiple::after {
           content: "";
           position: absolute;
-          top: -6px;
-          right: -6px;
-          width: 12px;
-          height: 12px;
+          top: -4px;
+          right: -4px;
+          width: 10px;
+          height: 10px;
           border-radius: 50%;
           background-color: #F97316;
           border: 2px solid white;
