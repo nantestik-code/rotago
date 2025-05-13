@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/Header';
 import FileImport from '@/components/FileImport';
@@ -12,9 +13,7 @@ import { toast } from '@/hooks/use-toast';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
 import { useIsMobile } from '@/hooks/use-mobile';
-
-// Google Maps API Key
-const GOOGLE_MAPS_API_KEY = 'AIzaSyCmRW2hP97SCWoflXWc8V1nrxpgclFEWZs';
+import { MapPin, List } from 'lucide-react';
 
 const Index = () => {
   const { toast } = useToast();
@@ -59,7 +58,6 @@ const Index = () => {
     setGeocodeProgress(0);
     
     try {
-      // Fix: Remove the third argument (GOOGLE_MAPS_API_KEY) as it's not needed anymore
       const geocodedDeliveries = await geocodeAddresses(
         importedDeliveries,
         (progress) => setGeocodeProgress(progress)
@@ -77,6 +75,11 @@ const Index = () => {
         title: 'Endereços processados',
         description: `${geocodedDeliveries.length} endereços foram geocodificados com sucesso.`,
       });
+
+      // On mobile, automatically set to map view after import
+      if (isMobile) {
+        setSelectedTab('map');
+      }
     } catch (error) {
       toast({
         title: 'Erro de geocodificação',
@@ -94,7 +97,7 @@ const Index = () => {
         setGeocodeProgress(0);
       }, 1000);
     }
-  }, []);
+  }, [isMobile]);
 
   // Handle status change
   const handleStatusChange = useCallback((id: string, status: 'pendente' | 'entregue' | 'ocorrencia') => {
@@ -213,7 +216,6 @@ const Index = () => {
     setProcessingOptimization(true);
     
     try {
-      // Fix: Remove the third argument (GOOGLE_MAPS_API_KEY) as it's not needed anymore
       const optimizedDeliveries = await optimizeRoute(
         currentLocation,
         deliveries
@@ -323,25 +325,9 @@ const Index = () => {
 
             {isMobile ? (
               <>
-                <div className="flex mb-4 border-b">
-                  <Button
-                    variant="ghost"
-                    className={`flex-1 ${selectedTab === 'map' ? 'border-b-2 border-primary' : ''}`}
-                    onClick={() => setSelectedTab('map')}
-                  >
-                    Mapa
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className={`flex-1 ${selectedTab === 'list' ? 'border-b-2 border-primary' : ''}`}
-                    onClick={() => setSelectedTab('list')}
-                  >
-                    Entregas
-                  </Button>
-                </div>
-
-                <div className="h-[calc(100vh-270px)]">
-                  {selectedTab === 'map' ? (
+                <div className="relative">
+                  {/* Map always at the top in mobile */}
+                  <div className={`h-[calc(100vh-270px)] mb-2 ${selectedTab === 'map' ? 'block' : 'hidden'}`}>
                     <DeliveryMap
                       deliveries={deliveries}
                       selectedDeliveryId={selectedDeliveryId}
@@ -352,14 +338,37 @@ const Index = () => {
                       onStopTracking={stopTracking}
                       onOptimizeRoute={handleOptimizeRoute}
                     />
-                  ) : (
+                  </div>
+                  
+                  {/* List below if selected */}
+                  <div className={`h-[calc(100vh-270px)] ${selectedTab === 'list' ? 'block' : 'hidden'}`}>
                     <DeliveryList
                       deliveries={deliveries}
                       onStatusChange={handleStatusChange}
                       onSelectDelivery={setSelectedDeliveryId}
                       selectedDeliveryId={selectedDeliveryId}
                     />
-                  )}
+                  </div>
+                  
+                  {/* Buttons to switch between views */}
+                  <div className="absolute bottom-4 left-4 flex gap-2">
+                    <Button
+                      variant={selectedTab === 'map' ? "default" : "outline"} 
+                      onClick={() => setSelectedTab('map')}
+                      className="flex items-center gap-1"
+                    >
+                      <MapPin size={16} />
+                      Mapa
+                    </Button>
+                    <Button
+                      variant={selectedTab === 'list' ? "default" : "outline"}
+                      onClick={() => setSelectedTab('list')}
+                      className="flex items-center gap-1"
+                    >
+                      <List size={16} />
+                      Lista
+                    </Button>
+                  </div>
                 </div>
               </>
             ) : (

@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Button } from '@/components/ui/button';
@@ -7,6 +8,8 @@ import { MapPosition, defaultMapCenter, initMapbox, getMapboxToken, setMapboxTok
 import { toast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { getStatusColor } from '@/utils/deliveryUtils';
+import { Navigation, MapPin } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface DeliveryMapProps {
   deliveries: DeliveryItem[];
@@ -34,10 +37,43 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
   const markersRef = useRef<{[key: string]: mapboxgl.Marker}>({});
   const currentLocationMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const miniMapRef = useRef<mapboxgl.Map | null>(null);
+  const isMobile = useIsMobile();
   
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapboxTokenInput, setMapboxTokenInput] = useState(getMapboxToken());
   const [showTokenInput, setShowTokenInput] = useState(!getMapboxToken() || getMapboxToken() === 'pk.eyJ1IjoiZGVtby1hY2NvdW50IiwiYSI6ImNsbTUzNmh1bzBkYmwzY3FwbXpkeGsxcWUifQ.QJC4is2GrXvWYws7OsLb4g');
+
+  // Group deliveries by address to check for duplicates
+  const addressGroups = useMemo(() => {
+    const groups: Record<string, DeliveryItem[]> = {};
+    
+    deliveries.forEach(delivery => {
+      const key = `${delivery.endereco},${delivery.cidade}`.toLowerCase();
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(delivery);
+    });
+    
+    return Object.entries(groups)
+      .filter(([_, items]) => items.length > 1 && items.some(item => item.status === 'pendente'))
+      .map(([address, items]) => ({
+        address,
+        count: items.length,
+        items
+      }));
+  }, [deliveries]);
+
+  // Show alerts for multiple deliveries at the same address
+  useEffect(() => {
+    if (addressGroups.length > 0 && mapLoaded) {
+      addressGroups.forEach(group => {
+        toast({
+          title: `${group.count} entregas no mesmo endereço`,
+          description: `${group.items[0].endereco} tem múltiplas entregas pendentes`,
+          duration: 5000,
+        });
+      });
+    }
+  }, [addressGroups, mapLoaded]);
 
   // Initialize map
   useEffect(() => {
@@ -119,12 +155,23 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       
       // Create marker element
       const markerEl = document.createElement('div');
-      markerEl.className = 'delivery-marker';
-      markerEl.innerHTML = `
-        <div class="marker-circle ${getStatusColor(delivery.status).replace('bg-', '')}">
-          <span>${index + 1}</span>
-        </div>
-      `;
+      
+      // Check if this address has multiple deliveries
+      const key = `${delivery.endereco},${delivery.cidade}`.toLowerCase();
+      const hasMultiple = addressGroups.some(g => g.address === key);
+      
+      // Set the appropriate marker style based on status
+      if (delivery.status === 'pendente') {
+        markerEl.className = 'delivery-marker-square-dark';
+        if (hasMultiple) {
+          markerEl.classList.add('multiple-deliveries');
+        }
+      } else {
+        markerEl.className = 'delivery-marker-square-light';
+      }
+      
+      // Add delivery number inside the marker
+      markerEl.innerHTML = `<span>${index + 1}</span>`;
       
       // Add selected styling
       if (delivery.id === selectedDeliveryId) {
@@ -139,21 +186,44 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         .setLngLat([delivery.lng, delivery.lat])
         .addTo(mapboxMapRef.current);
       
-      // Add popup with delivery info
+      // Add popup with delivery info and navigation button
       const popup = new mapboxgl.Popup({ offset: 25, closeButton: false })
         .setHTML(`
           <div>
             <strong>${delivery.cliente}</strong><br>
             ${delivery.endereco}<br>
             <span class="${getStatusColor(delivery.status)} text-white text-xs px-2 py-1 rounded-full">${delivery.status.toUpperCase()}</span>
+            ${hasMultiple ? '<br><span class="text-orange-500 font-bold">Múltiplas entregas neste endereço!</span>' : ''}
+            <button class="open-navigation-btn mt-2 bg-blue-500 text-white px-2 py-1 rounded text-xs" 
+              data-lat="${delivery.lat}" data-lng="${delivery.lng}">
+              Navegar com GPS
+            </button>
           </div>
         `);
       
       marker.setPopup(popup);
       
-      // Add click listener
+      // Add click listener to marker
       markerEl.addEventListener('click', () => {
         onSelectDelivery(delivery.id);
+      });
+      
+      // Add click listener to navigation button when popup is open
+      marker.getPopup().on('open', () => {
+        const navBtn = document.querySelector('.open-navigation-btn');
+        if (navBtn) {
+          navBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            
+            const lat = (e.target as HTMLElement).getAttribute('data-lat');
+            const lng = (e.target as HTMLElement).getAttribute('data-lng');
+            
+            if (lat && lng) {
+              openExternalNavigation(parseFloat(lat), parseFloat(lng));
+            }
+          });
+        }
       });
       
       markersRef.current[delivery.id] = marker;
@@ -161,10 +231,8 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       // Also add to mini map if it exists
       if (miniMapRef.current) {
         const miniMarkerEl = document.createElement('div');
-        miniMarkerEl.className = 'mini-marker';
-        miniMarkerEl.style.backgroundColor = 
-          delivery.status === 'entregue' ? '#10B981' : 
-          delivery.status === 'ocorrencia' ? '#EF4444' : '#3B82F6';
+        miniMarkerEl.className = delivery.status === 'pendente' ? 
+          'mini-marker-square-dark' : 'mini-marker-square-light';
         
         new mapboxgl.Marker({
           element: miniMarkerEl,
@@ -174,7 +242,31 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           .addTo(miniMapRef.current);
       }
     });
-  }, [deliveries, selectedDeliveryId, mapLoaded, onSelectDelivery]);
+  }, [deliveries, selectedDeliveryId, mapLoaded, onSelectDelivery, addressGroups]);
+
+  // Open external navigation app
+  const openExternalNavigation = (lat: number, lng: number) => {
+    // Detect platform and open appropriate app
+    const userAgent = navigator.userAgent || navigator.vendor;
+    
+    // iOS
+    if (/iPad|iPhone|iPod/.test(userAgent)) {
+      window.open(`maps://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`, '_blank');
+    } 
+    // Android
+    else if (/android/i.test(userAgent)) {
+      window.open(`geo:0,0?q=${lat},${lng}`, '_blank');
+    } 
+    // Fallback to Google Maps web
+    else {
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+    }
+    
+    toast({
+      title: 'Abrindo navegação GPS',
+      description: 'Iniciando navegação para o endereço selecionado',
+    });
+  };
 
   // Update current location marker
   useEffect(() => {
@@ -313,42 +405,57 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     <div className="relative h-full">
       <div ref={mapRef} className="h-full w-full rounded-md"></div>
       
-      {/* Style for markers */}
       <style>
         {`
-        .delivery-marker {
+        .delivery-marker-square-dark, .delivery-marker-square-light {
           cursor: pointer;
-        }
-        
-        .marker-circle {
           width: 30px;
           height: 30px;
-          border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
-          color: white;
-          font-weight: bold;
-          border: 2px solid white;
           box-shadow: 0 0 10px rgba(0,0,0,0.3);
         }
         
-        .marker-selected .marker-circle {
-          width: 40px;
-          height: 40px;
+        .delivery-marker-square-dark {
+          background-color: #221F26;
+          color: white;
+          border: 2px solid #3B82F6;
+        }
+        
+        .delivery-marker-square-light {
+          background-color: #F1F1F1;
+          color: #333;
+          border: 2px solid #10B981;
+        }
+        
+        .multiple-deliveries {
+          border-color: #F97316;
+          border-width: 3px;
+        }
+        
+        .marker-selected {
+          width: 38px;
+          height: 38px;
           box-shadow: 0 0 15px rgba(0,0,0,0.5);
+          border-width: 3px;
+          border-color: #8B5CF6;
+          z-index: 2;
         }
         
-        .blue-500 {
-          background-color: #3B82F6;
+        .mini-marker-square-dark, .mini-marker-square-light {
+          width: 6px;
+          height: 6px;
         }
         
-        .green-500 {
-          background-color: #10B981;
+        .mini-marker-square-dark {
+          background-color: #221F26;
+          border: 1px solid #3B82F6;
         }
         
-        .red-500 {
-          background-color: #EF4444;
+        .mini-marker-square-light {
+          background-color: #F1F1F1;
+          border: 1px solid #10B981;
         }
         
         .location-marker {
@@ -401,37 +508,42 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           box-shadow: 0 0 10px rgba(0,0,0,0.3);
         }
         
-        .mini-marker {
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
+        .open-navigation-btn {
+          cursor: pointer;
+        }
+        
+        .open-navigation-btn:hover {
+          background-color: #2563EB;
         }
         `}
       </style>
       
       <div className="absolute bottom-4 right-4 flex flex-col gap-2">
-        <Button onClick={onOptimizeRoute} className="bg-primary">
+        <Button onClick={onOptimizeRoute} className="bg-primary flex items-center gap-1">
+          <Navigation size={16} />
           Otimizar Rota
         </Button>
         <Button
           onClick={isTrackingActive ? onStopTracking : onStartTracking}
           variant={isTrackingActive ? "destructive" : "default"}
+          className="flex items-center gap-1"
         >
+          <MapPin size={16} />
           {isTrackingActive ? 'Parar Rastreamento' : 'Iniciar Rastreamento'}
         </Button>
       </div>
       <div className="absolute top-4 right-4 bg-white shadow p-2 rounded text-sm">
         <div className="flex items-center mb-1">
-          <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
+          <div className="w-4 h-4 bg-[#221F26] border-2 border-blue-500 mr-2"></div>
           <span>Pendente</span>
         </div>
         <div className="flex items-center mb-1">
-          <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+          <div className="w-4 h-4 bg-[#F1F1F1] border-2 border-green-500 mr-2"></div>
           <span>Entregue</span>
         </div>
         <div className="flex items-center">
-          <div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
-          <span>Ocorrência</span>
+          <div className="w-4 h-4 bg-[#221F26] border-2 border-orange-500 mr-2"></div>
+          <span>Múltiplas Entregas</span>
         </div>
       </div>
     </div>
