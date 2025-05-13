@@ -1,4 +1,3 @@
-
 import { DeliveryItem } from './deliveryUtils';
 import mapboxgl from 'mapbox-gl';
 
@@ -115,37 +114,35 @@ export const geocodeAddresses = async (
   const updatedDeliveries = [...deliveries];
   let processed = 0;
 
-  // Para garantir que entregas no mesmo endereço recebam as mesmas coordenadas
+  // To ensure deliveries at the same address get exactly the same coordinates
   const addressCoordinates: Record<string, MapPosition> = {};
 
   for (const delivery of updatedDeliveries) {
-    // Criar uma chave única para o endereço completo
-    const addressKey = `${delivery.endereco}, ${delivery.cidade}, ${delivery.estado}, ${delivery.cep}`.toLowerCase();
+    // Create a unique key for the complete address
+    const addressKey = `${delivery.endereco}, ${delivery.cidade}, ${delivery.estado}, ${delivery.cep}`.toLowerCase().trim();
     
-    // Verificar se já temos as coordenadas para este endereço
+    // Check if we already have coordinates for this address
     if (addressCoordinates[addressKey]) {
       delivery.lat = addressCoordinates[addressKey].lat;
       delivery.lng = addressCoordinates[addressKey].lng;
     } 
-    // Senão, fazer a geocodificação e armazenar
+    // Otherwise, geocode it and store
     else if (!delivery.lat || !delivery.lng) {
       const fullAddress = `${delivery.endereco}, ${delivery.cidade}, ${delivery.estado}, ${delivery.cep}, Brasil`;
       const location = await geocodeAddress(fullAddress);
 
       if (location) {
-        // Adicionar um pequeno deslocamento aleatório para entregas no mesmo endereço
-        // mas ainda manter a posição geográfica correta
         delivery.lat = location.lat;
         delivery.lng = location.lng;
         
-        // Salvar as coordenadas para uso em outras entregas no mesmo endereço
+        // Save the coordinates for use with other deliveries at the same address
         addressCoordinates[addressKey] = {
           lat: location.lat,
           lng: location.lng
         };
       }
       
-      // Esperar um pouco para não sobrecarregar a API do Mapbox
+      // Wait a bit to avoid overloading the Mapbox API
       await new Promise(resolve => setTimeout(resolve, 200));
     }
 
@@ -168,36 +165,33 @@ export const optimizeRoute = async (
   }
 
   try {
-    // Tentamos usar a Directions API do Mapbox para otimização
-    // mas para rotas complexas, precisamos de uma abordagem mais simples
-    
-    // Agrupamos entregas por endereço
-    const addressGroups: { [key: string]: DeliveryItem[] } = {};
+    // Group deliveries by exact coordinates
+    const coordinateGroups: { [key: string]: DeliveryItem[] } = {};
     
     pendingDeliveries.forEach(delivery => {
       if (!delivery.lat || !delivery.lng) return;
       
-      const addressKey = `${delivery.endereco}, ${delivery.cidade}`.toLowerCase();
-      if (!addressGroups[addressKey]) {
-        addressGroups[addressKey] = [];
+      const coordKey = `${delivery.lat.toFixed(6)},${delivery.lng.toFixed(6)}`;
+      if (!coordinateGroups[coordKey]) {
+        coordinateGroups[coordKey] = [];
       }
-      addressGroups[addressKey].push(delivery);
+      coordinateGroups[coordKey].push(delivery);
     });
     
-    // Coletamos endereços únicos (apenas um item por endereço)
-    const uniqueAddresses = Object.values(addressGroups).map(group => group[0]);
+    // Collect unique coordinate points (only one item per coordinate)
+    const uniqueCoordinates = Object.values(coordinateGroups).map(group => group[0]);
     
-    // Ordenamos por distância da origem usando o algoritmo do vizinho mais próximo
-    const sortedAddresses: DeliveryItem[] = [];
-    let remainingAddresses = [...uniqueAddresses];
+    // Sort by distance from origin using nearest neighbor algorithm
+    const sortedCoordinates: DeliveryItem[] = [];
+    let remainingCoordinates = [...uniqueCoordinates];
     let currentPoint = origin;
     
-    while (remainingAddresses.length > 0) {
-      // Encontra o ponto mais próximo do ponto atual
+    while (remainingCoordinates.length > 0) {
+      // Find the closest point to the current point
       let closestIdx = 0;
       let minDistance = Number.MAX_VALUE;
       
-      remainingAddresses.forEach((address, idx) => {
+      remainingCoordinates.forEach((address, idx) => {
         if (!address.lat || !address.lng) return;
         
         const distance = calculateDistance(
@@ -213,33 +207,33 @@ export const optimizeRoute = async (
         }
       });
       
-      // Adiciona o ponto mais próximo à rota
-      const closestAddress = remainingAddresses[closestIdx];
-      sortedAddresses.push(closestAddress);
+      // Add the closest point to the route
+      const closestAddress = remainingCoordinates[closestIdx];
+      sortedCoordinates.push(closestAddress);
       
-      // Atualiza o ponto atual
+      // Update the current point
       currentPoint = {
         lat: closestAddress.lat!,
         lng: closestAddress.lng!
       };
       
-      // Remove o ponto da lista de pontos restantes
-      remainingAddresses.splice(closestIdx, 1);
+      // Remove the point from the list of remaining points
+      remainingCoordinates.splice(closestIdx, 1);
     }
     
-    // Agora expandimos a lista de endereços únicos de volta para todas as entregas
+    // Now expand the list of unique coordinates back to all deliveries
     const optimizedDeliveries: DeliveryItem[] = [];
     
-    // Primeiro, adicionamos todas as entregas pendentes na ordem otimizada
-    sortedAddresses.forEach(uniqueAddress => {
-      const addressKey = `${uniqueAddress.endereco}, ${uniqueAddress.cidade}`.toLowerCase();
-      const group = addressGroups[addressKey] || [];
+    // First, add all pending deliveries in the optimized order
+    sortedCoordinates.forEach(uniqueAddress => {
+      const coordKey = `${uniqueAddress.lat!.toFixed(6)},${uniqueAddress.lng!.toFixed(6)}`;
+      const group = coordinateGroups[coordKey] || [];
       
-      // Adicionamos todas as entregas deste endereço
+      // Add all deliveries at this coordinate
       optimizedDeliveries.push(...group);
     });
     
-    // Adicionamos outras entregas que não estão pendentes
+    // Add other deliveries that aren't pending
     const nonPendingDeliveries = destinations.filter(d => d.status !== 'pendente');
     optimizedDeliveries.push(...nonPendingDeliveries);
     

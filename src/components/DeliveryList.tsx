@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { DeliveryItem } from '@/utils/deliveryUtils';
@@ -22,17 +21,31 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
   const [filter, setFilter] = useState<'todos' | 'pendente' | 'entregue' | 'ocorrencia'>('todos');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Group deliveries by address
-  const addressGroups: Record<string, {items: DeliveryItem[], indices: number[]}> = {};
-  
-  deliveries.forEach((delivery, index) => {
-    const key = `${delivery.endereco},${delivery.cidade}`.toLowerCase();
-    if (!addressGroups[key]) {
-      addressGroups[key] = { items: [], indices: [] };
-    }
-    addressGroups[key].items.push(delivery);
-    addressGroups[key].indices.push(index + 1); // Adding 1 to match the marker numbering
-  });
+  // Group deliveries by exact coordinates for multiple delivery detection
+  const coordinateGroups = useMemo(() => {
+    const groups: Record<string, {items: DeliveryItem[], indices: number[]}> = {};
+    
+    deliveries.forEach((delivery, index) => {
+      if (!delivery.lat || !delivery.lng) return;
+      
+      // Use exact coordinates with 6 decimal places precision for grouping
+      const coordKey = `${delivery.lat.toFixed(6)},${delivery.lng.toFixed(6)}`;
+      
+      if (!groups[coordKey]) {
+        groups[coordKey] = { items: [], indices: [] };
+      }
+      groups[coordKey].items.push(delivery);
+      groups[coordKey].indices.push(index + 1); // Adding 1 to match the marker numbering
+    });
+    
+    // Only keep groups with multiple items
+    return Object.entries(groups)
+      .filter(([_, data]) => data.items.length > 1)
+      .reduce((acc, [key, data]) => {
+        acc[key] = data;
+        return acc;
+      }, {} as Record<string, {items: DeliveryItem[], indices: number[]}>);
+  }, [deliveries]);
   
   const filteredDeliveries = deliveries
     .filter(delivery => 
@@ -48,6 +61,20 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
         delivery.cidade.toLowerCase().includes(query)
       );
     });
+
+  // Function to check if a delivery has multiple deliveries at the same location
+  const hasMultipleDeliveries = (delivery: DeliveryItem): {isMultiple: boolean, indices: number[]} => {
+    if (!delivery.lat || !delivery.lng) return {isMultiple: false, indices: []};
+    
+    const coordKey = `${delivery.lat.toFixed(6)},${delivery.lng.toFixed(6)}`;
+    const group = coordinateGroups[coordKey];
+    
+    if (group && group.items.length > 1) {
+      return {isMultiple: true, indices: group.indices};
+    }
+    
+    return {isMultiple: false, indices: []};
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -101,21 +128,26 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
       <div className="flex-1 overflow-y-auto pr-1">
         {filteredDeliveries.length > 0 ? (
           filteredDeliveries.map((delivery, index) => {
-            const key = `${delivery.endereco},${delivery.cidade}`.toLowerCase();
-            const group = addressGroups[key];
-            
-            // Encontrar o índice real da entrega na lista completa de entregas
+            // Find the real index of the delivery in the complete delivery list
             const realIndex = deliveries.findIndex(d => d.id === delivery.id);
             const orderNumber = realIndex + 1;
             
-            // Se houver múltiplas entregas no mesmo endereço, mostrar o grupo
-            const isMultipleDelivery = group?.items.length > 1;
+            // Check if this delivery has multiple deliveries at the same location
+            const { isMultiple, indices } = hasMultipleDeliveries(delivery);
+            
+            // Only show the multiple deliveries banner for the first item in the group
+            const isFirstInGroup = isMultiple && 
+              indices.includes(orderNumber) && 
+              indices[0] === orderNumber;
             
             return (
-              <div key={delivery.id} className="relative">
-                {isMultipleDelivery && group?.items[0].id === delivery.id && (
+              <div key={delivery.id} className="mb-3 relative">
+                {isMultiple && (
                   <div className="text-xs font-semibold py-1 px-2 bg-orange-100 text-orange-800 rounded mb-1">
-                    Múltiplas entregas (Ordens: {group.indices.join(', ')})
+                    {isFirstInGroup ? 
+                      `Múltiplas entregas (Ordens: ${indices.join(', ')})` : 
+                      `Parte de múltiplas entregas (Ordens: ${indices.join(', ')})`
+                    }
                   </div>
                 )}
                 <DeliveryCard
