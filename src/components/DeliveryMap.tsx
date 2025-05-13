@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { DeliveryItem } from '@/utils/deliveryUtils';
@@ -186,12 +185,13 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           position,
           map: googleMapRef.current,
           icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            scale: 10,
-            fillColor: '#FFC107',
-            fillOpacity: 1,
-            strokeColor: '#FFA000',
-            strokeWeight: 2,
+            url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`
+              <svg xmlns="http://www.w3.org/svg" viewBox="0 0 24 24" width="24" height="24">
+                <circle cx="12" cy="12" r="10" fill="#FFC107" stroke="#FFA000" stroke-width="2"/>
+              </svg>
+            `),
+            scaledSize: new google.maps.Size(24, 24),
+            anchor: new google.maps.Point(12, 12)
           },
           title: 'Sua localização',
         });
