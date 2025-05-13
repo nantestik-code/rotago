@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -82,7 +81,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       }));
   }, [deliveries]);
 
-  // Show alerts for multiple deliveries at the same coordinates
+  // Show alerts for multiple deliveries
   useEffect(() => {
     if (addressGroups.length > 0 && mapLoaded) {
       addressGroups.forEach(group => {
