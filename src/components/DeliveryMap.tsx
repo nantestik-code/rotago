@@ -401,12 +401,34 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         deliveries.find(d => d.id === id)?.status === 'pendente'
       );
       
+      // Check if any delivery with this marker has just changed status
+      const hasStatusChanged = deliveryIds.some(id => 
+        deliveries.find(d => d.id === id)?.statusChanged === true
+      );
+      
+      // Get status for marker
+      const markerStatus = hasOcorrencia ? 'ocorrencia' : (hasPendente ? 'pendente' : 'entregue');
+      
       // Update main marker
       const markerEl = marker.getElement();
       markerEl.classList.remove('marker-occurrence', 'marker-pending', 'marker-delivered');
       
       if (hasOcorrencia) {
         markerEl.classList.add('marker-occurrence');
+        // Add animation class if status just changed
+        if (hasStatusChanged) {
+          markerEl.classList.remove('animate-marker-flash');
+          // Force reflow to restart animation
+          void markerEl.offsetWidth;
+          markerEl.classList.add('animate-marker-flash');
+          
+          // Remove animation class after it completes
+          setTimeout(() => {
+            if (markerEl) {
+              markerEl.classList.remove('animate-marker-flash');
+            }
+          }, 1500); // Animation duration + small buffer
+        }
       } else if (hasPendente) {
         markerEl.classList.add('marker-pending');
       } else {
@@ -420,6 +442,19 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         
         if (hasOcorrencia) {
           miniMarkerEl.classList.add('mini-marker-occurrence');
+          // Also animate the mini marker if status changed to occurrence
+          if (hasStatusChanged && markerStatus === 'ocorrencia') {
+            miniMarkerEl.classList.remove('animate-marker-flash');
+            // Force reflow to restart animation
+            void miniMarkerEl.offsetWidth;
+            miniMarkerEl.classList.add('animate-marker-flash');
+            
+            setTimeout(() => {
+              if (miniMarkerEl) {
+                miniMarkerEl.classList.remove('animate-marker-flash');
+              }
+            }, 1500);
+          }
         } else if (hasPendente) {
           miniMarkerEl.classList.add('mini-marker-pending');
         } else {

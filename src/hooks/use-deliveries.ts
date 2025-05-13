@@ -56,13 +56,26 @@ export function useDeliveries() {
     }
   }, []);
 
-  // Handle status change
+  // Handle status change with animation flag
   const handleStatusChange = useCallback((id: string, status: 'pendente' | 'entregue' | 'ocorrencia') => {
     setDeliveries(prev => 
       prev.map(delivery => 
-        delivery.id === id ? { ...delivery, status } : delivery
+        delivery.id === id ? { 
+          ...delivery, 
+          status,
+          statusChanged: true // Mark that status just changed to trigger animations
+        } : delivery
       )
     );
+    
+    // After a short delay, remove the statusChanged flag
+    setTimeout(() => {
+      setDeliveries(prev => 
+        prev.map(delivery => 
+          delivery.id === id ? { ...delivery, statusChanged: false } : delivery
+        )
+      );
+    }, 1500); // Duration of animation
     
     const statusMessages = {
       pendente: 'Entrega marcada como pendente',
