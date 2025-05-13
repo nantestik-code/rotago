@@ -9,14 +9,12 @@ import { DeliveryItem, getStatusCounts } from '@/utils/deliveryUtils';
 import { exportToCSV } from '@/utils/fileUtils';
 import { MapPosition, getCurrentPosition, watchPosition, stopWatchingPosition, geocodeAddresses, optimizeRoute } from '@/utils/mapUtils';
 import { Button } from '@/components/ui/button';
-import { toast } from '@/hooks/use-toast';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from '@/components/ui/use-toast';
 import { Progress } from '@/components/ui/progress';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { MapPin, List } from 'lucide-react';
+import { MapPin, List, X } from 'lucide-react';
 
 const Index = () => {
-  const { toast } = useToast();
   const isMobile = useIsMobile();
 
   const [deliveries, setDeliveries] = useState<DeliveryItem[]>([]);
@@ -29,6 +27,7 @@ const Index = () => {
   const [geocodeProgress, setGeocodeProgress] = useState(0);
   const [processingOptimization, setProcessingOptimization] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'map' | 'list'>(isMobile ? 'map' : 'list');
+  const [showListOverlay, setShowListOverlay] = useState(false);
 
   // Initialize location
   useEffect(() => {
@@ -286,6 +285,11 @@ const Index = () => {
   // Get status counts
   const statusCounts = getStatusCounts(deliveries);
 
+  // Toggle list overlay for mobile
+  const toggleListOverlay = () => {
+    setShowListOverlay(!showListOverlay);
+  };
+
   return (
     <div className="flex flex-col h-screen">
       <Header onNewRouteClick={handleNewRoute} onExportClick={handleExport} />
@@ -300,7 +304,7 @@ const Index = () => {
         {!showFileImport && (
           <>
             <div className="mb-4">
-              <h2 className="text-2xl font-semibold mb-4">Rota Otimizada</h2>
+              <h2 className="text-2xl font-semibold mb-2">Rota Otimizada</h2>
               <StatusCounter 
                 pendente={statusCounts.pendente} 
                 entregue={statusCounts.entregue} 
@@ -325,50 +329,49 @@ const Index = () => {
 
             {isMobile ? (
               <>
-                <div className="relative">
-                  {/* Map always at the top in mobile */}
-                  <div className={`h-[calc(100vh-270px)] mb-2 ${selectedTab === 'map' ? 'block' : 'hidden'}`}>
-                    <DeliveryMap
-                      deliveries={deliveries}
-                      selectedDeliveryId={selectedDeliveryId}
-                      onSelectDelivery={setSelectedDeliveryId}
-                      currentLocation={currentLocation}
-                      isTrackingActive={isTrackingActive}
-                      onStartTracking={startTracking}
-                      onStopTracking={stopTracking}
-                      onOptimizeRoute={handleOptimizeRoute}
-                    />
-                  </div>
+                {/* Full-height map for mobile */}
+                <div className="relative h-[calc(100vh-230px)]">
+                  <DeliveryMap
+                    deliveries={deliveries}
+                    selectedDeliveryId={selectedDeliveryId}
+                    onSelectDelivery={setSelectedDeliveryId}
+                    currentLocation={currentLocation}
+                    isTrackingActive={isTrackingActive}
+                    onStartTracking={startTracking}
+                    onStopTracking={stopTracking}
+                    onOptimizeRoute={handleOptimizeRoute}
+                  />
                   
-                  {/* List below if selected */}
-                  <div className={`h-[calc(100vh-270px)] ${selectedTab === 'list' ? 'block' : 'hidden'}`}>
-                    <DeliveryList
-                      deliveries={deliveries}
-                      onStatusChange={handleStatusChange}
-                      onSelectDelivery={setSelectedDeliveryId}
-                      selectedDeliveryId={selectedDeliveryId}
-                    />
-                  </div>
+                  {/* Floating Button to show list */}
+                  <Button
+                    onClick={toggleListOverlay}
+                    className="absolute bottom-4 left-4 z-10 shadow-lg flex items-center gap-2"
+                    variant="default"
+                  >
+                    <List size={18} />
+                    Ver Lista
+                  </Button>
                   
-                  {/* Buttons to switch between views */}
-                  <div className="absolute bottom-4 left-4 flex gap-2">
-                    <Button
-                      variant={selectedTab === 'map' ? "default" : "outline"} 
-                      onClick={() => setSelectedTab('map')}
-                      className="flex items-center gap-1"
-                    >
-                      <MapPin size={16} />
-                      Mapa
-                    </Button>
-                    <Button
-                      variant={selectedTab === 'list' ? "default" : "outline"}
-                      onClick={() => setSelectedTab('list')}
-                      className="flex items-center gap-1"
-                    >
-                      <List size={16} />
-                      Lista
-                    </Button>
-                  </div>
+                  {/* List overlay */}
+                  {showListOverlay && (
+                    <div className="fixed inset-0 z-50 bg-white/95 backdrop-blur-sm overflow-y-auto p-4">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold">Lista de Entregas</h3>
+                        <Button variant="ghost" size="icon" onClick={toggleListOverlay}>
+                          <X size={20} />
+                        </Button>
+                      </div>
+                      <DeliveryList
+                        deliveries={deliveries}
+                        onStatusChange={handleStatusChange}
+                        onSelectDelivery={(id) => {
+                          setSelectedDeliveryId(id);
+                          setShowListOverlay(false); // Close list and show map
+                        }}
+                        selectedDeliveryId={selectedDeliveryId}
+                      />
+                    </div>
+                  )}
                 </div>
               </>
             ) : (

@@ -5,7 +5,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { Button } from '@/components/ui/button';
 import { DeliveryItem } from '@/utils/deliveryUtils';
 import { MapPosition, defaultMapCenter, initMapbox, getMapboxToken, setMapboxToken } from '@/utils/mapUtils';
-import { toast } from '@/hooks/use-toast';
+import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { getStatusColor } from '@/utils/deliveryUtils';
 import { Navigation, MapPin } from 'lucide-react';
@@ -160,43 +160,54 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       const key = `${delivery.endereco},${delivery.cidade}`.toLowerCase();
       const hasMultiple = addressGroups.some(g => g.address === key);
       
-      // Set the appropriate marker style based on status
+      // Set marker styles based on status and selection
       if (delivery.status === 'pendente') {
-        markerEl.className = 'delivery-marker-square-dark';
-        if (hasMultiple) {
-          markerEl.classList.add('multiple-deliveries');
-        }
+        markerEl.className = 'marker-pending';
+      } else if (delivery.status === 'entregue') {
+        markerEl.className = 'marker-delivered';
       } else {
-        markerEl.className = 'delivery-marker-square-light';
+        markerEl.className = 'marker-occurrence';
       }
       
-      // Add delivery number inside the marker
-      markerEl.innerHTML = `<span>${index + 1}</span>`;
+      if (hasMultiple) {
+        markerEl.classList.add('marker-multiple');
+      }
       
-      // Add selected styling
       if (delivery.id === selectedDeliveryId) {
         markerEl.classList.add('marker-selected');
       }
       
+      // Add delivery number inside the marker
+      const spanEl = document.createElement('span');
+      spanEl.textContent = `${index + 1}`;
+      markerEl.appendChild(spanEl);
+      
       // Create marker
       const marker = new mapboxgl.Marker({
         element: markerEl,
-        anchor: 'bottom',
+        anchor: 'center',
       })
         .setLngLat([delivery.lng, delivery.lat])
         .addTo(mapboxMapRef.current);
       
       // Add popup with delivery info and navigation button
-      const popup = new mapboxgl.Popup({ offset: 25, closeButton: false })
+      const popup = new mapboxgl.Popup({ 
+        offset: 25, 
+        closeButton: false,
+        className: 'delivery-popup'
+      })
         .setHTML(`
-          <div>
-            <strong>${delivery.cliente}</strong><br>
-            ${delivery.endereco}<br>
-            <span class="${getStatusColor(delivery.status)} text-white text-xs px-2 py-1 rounded-full">${delivery.status.toUpperCase()}</span>
-            ${hasMultiple ? '<br><span class="text-orange-500 font-bold">Múltiplas entregas neste endereço!</span>' : ''}
-            <button class="open-navigation-btn mt-2 bg-blue-500 text-white px-2 py-1 rounded text-xs" 
+          <div class="popup-content">
+            <h3 class="font-medium">${delivery.cliente}</h3>
+            <p class="text-sm">${delivery.endereco}</p>
+            <div class="flex items-center gap-1 my-1">
+              <span class="status-badge status-${delivery.status}">${delivery.status.toUpperCase()}</span>
+              ${hasMultiple ? '<span class="status-badge status-multiple">MÚLTIPLAS</span>' : ''}
+            </div>
+            <button class="nav-button" 
               data-lat="${delivery.lat}" data-lng="${delivery.lng}">
-              Navegar com GPS
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+              Navegar
             </button>
           </div>
         `);
@@ -210,20 +221,22 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       
       // Add click listener to navigation button when popup is open
       marker.getPopup().on('open', () => {
-        const navBtn = document.querySelector('.open-navigation-btn');
-        if (navBtn) {
-          navBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            
-            const lat = (e.target as HTMLElement).getAttribute('data-lat');
-            const lng = (e.target as HTMLElement).getAttribute('data-lng');
-            
-            if (lat && lng) {
-              openExternalNavigation(parseFloat(lat), parseFloat(lng));
-            }
-          });
-        }
+        setTimeout(() => {
+          const navBtn = document.querySelector('.nav-button');
+          if (navBtn) {
+            navBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              
+              const target = e.currentTarget as HTMLElement;
+              const lat = target.getAttribute('data-lat');
+              const lng = target.getAttribute('data-lng');
+              
+              if (lat && lng) {
+                openExternalNavigation(parseFloat(lat), parseFloat(lng));
+              }
+            });
+          }
+        }, 10);
       });
       
       markersRef.current[delivery.id] = marker;
@@ -232,7 +245,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       if (miniMapRef.current) {
         const miniMarkerEl = document.createElement('div');
         miniMarkerEl.className = delivery.status === 'pendente' ? 
-          'mini-marker-square-dark' : 'mini-marker-square-light';
+          'mini-marker-pending' : 'mini-marker-delivered';
         
         new mapboxgl.Marker({
           element: miniMarkerEl,
@@ -281,10 +294,6 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         // Create marker element
         const markerEl = document.createElement('div');
         markerEl.className = 'location-marker';
-        markerEl.innerHTML = `
-          <div class="pulse-ring"></div>
-          <div class="center-point"></div>
-        `;
         
         currentLocationMarkerRef.current = new mapboxgl.Marker({
           element: markerEl,
@@ -362,9 +371,9 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
                 'line-cap': 'round'
               },
               paint: {
-                'line-color': '#3B82F6',
+                'line-color': '#0FA0CE',
                 'line-width': 6,
-                'line-opacity': 0.75
+                'line-opacity': 0.8
               }
             });
           }
@@ -407,113 +416,186 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       
       <style>
         {`
-        .delivery-marker-square-dark, .delivery-marker-square-light {
-          cursor: pointer;
+        /* Modern marker styles */
+        .marker-pending, .marker-delivered, .marker-occurrence {
           width: 30px;
           height: 30px;
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 0 10px rgba(0,0,0,0.3);
-        }
-        
-        .delivery-marker-square-dark {
-          background-color: #221F26;
+          border-radius: 6px;
+          cursor: pointer;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+          transition: all 0.2s ease;
+          border: 2px solid;
+          font-weight: 600;
           color: white;
-          border: 2px solid #3B82F6;
+          position: relative;
         }
         
-        .delivery-marker-square-light {
-          background-color: #F1F1F1;
+        .marker-pending {
+          background-color: #1A1F2C;
+          border-color: #3B82F6;
+        }
+        
+        .marker-delivered {
+          background-color: #F2FCE2;
+          border-color: #10B981;
           color: #333;
-          border: 2px solid #10B981;
         }
         
-        .multiple-deliveries {
+        .marker-occurrence {
+          background-color: #FFF0F0;
+          border-color: #ea384c;
+          color: #333;
+        }
+        
+        .marker-multiple {
           border-color: #F97316;
           border-width: 3px;
         }
         
-        .marker-selected {
-          width: 38px;
-          height: 38px;
-          box-shadow: 0 0 15px rgba(0,0,0,0.5);
-          border-width: 3px;
-          border-color: #8B5CF6;
-          z-index: 2;
+        .marker-multiple::after {
+          content: "";
+          position: absolute;
+          top: -6px;
+          right: -6px;
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          background-color: #F97316;
+          border: 2px solid white;
         }
         
-        .mini-marker-square-dark, .mini-marker-square-light {
+        .marker-selected {
+          transform: scale(1.15);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+          z-index: 10;
+          border-color: #8B5CF6;
+          border-width: 2.5px;
+        }
+        
+        .mini-marker-pending, .mini-marker-delivered {
           width: 6px;
           height: 6px;
+          border-radius: 50%;
         }
         
-        .mini-marker-square-dark {
-          background-color: #221F26;
+        .mini-marker-pending {
+          background-color: #1A1F2C;
           border: 1px solid #3B82F6;
         }
         
-        .mini-marker-square-light {
-          background-color: #F1F1F1;
+        .mini-marker-delivered {
+          background-color: #F2FCE2;
           border: 1px solid #10B981;
         }
         
         .location-marker {
           width: 24px;
           height: 24px;
+          border-radius: 50%;
+          background-color: rgba(15, 160, 206, 0.2);
           position: relative;
         }
         
-        .center-point {
+        .location-marker::before {
+          content: "";
+          position: absolute;
           width: 12px;
           height: 12px;
-          border-radius: 50%;
-          background-color: #FFC107;
-          border: 2px solid #FFA000;
-          position: absolute;
           top: 50%;
           left: 50%;
           transform: translate(-50%, -50%);
-          z-index: 2;
-        }
-        
-        .pulse-ring {
-          width: 24px;
-          height: 24px;
+          background-color: rgb(15, 160, 206);
           border-radius: 50%;
-          background-color: rgba(255, 193, 7, 0.4);
-          position: absolute;
+          border: 2px solid white;
+          box-shadow: 0 0 0 2px rgba(15, 160, 206, 0.4);
           animation: pulse 2s ease-out infinite;
         }
         
         @keyframes pulse {
           0% {
-            transform: scale(0.5);
-            opacity: 1;
+            box-shadow: 0 0 0 0 rgba(15, 160, 206, 0.6);
+          }
+          70% {
+            box-shadow: 0 0 0 10px rgba(15, 160, 206, 0);
           }
           100% {
-            transform: scale(1.5);
-            opacity: 0;
+            box-shadow: 0 0 0 0 rgba(15, 160, 206, 0);
           }
         }
         
         .mini-map {
           position: absolute;
-          bottom: 60px;
+          bottom: 80px;
           right: 10px;
-          width: 150px;
-          height: 150px;
-          border-radius: 4px;
+          width: 120px;
+          height: 120px;
+          border-radius: 8px;
           border: 2px solid white;
-          box-shadow: 0 0 10px rgba(0,0,0,0.3);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+          overflow: hidden;
         }
         
-        .open-navigation-btn {
+        /* Popup styling */
+        .delivery-popup {
+          max-width: 200px;
+        }
+        
+        .popup-content {
+          padding: 4px;
+        }
+        
+        .status-badge {
+          display: inline-block;
+          padding: 2px 6px;
+          border-radius: 10px;
+          font-size: 10px;
+          font-weight: bold;
+          text-transform: uppercase;
+          color: white;
+        }
+        
+        .status-pendente {
+          background-color: #3B82F6;
+        }
+        
+        .status-entregue {
+          background-color: #10B981;
+        }
+        
+        .status-ocorrencia {
+          background-color: #ea384c;
+        }
+        
+        .status-multiple {
+          background-color: #F97316;
+        }
+        
+        .nav-button {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          margin-top: 4px;
+          padding: 4px 8px;
+          background-color: #0FA0CE;
+          color: white;
+          border-radius: 4px;
+          font-size: 12px;
           cursor: pointer;
+          border: none;
+          transition: background-color 0.2s ease;
         }
         
-        .open-navigation-btn:hover {
-          background-color: #2563EB;
+        .nav-button:hover {
+          background-color: #0A8CAF;
+        }
+        
+        .mapboxgl-popup-content {
+          padding: 10px;
+          border-radius: 8px;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
         `}
       </style>
@@ -532,18 +614,21 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           {isTrackingActive ? 'Parar Rastreamento' : 'Iniciar Rastreamento'}
         </Button>
       </div>
-      <div className="absolute top-4 right-4 bg-white shadow p-2 rounded text-sm">
-        <div className="flex items-center mb-1">
-          <div className="w-4 h-4 bg-[#221F26] border-2 border-blue-500 mr-2"></div>
-          <span>Pendente</span>
+      <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm shadow rounded-lg text-sm p-3">
+        <h3 className="font-medium text-xs uppercase mb-1 text-gray-500">Legenda</h3>
+        <div className="flex items-center mb-1.5">
+          <div className="w-4 h-4 bg-[#1A1F2C] border-2 border-blue-500 mr-2 rounded"></div>
+          <span className="text-xs">Pendente</span>
         </div>
-        <div className="flex items-center mb-1">
-          <div className="w-4 h-4 bg-[#F1F1F1] border-2 border-green-500 mr-2"></div>
-          <span>Entregue</span>
+        <div className="flex items-center mb-1.5">
+          <div className="w-4 h-4 bg-[#F2FCE2] border-2 border-green-500 mr-2 rounded"></div>
+          <span className="text-xs">Entregue</span>
         </div>
         <div className="flex items-center">
-          <div className="w-4 h-4 bg-[#221F26] border-2 border-orange-500 mr-2"></div>
-          <span>Múltiplas Entregas</span>
+          <div className="w-4 h-4 border-2 border-orange-500 mr-2 rounded relative">
+            <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full"></div>
+          </div>
+          <span className="text-xs">Múltiplas Entregas</span>
         </div>
       </div>
     </div>
