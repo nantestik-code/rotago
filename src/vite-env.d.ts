@@ -46,6 +46,14 @@ declare namespace google {
       lng(): number;
     }
 
+    class Point {
+      constructor(x: number, y: number);
+      x: number;
+      y: number;
+      equals(other: Point): boolean;
+      toString(): string;
+    }
+
     const Animation: {
       BOUNCE: number;
       DROP: number;
