@@ -160,6 +160,14 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     window.location.reload();
   };
 
+  // Create a reference to store the address markers for easy access
+  const addressMarkersRef = useRef<Record<string, {
+    marker: mapboxgl.Marker,
+    miniMarker: mapboxgl.Marker | null,
+    deliveryIds: string[],
+    orderIndices: number[]
+  }>>({});
+
   // Update markers when deliveries or selected delivery changes
   useEffect(() => {
     if (!mapLoaded || !mapboxMapRef.current) return;
@@ -167,6 +175,13 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     // Clear existing markers
     Object.values(markersRef.current).forEach(marker => marker.remove());
     markersRef.current = {};
+    
+    // Clear existing address markers reference
+    Object.values(addressMarkersRef.current).forEach(markerInfo => {
+      markerInfo.marker.remove();
+      if (markerInfo.miniMarker) markerInfo.miniMarker.remove();
+    });
+    addressMarkersRef.current = {};
     
     // Add markers for all deliveries - sorted for sequential numbering
     const sortedDeliveries = [...deliveries].sort((a, b) => {
@@ -227,7 +242,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       // Create marker element
       const markerEl = document.createElement('div');
       
-      // Determine marker color based on status priority (occorrencia > pendente > entregue)
+      // Determine marker color based on status priority (ocorrencia > pendente > entregue)
       const hasOcorrencia = group.statuses.includes('ocorrencia');
       const hasPendente = group.statuses.includes('pendente');
       
@@ -286,6 +301,9 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         deliveryIds: group.deliveryIds,
         orderIndices: group.orderIndices
       };
+      
+      // Store in ref for future updates
+      addressMarkersRef.current[coordKey] = addressMarkers[coordKey];
     });
     
     // Add popups to each marker
@@ -366,6 +384,50 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       });
     });
   }, [deliveries, selectedDeliveryId, mapLoaded, onSelectDelivery, addressGroups, currentLocation]);
+
+  // Update markers when delivery status changes
+  useEffect(() => {
+    if (!mapLoaded || !mapboxMapRef.current) return;
+    
+    // For each marker group check if status needs updating
+    Object.entries(addressMarkersRef.current).forEach(([coordKey, markerInfo]) => {
+      const { deliveryIds, marker, miniMarker } = markerInfo;
+      
+      // Check statuses of all deliveries in this marker
+      const hasOcorrencia = deliveryIds.some(id => 
+        deliveries.find(d => d.id === id)?.status === 'ocorrencia'
+      );
+      const hasPendente = deliveryIds.some(id => 
+        deliveries.find(d => d.id === id)?.status === 'pendente'
+      );
+      
+      // Update main marker
+      const markerEl = marker.getElement();
+      markerEl.classList.remove('marker-occurrence', 'marker-pending', 'marker-delivered');
+      
+      if (hasOcorrencia) {
+        markerEl.classList.add('marker-occurrence');
+      } else if (hasPendente) {
+        markerEl.classList.add('marker-pending');
+      } else {
+        markerEl.classList.add('marker-delivered');
+      }
+      
+      // Update mini marker if it exists
+      if (miniMarker) {
+        const miniMarkerEl = miniMarker.getElement();
+        miniMarkerEl.classList.remove('mini-marker-occurrence', 'mini-marker-pending', 'mini-marker-delivered');
+        
+        if (hasOcorrencia) {
+          miniMarkerEl.classList.add('mini-marker-occurrence');
+        } else if (hasPendente) {
+          miniMarkerEl.classList.add('mini-marker-pending');
+        } else {
+          miniMarkerEl.classList.add('mini-marker-delivered');
+        }
+      }
+    });
+  }, [deliveries, mapLoaded]);
 
   // Open external navigation app
   const openExternalNavigation = (lat: number, lng: number) => {
