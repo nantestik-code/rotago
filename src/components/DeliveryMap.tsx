@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -166,21 +167,21 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           result[delivery.id] = { offsetX: 0, offsetY: 0 };
         });
       } else {
-        // Calculate grid layout
-        const sqrt = Math.ceil(Math.sqrt(group.length));
-        const gridSize = sqrt;
-        const offsetBase = 30; // pixels between markers
+        // Calculate grid layout using a circular pattern for better organization
+        const count = group.length;
+        const radius = Math.min(20 * Math.sqrt(count), 80); // Limit max radius
         
         group.forEach((delivery, index) => {
-          // Calculate position in grid
-          const row = Math.floor(index / gridSize);
-          const col = index % gridSize;
-          
-          // Calculate offset from center
-          const offsetX = (col - (gridSize - 1) / 2) * offsetBase;
-          const offsetY = (row - (gridSize - 1) / 2) * offsetBase;
-          
-          result[delivery.id] = { offsetX, offsetY };
+          if (index === 0) {
+            // First delivery stays in center
+            result[delivery.id] = { offsetX: 0, offsetY: 0 };
+          } else {
+            // Place others in a circle around the center
+            const angle = (index - 1) * (2 * Math.PI / (count - 1));
+            const offsetX = Math.cos(angle) * radius;
+            const offsetY = Math.sin(angle) * radius;
+            result[delivery.id] = { offsetX, offsetY };
+          }
         });
       }
     });
@@ -199,8 +200,22 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     // Calculate marker positions
     const markerPositions = calculateMarkerPositions(deliveries);
     
-    // Add markers for all deliveries
-    deliveries.forEach((delivery, index) => {
+    // Add markers for all deliveries - sorted for sequential numbering
+    const sortedDeliveries = [...deliveries].sort((a, b) => {
+      // Pending deliveries first
+      if (a.status === 'pendente' && b.status !== 'pendente') return -1;
+      if (a.status !== 'pendente' && b.status === 'pendente') return 1;
+      
+      // Then by distance if coordinates available
+      if (currentLocation && a.lat && a.lng && b.lat && b.lng) {
+        const distA = calculateDistance(currentLocation.lat, currentLocation.lng, a.lat, a.lng);
+        const distB = calculateDistance(currentLocation.lat, currentLocation.lng, b.lat, b.lng);
+        return distA - distB;
+      }
+      return 0;
+    });
+    
+    sortedDeliveries.forEach((delivery, index) => {
       if (!delivery.lat || !delivery.lng) return;
       
       // Create marker element
@@ -209,6 +224,8 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       // Check if this address has multiple deliveries
       const key = `${delivery.endereco},${delivery.cidade}`.toLowerCase();
       const hasMultiple = addressGroups.some(g => g.address === key);
+      const multipleItems = addressGroups.find(g => g.address === key)?.items || [];
+      const multipleOrderNumbers = multipleItems.map((_, i) => index + i + 1).join(', ');
       
       // Set marker styles based on status and selection
       if (delivery.status === 'pendente') {
@@ -254,6 +271,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           <div class="popup-content">
             <h3 class="font-medium">${delivery.cliente}</h3>
             <p class="text-sm">${delivery.endereco}</p>
+            ${hasMultiple ? `<p class="text-xs font-medium">Ordens: ${multipleOrderNumbers}</p>` : ''}
             <div class="flex items-center gap-1 my-1">
               <span class="status-badge status-${delivery.status}">${delivery.status.toUpperCase()}</span>
               ${hasMultiple ? '<span class="status-badge status-multiple">MÚLTIPLAS</span>' : ''}
@@ -309,7 +327,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           .addTo(miniMapRef.current);
       }
     });
-  }, [deliveries, selectedDeliveryId, mapLoaded, onSelectDelivery, addressGroups]);
+  }, [deliveries, selectedDeliveryId, mapLoaded, onSelectDelivery, addressGroups, currentLocation]);
 
   // Open external navigation app
   const openExternalNavigation = (lat: number, lng: number) => {
@@ -333,6 +351,23 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       title: 'Abrindo navegação GPS',
       description: 'Iniciando navegação para o endereço selecionado',
     });
+  };
+
+  // Helper function for calculating distance between points
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371e3; // Earth radius in meters
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a =
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+
+    return distance; // Distance in meters
   };
 
   // Update current location marker
@@ -472,42 +507,41 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         {`
         /* Modern marker styles */
         .marker-pending, .marker-delivered, .marker-occurrence {
-          width: 32px;
-          height: 32px;
+          width: 36px;
+          height: 36px;
           display: flex;
           align-items: center;
           justify-content: center;
-          border-radius: 4px;
+          border-radius: 50%;
           cursor: pointer;
           box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
           transition: all 0.2s ease;
-          border: 2px solid;
-          font-weight: 600;
+          font-weight: 700;
+          font-size: 14px;
           color: white;
           position: relative;
           z-index: 1;
+          overflow: hidden;
         }
         
         .marker-pending {
-          background-color: #1A1F2C;
-          border-color: #3B82F6;
+          background-color: #2563EB;
+          border: 2px solid white;
         }
         
         .marker-delivered {
-          background-color: #F2FCE2;
-          border-color: #10B981;
-          color: #333;
+          background-color: #10B981;
+          border: 2px solid white;
         }
         
         .marker-occurrence {
-          background-color: #FFF0F0;
-          border-color: #ea384c;
-          color: #333;
+          background-color: #EA384D;
+          border: 2px solid white;
         }
         
         .marker-multiple {
           border-color: #F97316;
-          border-width: 2px;
+          border-width: 3px;
         }
         
         .marker-multiple::after {
@@ -515,35 +549,35 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           position: absolute;
           top: -4px;
           right: -4px;
-          width: 10px;
-          height: 10px;
+          width: 12px;
+          height: 12px;
           border-radius: 50%;
           background-color: #F97316;
           border: 2px solid white;
+          z-index: 2;
         }
         
         .marker-selected {
-          transform: scale(1.15);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+          transform: scale(1.2);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
           z-index: 10;
           border-color: #8B5CF6;
-          border-width: 2.5px;
+          border-width: 3px;
         }
         
         .mini-marker-pending, .mini-marker-delivered {
-          width: 6px;
-          height: 6px;
+          width: 8px;
+          height: 8px;
           border-radius: 50%;
+          border: 1px solid white;
         }
         
         .mini-marker-pending {
-          background-color: #1A1F2C;
-          border: 1px solid #3B82F6;
+          background-color: #2563EB;
         }
         
         .mini-marker-delivered {
-          background-color: #F2FCE2;
-          border: 1px solid #10B981;
+          background-color: #10B981;
         }
         
         .location-marker {
@@ -595,11 +629,11 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         
         /* Popup styling */
         .delivery-popup {
-          max-width: 200px;
+          max-width: 220px;
         }
         
         .popup-content {
-          padding: 4px;
+          padding: 8px;
         }
         
         .status-badge {
@@ -613,7 +647,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         }
         
         .status-pendente {
-          background-color: #3B82F6;
+          background-color: #2563EB;
         }
         
         .status-entregue {
@@ -621,7 +655,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         }
         
         .status-ocorrencia {
-          background-color: #ea384c;
+          background-color: #EA384D;
         }
         
         .status-multiple {
@@ -632,14 +666,15 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           display: flex;
           align-items: center;
           gap: 4px;
-          margin-top: 4px;
-          padding: 4px 8px;
+          margin-top: 6px;
+          padding: 6px 10px;
           background-color: #0FA0CE;
           color: white;
           border-radius: 4px;
           font-size: 12px;
           cursor: pointer;
           border: none;
+          font-weight: 500;
           transition: background-color 0.2s ease;
         }
         
@@ -672,15 +707,15 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm shadow rounded-lg text-sm p-3">
         <h3 className="font-medium text-xs uppercase mb-1 text-gray-500">Legenda</h3>
         <div className="flex items-center mb-1.5">
-          <div className="w-4 h-4 bg-[#1A1F2C] border-2 border-blue-500 mr-2 rounded"></div>
+          <div className="w-4 h-4 bg-[#2563EB] border-2 border-white mr-2 rounded-full"></div>
           <span className="text-xs">Pendente</span>
         </div>
         <div className="flex items-center mb-1.5">
-          <div className="w-4 h-4 bg-[#F2FCE2] border-2 border-green-500 mr-2 rounded"></div>
+          <div className="w-4 h-4 bg-[#10B981] border-2 border-white mr-2 rounded-full"></div>
           <span className="text-xs">Entregue</span>
         </div>
         <div className="flex items-center">
-          <div className="w-4 h-4 border-2 border-orange-500 mr-2 rounded relative">
+          <div className="w-4 h-4 border-2 border-orange-500 mr-2 rounded-full relative">
             <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full"></div>
           </div>
           <span className="text-xs">Múltiplas Entregas</span>

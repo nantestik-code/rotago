@@ -21,6 +21,18 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
   const [filter, setFilter] = useState<'todos' | 'pendente' | 'entregue' | 'ocorrencia'>('todos');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Group deliveries by address
+  const addressGroups: Record<string, {items: DeliveryItem[], indices: number[]}> = {};
+  
+  deliveries.forEach((delivery, index) => {
+    const key = `${delivery.endereco},${delivery.cidade}`.toLowerCase();
+    if (!addressGroups[key]) {
+      addressGroups[key] = { items: [], indices: [] };
+    }
+    addressGroups[key].items.push(delivery);
+    addressGroups[key].indices.push(index + 1); // Adding 1 to match the marker numbering
+  });
+  
   const filteredDeliveries = deliveries
     .filter(delivery => 
       filter === 'todos' || delivery.status === filter
@@ -84,15 +96,33 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
       
       <div className="flex-1 overflow-y-auto pr-1">
         {filteredDeliveries.length > 0 ? (
-          filteredDeliveries.map((delivery) => (
-            <DeliveryCard
-              key={delivery.id}
-              delivery={delivery}
-              isSelected={selectedDeliveryId === delivery.id}
-              onStatusChange={onStatusChange}
-              onSelect={onSelectDelivery}
-            />
-          ))
+          filteredDeliveries.map((delivery, index) => {
+            const key = `${delivery.endereco},${delivery.cidade}`.toLowerCase();
+            const group = addressGroups[key];
+            const orderNumbers = group?.indices.join(', ') || `${index + 1}`;
+            
+            return (
+              <div key={delivery.id}>
+                {group?.items.length > 1 && group?.items[0].id === delivery.id && (
+                  <div className="text-xs font-semibold py-1 px-2 bg-orange-100 text-orange-800 rounded mb-1">
+                    Múltiplas entregas (Ordens: {orderNumbers})
+                  </div>
+                )}
+                <DeliveryCard
+                  delivery={{
+                    ...delivery,
+                    // Add order number to the client name if there are multiple at same address
+                    cliente: group?.items.length > 1 
+                      ? `[${group.indices.find((_, i) => group.items[i].id === delivery.id)}] ${delivery.cliente}`
+                      : `[${filteredDeliveries.findIndex(d => d.id === delivery.id) + 1}] ${delivery.cliente}`
+                  }}
+                  isSelected={selectedDeliveryId === delivery.id}
+                  onStatusChange={onStatusChange}
+                  onSelect={onSelectDelivery}
+                />
+              </div>
+            );
+          })
         ) : (
           <div className="text-center py-8 text-gray-500">
             Nenhuma entrega encontrada com os filtros atuais.
