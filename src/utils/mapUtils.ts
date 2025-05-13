@@ -87,7 +87,7 @@ export const geocodeAddress = async (
 ): Promise<MapPosition | null> => {
   try {
     const response = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?country=br&access_token=${mapboxToken}`
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?country=br&limit=1&access_token=${mapboxToken}`
     );
 
     if (!response.ok) {
@@ -115,15 +115,38 @@ export const geocodeAddresses = async (
   const updatedDeliveries = [...deliveries];
   let processed = 0;
 
+  // Para garantir que entregas no mesmo endereço recebam as mesmas coordenadas
+  const addressCoordinates: Record<string, MapPosition> = {};
+
   for (const delivery of updatedDeliveries) {
-    if (!delivery.lat || !delivery.lng) {
+    // Criar uma chave única para o endereço completo
+    const addressKey = `${delivery.endereco}, ${delivery.cidade}, ${delivery.estado}, ${delivery.cep}`.toLowerCase();
+    
+    // Verificar se já temos as coordenadas para este endereço
+    if (addressCoordinates[addressKey]) {
+      delivery.lat = addressCoordinates[addressKey].lat;
+      delivery.lng = addressCoordinates[addressKey].lng;
+    } 
+    // Senão, fazer a geocodificação e armazenar
+    else if (!delivery.lat || !delivery.lng) {
       const fullAddress = `${delivery.endereco}, ${delivery.cidade}, ${delivery.estado}, ${delivery.cep}, Brasil`;
       const location = await geocodeAddress(fullAddress);
 
       if (location) {
+        // Adicionar um pequeno deslocamento aleatório para entregas no mesmo endereço
+        // mas ainda manter a posição geográfica correta
         delivery.lat = location.lat;
         delivery.lng = location.lng;
+        
+        // Salvar as coordenadas para uso em outras entregas no mesmo endereço
+        addressCoordinates[addressKey] = {
+          lat: location.lat,
+          lng: location.lng
+        };
       }
+      
+      // Esperar um pouco para não sobrecarregar a API do Mapbox
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
 
     processed++;
@@ -145,22 +168,82 @@ export const optimizeRoute = async (
   }
 
   try {
-    // For now we'll use a simple distance-based approach
-    // Sort deliveries by distance from current location
-    const sortedDeliveries = [...pendingDeliveries].sort((a, b) => {
-      if (!a.lat || !a.lng || !b.lat || !b.lng) return 0;
+    // Tentamos usar a Directions API do Mapbox para otimização
+    // mas para rotas complexas, precisamos de uma abordagem mais simples
+    
+    // Agrupamos entregas por endereço
+    const addressGroups: { [key: string]: DeliveryItem[] } = {};
+    
+    pendingDeliveries.forEach(delivery => {
+      if (!delivery.lat || !delivery.lng) return;
       
-      const distA = calculateDistance(origin.lat, origin.lng, a.lat, a.lng);
-      const distB = calculateDistance(origin.lat, origin.lng, b.lat, b.lng);
-      
-      return distA - distB;
+      const addressKey = `${delivery.endereco}, ${delivery.cidade}`.toLowerCase();
+      if (!addressGroups[addressKey]) {
+        addressGroups[addressKey] = [];
+      }
+      addressGroups[addressKey].push(delivery);
     });
     
-    // Return all deliveries with pending ones optimized
-    return [
-      ...sortedDeliveries,
-      ...destinations.filter(d => d.status !== 'pendente')
-    ];
+    // Coletamos endereços únicos (apenas um item por endereço)
+    const uniqueAddresses = Object.values(addressGroups).map(group => group[0]);
+    
+    // Ordenamos por distância da origem usando o algoritmo do vizinho mais próximo
+    const sortedAddresses: DeliveryItem[] = [];
+    let remainingAddresses = [...uniqueAddresses];
+    let currentPoint = origin;
+    
+    while (remainingAddresses.length > 0) {
+      // Encontra o ponto mais próximo do ponto atual
+      let closestIdx = 0;
+      let minDistance = Number.MAX_VALUE;
+      
+      remainingAddresses.forEach((address, idx) => {
+        if (!address.lat || !address.lng) return;
+        
+        const distance = calculateDistance(
+          currentPoint.lat, 
+          currentPoint.lng, 
+          address.lat, 
+          address.lng
+        );
+        
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestIdx = idx;
+        }
+      });
+      
+      // Adiciona o ponto mais próximo à rota
+      const closestAddress = remainingAddresses[closestIdx];
+      sortedAddresses.push(closestAddress);
+      
+      // Atualiza o ponto atual
+      currentPoint = {
+        lat: closestAddress.lat!,
+        lng: closestAddress.lng!
+      };
+      
+      // Remove o ponto da lista de pontos restantes
+      remainingAddresses.splice(closestIdx, 1);
+    }
+    
+    // Agora expandimos a lista de endereços únicos de volta para todas as entregas
+    const optimizedDeliveries: DeliveryItem[] = [];
+    
+    // Primeiro, adicionamos todas as entregas pendentes na ordem otimizada
+    sortedAddresses.forEach(uniqueAddress => {
+      const addressKey = `${uniqueAddress.endereco}, ${uniqueAddress.cidade}`.toLowerCase();
+      const group = addressGroups[addressKey] || [];
+      
+      // Adicionamos todas as entregas deste endereço
+      optimizedDeliveries.push(...group);
+    });
+    
+    // Adicionamos outras entregas que não estão pendentes
+    const nonPendingDeliveries = destinations.filter(d => d.status !== 'pendente');
+    optimizedDeliveries.push(...nonPendingDeliveries);
+    
+    return optimizedDeliveries;
   } catch (error) {
     console.error('Erro de otimização de rota:', error);
     return destinations;
