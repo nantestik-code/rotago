@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -849,4 +850,13 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         </div>
         <div className="flex items-center">
           <div className="w-4 h-4 border-2 border-orange-500 mr-2 rounded-full relative">
-            <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-
+            <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full"></div>
+          </div>
+          <span className="text-xs">Múltiplas Entregas</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default DeliveryMap;
