@@ -391,23 +391,6 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     });
   };
 
-  // Helper function for calculating distance between points
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-    const R = 6371e3; // Earth radius in meters
-    const φ1 = (lat1 * Math.PI) / 180;
-    const φ2 = (lat2 * Math.PI) / 180;
-    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-
-    const a =
-      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c;
-
-    return distance; // Distance in meters
-  };
-
   // Handle mobile delivery navigation
   const handleNextDelivery = () => {
     if (pendingDeliveries.length === 0) return;
@@ -866,13 +849,4 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         </div>
         <div className="flex items-center">
           <div className="w-4 h-4 border-2 border-orange-500 mr-2 rounded-full relative">
-            <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full"></div>
-          </div>
-          <span className="text-xs">Múltiplas Entregas</span>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default DeliveryMap;
+            <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-
