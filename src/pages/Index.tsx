@@ -1,291 +1,62 @@
-import React, { useState, useEffect, useCallback } from 'react';
+
+import React, { useState } from 'react';
 import Header from '@/components/Header';
-import FileImport from '@/components/FileImport';
-import DeliveryMap from '@/components/DeliveryMap';
-import DeliveryList from '@/components/DeliveryList';
-import StatusCounter from '@/components/StatusCounter';
-import { DeliveryItem, getStatusCounts } from '@/utils/deliveryUtils';
-import { exportToCSV } from '@/utils/fileUtils';
-import { MapPosition, getCurrentPosition, watchPosition, stopWatchingPosition, geocodeAddresses, optimizeRoute } from '@/utils/mapUtils';
-import { Button } from '@/components/ui/button';
-import { toast } from '@/components/ui/use-toast';
-import { Progress } from '@/components/ui/progress';
+import ImportSection from '@/components/ImportSection';
+import RouteViewSection from '@/components/RouteViewSection';
+import { useDeliveries } from '@/hooks/use-deliveries';
+import { useLocationTracking } from '@/hooks/use-location-tracking';
+import { useRouteActions } from '@/components/RouteActions';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { MapPin, List, X } from 'lucide-react';
 
 const Index = () => {
   const isMobile = useIsMobile();
-
-  const [deliveries, setDeliveries] = useState<DeliveryItem[]>([]);
-  const [selectedDeliveryId, setSelectedDeliveryId] = useState<string | null>(null);
-  const [currentLocation, setCurrentLocation] = useState<MapPosition | null>(null);
-  const [isTrackingActive, setIsTrackingActive] = useState(false);
-  const [watchId, setWatchId] = useState<number | null>(null);
   const [showFileImport, setShowFileImport] = useState(true);
-  const [processingGeocode, setProcessingGeocode] = useState(false);
-  const [geocodeProgress, setGeocodeProgress] = useState(0);
-  const [processingOptimization, setProcessingOptimization] = useState(false);
-  const [showListOverlay, setShowListOverlay] = useState(false);
+  
+  const {
+    deliveries,
+    setDeliveries,
+    selectedDeliveryId,
+    setSelectedDeliveryId,
+    processingGeocode,
+    geocodeProgress,
+    processingOptimization,
+    handleImportComplete,
+    handleStatusChange,
+    optimizeDeliveryRoute,
+    statusCounts
+  } = useDeliveries();
 
-  // Initialize location
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const position = await getCurrentPosition();
-        setCurrentLocation(position);
-      } catch (error) {
-        console.error('Error getting current position:', error);
-        toast({
-          title: 'Erro de localização',
-          description: 'Não foi possível obter sua localização atual.',
-          variant: 'destructive',
-        });
-      }
-    };
+  const {
+    currentLocation,
+    isTrackingActive,
+    startTracking,
+    stopTracking
+  } = useLocationTracking(deliveries, setSelectedDeliveryId);
 
-    init();
-  }, []);
+  const { handleExport } = useRouteActions(deliveries, handleNewRoute);
 
-  // Handle deliveries import
-  const handleImportComplete = useCallback(async (importedDeliveries: DeliveryItem[]) => {
+  // Handle deliveries import with UI update
+  const handleImport = async (importedDeliveries) => {
+    await handleImportComplete(importedDeliveries);
     setShowFileImport(false);
     
-    // Geocode addresses
-    setProcessingGeocode(true);
-    setGeocodeProgress(0);
-    
-    try {
-      const geocodedDeliveries = await geocodeAddresses(
-        importedDeliveries,
-        (progress) => setGeocodeProgress(progress)
-      );
-      
-      setDeliveries(geocodedDeliveries);
-      
-      // Find first pending delivery to select
-      const firstPending = geocodedDeliveries.find(d => d.status === 'pendente');
-      if (firstPending) {
-        setSelectedDeliveryId(firstPending.id);
-      }
-      
-      toast({
-        title: 'Endereços processados',
-        description: `${geocodedDeliveries.length} endereços foram geocodificados com sucesso.`,
-      });
-
-      // On mobile, automatically show map view after import
-      if (isMobile) {
-        setShowFileImport(false);
-      }
-    } catch (error) {
-      toast({
-        title: 'Erro de geocodificação',
-        description: 'Ocorreu um erro ao converter endereços em coordenadas.',
-        variant: 'destructive',
-      });
-      console.error('Geocoding error:', error);
-      setDeliveries(importedDeliveries);
-    } finally {
-      setProcessingGeocode(false);
-      setGeocodeProgress(100);
-      
-      // Reset progress after delay
-      setTimeout(() => {
-        setGeocodeProgress(0);
-      }, 1000);
+    // On mobile, automatically show map view after import
+    if (isMobile) {
+      setShowFileImport(false);
     }
-  }, [isMobile]);
-
-  // Handle status change
-  const handleStatusChange = useCallback((id: string, status: 'pendente' | 'entregue' | 'ocorrencia') => {
-    setDeliveries(prev => 
-      prev.map(delivery => 
-        delivery.id === id ? { ...delivery, status } : delivery
-      )
-    );
-    
-    const statusMessages = {
-      pendente: 'Entrega marcada como pendente',
-      entregue: 'Entrega concluída com sucesso',
-      ocorrencia: 'Ocorrência registrada para esta entrega',
-    };
-    
-    toast({
-      title: statusMessages[status],
-      description: `O status da entrega foi atualizado.`,
-    });
-  }, []);
-
-  // Start location tracking
-  const startTracking = useCallback(() => {
-    if (isTrackingActive) return;
-    
-    const id = watchPosition(
-      (position) => {
-        setCurrentLocation(position);
-        
-        // Check proximity to deliveries
-        deliveries.forEach(delivery => {
-          if (delivery.status === 'pendente' && delivery.lat && delivery.lng && position) {
-            import('@/utils/deliveryUtils').then(({ calculateDistance }) => {
-              const distance = calculateDistance(
-                position.lat, 
-                position.lng, 
-                delivery.lat!, 
-                delivery.lng!
-              );
-              
-              // Notify when within 100 meters of a delivery
-              if (distance <= 100) {
-                // Check if browser supports notifications
-                if ('Notification' in window) {
-                  // Request permission if not granted
-                  if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
-                    Notification.requestPermission();
-                  }
-                  
-                  // Show notification if permission granted
-                  if (Notification.permission === 'granted') {
-                    new Notification('Entrega próxima!', {
-                      body: `Você está a ${Math.round(distance)}m de: ${delivery.cliente}`,
-                      icon: '/favicon.ico'
-                    });
-                  }
-                }
-                
-                toast({
-                  title: 'Entrega próxima!',
-                  description: `Você está a ${Math.round(distance)}m de: ${delivery.cliente}`,
-                });
-                
-                setSelectedDeliveryId(delivery.id);
-              }
-            });
-          }
-        });
-      },
-      (error) => {
-        console.error('Error watching position:', error);
-        toast({
-          title: 'Erro de rastreamento',
-          description: 'Ocorreu um erro ao rastrear sua localização.',
-          variant: 'destructive',
-        });
-        setIsTrackingActive(false);
-      }
-    );
-    
-    if (id !== null) {
-      setWatchId(id);
-      setIsTrackingActive(true);
-      toast({
-        title: 'Rastreamento iniciado',
-        description: 'Sua localização está sendo monitorada em tempo real.',
-      });
-    }
-  }, [deliveries, isTrackingActive]);
-
-  // Stop location tracking
-  const stopTracking = useCallback(() => {
-    if (!isTrackingActive) return;
-    
-    stopWatchingPosition(watchId);
-    setIsTrackingActive(false);
-    setWatchId(null);
-    
-    toast({
-      title: 'Rastreamento parado',
-      description: 'O monitoramento de localização foi interrompido.',
-    });
-  }, [isTrackingActive, watchId]);
-
-  // Handle route optimization
-  const handleOptimizeRoute = useCallback(async () => {
-    if (!currentLocation) {
-      toast({
-        title: 'Localização necessária',
-        description: 'Sua localização atual é necessária para otimizar a rota.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    setProcessingOptimization(true);
-    
-    try {
-      const optimizedDeliveries = await optimizeRoute(
-        currentLocation,
-        deliveries
-      );
-      
-      setDeliveries(optimizedDeliveries);
-      
-      toast({
-        title: 'Rota otimizada',
-        description: 'A rota foi otimizada com sucesso.',
-      });
-    } catch (error) {
-      toast({
-        title: 'Erro de otimização',
-        description: 'Ocorreu um erro ao otimizar a rota.',
-        variant: 'destructive',
-      });
-      console.error('Optimization error:', error);
-    } finally {
-      setProcessingOptimization(false);
-    }
-  }, [currentLocation, deliveries]);
+  };
 
   // Handle new route
-  const handleNewRoute = useCallback(() => {
+  function handleNewRoute() {
     setShowFileImport(true);
     setDeliveries([]);
     setSelectedDeliveryId(null);
     stopTracking();
-  }, [stopTracking]);
+  }
 
-  // Handle export
-  const handleExport = useCallback(() => {
-    if (deliveries.length === 0) {
-      toast({
-        title: 'Nenhum dado para exportar',
-        description: 'Importe entregas primeiro para poder exportá-las.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    try {
-      exportToCSV(deliveries);
-      toast({
-        title: 'Exportação concluída',
-        description: 'Os dados foram exportados com sucesso.',
-      });
-    } catch (error) {
-      toast({
-        title: 'Erro na exportação',
-        description: 'Ocorreu um erro ao exportar os dados.',
-        variant: 'destructive',
-      });
-      console.error('Export error:', error);
-    }
-  }, [deliveries]);
-
-  // Clean up on unmount
-  useEffect(() => {
-    return () => {
-      if (watchId !== null) {
-        stopWatchingPosition(watchId);
-      }
-    };
-  }, [watchId]);
-
-  // Get status counts
-  const statusCounts = getStatusCounts(deliveries);
-
-  // Toggle list overlay for mobile
-  const toggleListOverlay = () => {
-    setShowListOverlay(!showListOverlay);
+  // Handle route optimization with current location
+  const handleOptimizeRoute = () => {
+    optimizeDeliveryRoute(currentLocation);
   };
 
   return (
@@ -294,109 +65,30 @@ const Index = () => {
       
       <div className="flex-1 p-4 bg-gray-50 overflow-hidden">
         {showFileImport && (
-          <div className="max-w-2xl mx-auto py-8">
-            <FileImport onImportComplete={handleImportComplete} />
-          </div>
+          <ImportSection 
+            onImportComplete={handleImport}
+            processingGeocode={processingGeocode}
+            geocodeProgress={geocodeProgress}
+          />
         )}
 
         {!showFileImport && (
-          <>
-            <div className="mb-4">
-              <h2 className="text-2xl font-semibold mb-2">Rota Otimizada</h2>
-              <StatusCounter 
-                pendente={statusCounts.pendente} 
-                entregue={statusCounts.entregue} 
-                ocorrencia={statusCounts.ocorrencia} 
-                total={statusCounts.total}
-              />
-            </div>
-
-            {processingGeocode && geocodeProgress > 0 && (
-              <div className="my-4">
-                <p className="text-sm mb-1">Convertendo endereços em coordenadas...</p>
-                <Progress value={geocodeProgress} className="h-1" />
-              </div>
-            )}
-
-            {processingOptimization && (
-              <div className="my-4">
-                <p className="text-sm mb-1">Otimizando rota...</p>
-                <Progress value={50} className="h-1" />
-              </div>
-            )}
-
-            {isMobile ? (
-              <>
-                {/* Fixed position map that fills the screen for mobile */}
-                <div className="fixed inset-0 pt-[170px] pb-4 px-4 z-10 bg-white">
-                  <DeliveryMap
-                    deliveries={deliveries}
-                    selectedDeliveryId={selectedDeliveryId}
-                    onSelectDelivery={setSelectedDeliveryId}
-                    currentLocation={currentLocation}
-                    isTrackingActive={isTrackingActive}
-                    onStartTracking={startTracking}
-                    onStopTracking={stopTracking}
-                    onOptimizeRoute={handleOptimizeRoute}
-                  />
-                  
-                  {/* Floating Button to show list */}
-                  <Button
-                    onClick={toggleListOverlay}
-                    className="absolute bottom-4 left-4 z-10 shadow-lg flex items-center gap-2"
-                    variant="default"
-                  >
-                    <List size={18} />
-                    Ver Lista
-                  </Button>
-                  
-                  {/* List overlay */}
-                  {showListOverlay && (
-                    <div className="fixed inset-0 z-50 bg-white overflow-y-auto p-4">
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold">Lista de Entregas</h3>
-                        <Button variant="ghost" size="icon" onClick={toggleListOverlay}>
-                          <X size={20} />
-                        </Button>
-                      </div>
-                      <DeliveryList
-                        deliveries={deliveries}
-                        onStatusChange={handleStatusChange}
-                        onSelectDelivery={(id) => {
-                          setSelectedDeliveryId(id);
-                          setShowListOverlay(false); // Close list and show map
-                        }}
-                        selectedDeliveryId={selectedDeliveryId}
-                      />
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="grid grid-cols-3 gap-4 h-[calc(100vh-230px)]">
-                <div className="col-span-1 overflow-hidden flex flex-col">
-                  <DeliveryList
-                    deliveries={deliveries}
-                    onStatusChange={handleStatusChange}
-                    onSelectDelivery={setSelectedDeliveryId}
-                    selectedDeliveryId={selectedDeliveryId}
-                  />
-                </div>
-                <div className="col-span-2 rounded-md overflow-hidden">
-                  <DeliveryMap
-                    deliveries={deliveries}
-                    selectedDeliveryId={selectedDeliveryId}
-                    onSelectDelivery={setSelectedDeliveryId}
-                    currentLocation={currentLocation}
-                    isTrackingActive={isTrackingActive}
-                    onStartTracking={startTracking}
-                    onStopTracking={stopTracking}
-                    onOptimizeRoute={handleOptimizeRoute}
-                  />
-                </div>
-              </div>
-            )}
-          </>
+          <RouteViewSection 
+            deliveries={deliveries}
+            selectedDeliveryId={selectedDeliveryId}
+            onSelectDelivery={setSelectedDeliveryId}
+            onStatusChange={handleStatusChange}
+            currentLocation={currentLocation}
+            isTrackingActive={isTrackingActive}
+            onStartTracking={startTracking}
+            onStopTracking={stopTracking}
+            onOptimizeRoute={handleOptimizeRoute}
+            statusCounts={statusCounts}
+            processingGeocode={processingGeocode}
+            geocodeProgress={geocodeProgress}
+            processingOptimization={processingOptimization}
+            isMobile={isMobile}
+          />
         )}
       </div>
     </div>
