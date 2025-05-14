@@ -1,39 +1,99 @@
 
-import React from 'react';
-import { Button } from '@/components/ui/button';
+import { useEffect, useState } from "react";
+import { useAuth } from "@/hooks/use-auth";
+import { Link } from "react-router-dom";
+import { Button } from "./ui/button";
+import { Avatar, AvatarFallback } from "./ui/avatar";
+import { 
+  DropdownMenu, 
+  DropdownMenuTrigger, 
+  DropdownMenuContent, 
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { Loader2, User, Settings, LogOut, Shield } from "lucide-react";
 
-interface HeaderProps {
-  onNewRouteClick: () => void;
-  onExportClick: () => void;
-}
+export function Header() {
+  const { user, profile, signOut, isLoading } = useAuth();
+  const [initials, setInitials] = useState<string>("");
 
-const Header: React.FC<HeaderProps> = ({ onNewRouteClick, onExportClick }) => {
+  useEffect(() => {
+    if (profile?.full_name) {
+      const nameParts = profile.full_name.split(" ");
+      const firstInitial = nameParts[0]?.charAt(0) || "";
+      const lastInitial = nameParts.length > 1 ? nameParts[nameParts.length - 1]?.charAt(0) : "";
+      setInitials((firstInitial + lastInitial).toUpperCase());
+    } else if (user?.email) {
+      setInitials(user.email.charAt(0).toUpperCase());
+    }
+  }, [user, profile]);
+
   return (
-    <header className="bg-primary text-white py-4 px-6 flex items-center justify-between">
-      <h1 className="text-2xl font-bold">
-        <a href="/" className="flex items-center">
+    <header className="bg-white shadow">
+      <div className="container max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+        <Link to="/app" className="text-xl font-bold text-primary">
           RotaFácil
-        </a>
-      </h1>
+        </Link>
 
-      <div className="flex gap-2">
-        <Button 
-          variant="outline" 
-          className="bg-white text-primary hover:bg-gray-100"
-          onClick={onNewRouteClick}
-        >
-          Nova Rota
-        </Button>
-        <Button 
-          variant="outline" 
-          className="bg-amber-500 text-white hover:bg-amber-600 border-amber-500"
-          onClick={onExportClick}
-        >
-          Baixar CSV
-        </Button>
+        {isLoading ? (
+          <Loader2 className="h-5 w-5 animate-spin" />
+        ) : user ? (
+          <div className="flex items-center space-x-4">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="rounded-full h-8 w-8 p-0">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback>{initials}</AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem disabled>
+                  <User className="mr-2 h-4 w-4" />
+                  <span>{profile?.full_name || user.email}</span>
+                </DropdownMenuItem>
+                
+                <DropdownMenuSeparator />
+                
+                <Link to="/app">
+                  <DropdownMenuItem>
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Meu Painel</span>
+                  </DropdownMenuItem>
+                </Link>
+                
+                {profile?.is_early_adopter && (
+                  <Link to="/admin">
+                    <DropdownMenuItem>
+                      <Shield className="mr-2 h-4 w-4" />
+                      <span>Painel Admin</span>
+                    </DropdownMenuItem>
+                  </Link>
+                )}
+                
+                <DropdownMenuSeparator />
+                
+                <DropdownMenuItem onClick={() => signOut()}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Sair</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ) : (
+          <div className="flex items-center space-x-2">
+            <Link to="/auth/login">
+              <Button variant="outline">Entrar</Button>
+            </Link>
+            <Link to="/auth/signup">
+              <Button>Cadastre-se</Button>
+            </Link>
+          </div>
+        )}
       </div>
     </header>
   );
-};
+}
 
 export default Header;

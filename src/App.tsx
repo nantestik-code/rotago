@@ -11,6 +11,7 @@ import SignUp from "./pages/auth/SignUp";
 import Login from "./pages/auth/Login";
 import { AuthProvider } from "@/hooks/use-auth";
 import PrivateRoute from "./components/PrivateRoute";
+import AdminPanel from "./pages/admin/AdminPanel";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +34,16 @@ const App = () => (
               element={
                 <PrivateRoute>
                   <Index />
+                </PrivateRoute>
+              } 
+            />
+            
+            {/* Admin Panel */}
+            <Route 
+              path="/admin" 
+              element={
+                <PrivateRoute>
+                  <AdminPanel />
                 </PrivateRoute>
               } 
             />
