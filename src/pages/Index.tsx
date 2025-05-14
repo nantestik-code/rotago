@@ -61,7 +61,10 @@ const Index = () => {
 
   return (
     <div className="flex flex-col h-screen">
-      <Header onNewRouteClick={handleNewRoute} onExportClick={handleExport} />
+      <Header 
+        onNewRouteClick={handleNewRoute} 
+        onExportClick={handleExport} 
+      />
       
       <div className="flex-1 p-4 bg-gray-50 overflow-hidden">
         {showFileImport && (

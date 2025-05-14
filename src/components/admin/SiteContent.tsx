@@ -16,15 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Plus, Pencil } from "lucide-react";
-
-interface ContentItem {
-  id: string;
-  title: string;
-  content: string;
-  type: string;
-  created_at: string;
-  updated_at: string;
-}
+import { ContentItem } from "@/types/siteContent";
 
 const SiteContent = () => {
   const [content, setContent] = useState<ContentItem[]>([]);
@@ -39,47 +31,19 @@ const SiteContent = () => {
   const fetchContent = async () => {
     try {
       setLoading(true);
-      // Since we're creating this admin panel from scratch without an existing site_content table,
-      // we'll first check if the table exists and create it if not
-      const { error: contentTableError } = await supabase
-        .from("site_content")
-        .select("id")
-        .limit(1)
-        .single();
       
-      if (contentTableError && contentTableError.code === "PGRST116") {
-        // Table doesn't exist, we'll return mock data for now
-        setContent([
-          {
-            id: "1",
-            title: "Banner Principal",
-            content: "Rota Fácil - Otimize suas entregas com a melhor ferramenta do mercado!",
-            type: "banner",
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          },
-          {
-            id: "2",
-            title: "Texto Benefícios",
-            content: "Economize tempo e combustível, evite voltar 10x no mesmo endereço, organize suas entregas de forma eficiente.",
-            type: "text",
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }
-        ]);
-        setLoading(false);
-        return;
-      }
-
+      // Use a custom query to get data from site_content
       const { data, error } = await supabase
-        .from("site_content")
-        .select("*")
+        .from('site_content')
+        .select('*')
         .order('created_at', { ascending: true });
       
       if (error) throw error;
       
-      setContent(data || []);
+      // Safely type the response as ContentItem[]
+      setContent(data as unknown as ContentItem[]);
     } catch (error: any) {
+      console.error("Error fetching content:", error);
       toast({
         title: "Erro ao carregar conteúdo",
         description: error.message,
@@ -117,8 +81,18 @@ const SiteContent = () => {
     if (!editingContent) return;
     
     try {
-      // In a real implementation, this would update the database
-      // For now we'll just update the local state
+      const { error } = await supabase
+        .from('site_content')
+        .update({
+          title: editingContent.title,
+          content: editingContent.content,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editingContent.id);
+      
+      if (error) throw error;
+      
+      // Update local state
       const updatedContent = content.map(item => 
         item.id === editingContent.id ? editingContent : item
       );
@@ -138,26 +112,29 @@ const SiteContent = () => {
     }
   };
 
-  const handleNewContentSubmit = () => {
+  const handleNewContentSubmit = async () => {
     try {
-      // In a real implementation, this would insert into the database
-      // For now we'll just update the local state
-      const newItem: ContentItem = {
-        id: Date.now().toString(),
-        title: newContent.title,
-        content: newContent.content,
-        type: newContent.type,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
+      const { data, error } = await supabase
+        .from('site_content')
+        .insert({
+          title: newContent.title,
+          content: newContent.content,
+          type: newContent.type
+        })
+        .select();
       
-      setContent([...content, newItem]);
-      setNewContent({ title: "", content: "", type: "banner" });
+      if (error) throw error;
       
-      toast({
-        title: "Conteúdo adicionado",
-        description: "O novo conteúdo foi adicionado com sucesso.",
-      });
+      // Update local state with the returned item
+      if (data) {
+        setContent([...content, data[0] as unknown as ContentItem]);
+        setNewContent({ title: "", content: "", type: "banner" });
+        
+        toast({
+          title: "Conteúdo adicionado",
+          description: "O novo conteúdo foi adicionado com sucesso.",
+        });
+      }
     } catch (error: any) {
       toast({
         title: "Erro ao adicionar conteúdo",

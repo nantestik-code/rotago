@@ -509,6 +509,33 @@ export type Database = {
         }
         Relationships: []
       }
+      site_content: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          title: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          title: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          title?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       teste: {
         Row: {
           criado_em: string | null

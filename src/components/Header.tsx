@@ -13,7 +13,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Loader2, User, Settings, LogOut, Shield } from "lucide-react";
 
-export function Header() {
+export function Header({ onNewRouteClick, onExportClick }: { 
+  onNewRouteClick?: () => void; 
+  onExportClick?: () => void;
+}) {
   const { user, profile, signOut, isLoading } = useAuth();
   const [initials, setInitials] = useState<string>("");
 
