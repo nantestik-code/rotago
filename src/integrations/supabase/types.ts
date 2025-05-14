@@ -440,7 +440,44 @@ export type Database = {
             referencedRelation: "deliveries"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "route_deliveries_route_id_fkey"
+            columns: ["route_id"]
+            isOneToOne: false
+            referencedRelation: "routes"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      routes: {
+        Row: {
+          created_at: string | null
+          date: string | null
+          description: string | null
+          id: string
+          name: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          date?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          date?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       teste: {
         Row: {
