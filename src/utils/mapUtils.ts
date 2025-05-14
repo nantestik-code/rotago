@@ -4,6 +4,7 @@ import mapboxgl from 'mapbox-gl';
 export interface MapPosition {
   lat: number;
   lng: number;
+  addressKey?: string; // Chave única para o endereço (usado para cache)
 }
 
 // Campo Grande, MS
@@ -25,6 +26,8 @@ export const getMapboxToken = () => mapboxToken;
 export const initMapbox = () => {
   mapboxgl.accessToken = mapboxToken;
 };
+
+// A função geocodeAddress já está definida abaixo
 
 // Helper function to calculate distance between two points
 export const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -98,28 +101,82 @@ export const stopWatchingPosition = (watchId: number | null) => {
   }
 };
 
-export const geocodeAddress = async (
-  address: string
-): Promise<MapPosition | null> => {
+// Geocodificar endereço para obter coordenadas precisas
+export const geocodeAddress = async (address: string, retryCount = 0): Promise<MapPosition | null> => {
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 1000; // 1 segundo
+  
   try {
-    const response = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?country=br&limit=1&access_token=${mapboxToken}`
-    );
-
+    const query = encodeURIComponent(address);
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?access_token=${mapboxToken}&country=br&limit=1`;
+    
+    // Adicionar um timeout para a requisição
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 segundos de timeout
+    
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    
     if (!response.ok) {
-      throw new Error('Falha na requisição de geocodificação');
+      const errorText = await response.text();
+      throw new Error(`Erro na API de geocodificação: ${response.status} - ${errorText}`);
     }
-
+    
     const data = await response.json();
-
+    
     if (data.features && data.features.length > 0) {
       const [lng, lat] = data.features[0].center;
-      return { lat, lng };
+      const relevance = data.features[0].relevance || 0;
+      
+      // Verificar se a relevância do resultado é alta o suficiente
+      if (relevance < 0.5) {
+        console.warn(`Baixa relevância (${relevance}) para o endereço: ${address}`);
+      }
+      
+      // Criar a chave de endereço para cache
+      const addressKey = address.toLowerCase().trim();
+      
+      return { lat, lng, addressKey };
     }
-
+    
+    // Se não encontrou resultados, tentar novamente com um endereço mais simples
+    if (retryCount === 0) {
+      // Simplificar o endereço removendo números e complementos
+      const simplifiedAddress = address
+        .replace(/\d+/g, '') // Remover números
+        .replace(/,\s*(?:apto|apt|ap|casa|lote|lt|quadra|qd|bloco|bl|sala|sl|conjunto|cj|andar|and)[^,]*/gi, '') // Remover complementos
+        .replace(/\s{2,}/g, ' ') // Remover espaços duplicados
+        .trim();
+      
+      if (simplifiedAddress !== address) {
+        console.log(`Tentando geocodificar com endereço simplificado: ${simplifiedAddress}`);
+        return geocodeAddress(simplifiedAddress, retryCount + 1);
+      }
+    }
+    
+    // Se não encontrou resultados e já tentou com endereço simplificado, tentar novamente após um delay
+    if (retryCount < MAX_RETRIES) {
+      console.log(`Tentativa ${retryCount + 1} falhou, tentando novamente em ${RETRY_DELAY}ms...`);
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+      return geocodeAddress(address, retryCount + 1);
+    }
+    
+    console.error(`Não foi possível geocodificar o endereço após ${MAX_RETRIES} tentativas: ${address}`);
     return null;
   } catch (error) {
-    console.error('Erro de geocodificação:', error);
+    // Se for um erro de timeout ou de rede, tentar novamente
+    if (
+      error instanceof Error && 
+      (error.name === 'AbortError' || error.message.includes('network') || error.message.includes('timeout'))
+    ) {
+      if (retryCount < MAX_RETRIES) {
+        console.log(`Erro de rede/timeout, tentando novamente em ${RETRY_DELAY}ms...`);
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        return geocodeAddress(address, retryCount + 1);
+      }
+    }
+    
+    console.error('Erro ao geocodificar endereço:', error);
     return null;
   }
 };

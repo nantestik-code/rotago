@@ -3,7 +3,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Button } from '@/components/ui/button';
 import { DeliveryItem } from '@/utils/deliveryUtils';
-import { MapPosition, defaultMapCenter, initMapbox, getMapboxToken, setMapboxToken, calculateDistance } from '@/utils/mapUtils';
+import { MapPosition, defaultMapCenter, initMapbox, getMapboxToken, setMapboxToken, calculateDistance, geocodeAddress } from '@/utils/mapUtils';
 import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { Navigation, MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -37,7 +37,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
   const mapboxMapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<{[key: string]: mapboxgl.Marker}>({});
   const currentLocationMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const miniMapRef = useRef<mapboxgl.Map | null>(null);
+  // Mini mapa removido para evitar elementos visuais indesejados
   const isMobile = useIsMobile();
   
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -122,24 +122,43 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         mapboxMapRef.current = map;
         setMapLoaded(true);
         
-        // Add mini map in bottom right corner
-        const miniMap = new mapboxgl.Map({
-          container: document.createElement('div'),
-          style: 'mapbox://styles/mapbox/satellite-v9',
-          center: [defaultMapCenter.lng, defaultMapCenter.lat],
-          zoom: 10,
-          interactive: false,
-        });
+        // Centralizar o mapa na primeira entrega válida, se existir
+        const firstValidDelivery = deliveries.find(d => d.lat && d.lng);
+        if (firstValidDelivery && firstValidDelivery.lat && firstValidDelivery.lng) {
+          map.flyTo({
+            center: [parseFloat(firstValidDelivery.lng.toString()), parseFloat(firstValidDelivery.lat.toString())],
+            zoom: 12,
+            essential: true
+          });
+          console.log(`Centralizando mapa em [${firstValidDelivery.lng}, ${firstValidDelivery.lat}]`);
+        }
         
-        miniMap.getContainer().className = 'mini-map';
-        mapRef.current?.appendChild(miniMap.getContainer());
-        miniMapRef.current = miniMap;
-        
-        // Keep mini map in sync with main map
-        map.on('move', () => {
-          if (miniMapRef.current) {
-            miniMapRef.current.setCenter(map.getCenter());
-          }
+        // Adicionar listener para manter os marcadores fixos em diferentes níveis de zoom
+        map.on('zoom', () => {
+          const currentZoom = map.getZoom();
+          console.log(`Zoom alterado para: ${currentZoom}`);
+          
+          // Ajustar o tamanho dos marcadores com base no nível de zoom
+          const markers = document.querySelectorAll('.order-marker');
+          markers.forEach((marker: HTMLElement) => {
+            // Manter o tamanho base em zoom 12, ajustar proporcionalmente em outros níveis
+            const baseZoom = 12;
+            const baseSize = 32;
+            
+            // Calcular o novo tamanho com base no zoom atual
+            // Limitar o crescimento/diminuição para evitar marcadores muito grandes/pequenos
+            const zoomFactor = Math.min(Math.max(currentZoom / baseZoom, 0.7), 1.3);
+            const newSize = Math.round(baseSize * zoomFactor);
+            
+            // Aplicar o novo tamanho e ajustar a linha de texto
+            marker.style.width = `${newSize}px`;
+            marker.style.height = `${newSize}px`;
+            marker.style.lineHeight = `${newSize}px`;
+            
+            // Ajustar o tamanho da fonte proporcionalmente
+            const baseFontSize = 14;
+            marker.style.fontSize = `${Math.round(baseFontSize * zoomFactor)}px`;
+          });
         });
       });
     } catch (error) {
@@ -168,6 +187,147 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     orderIndices: number[]
   }>>({});
 
+  // Estado para armazenar as coordenadas geocodificadas
+  const [geocodedCoordinates, setGeocodedCoordinates] = useState<Record<string, MapPosition>>({});
+  
+  // Chave para armazenar coordenadas geocodificadas no localStorage
+  const GEOCODE_CACHE_KEY = 'rota-facil-geocode-cache';
+  
+  // Carregar cache de geocodificação do localStorage
+  useEffect(() => {
+    try {
+      const cachedCoordinates = localStorage.getItem(GEOCODE_CACHE_KEY);
+      if (cachedCoordinates) {
+        const parsedCache = JSON.parse(cachedCoordinates);
+        console.log('Cache de geocodificação carregado:', Object.keys(parsedCache).length, 'endereços');
+        setGeocodedCoordinates(parsedCache);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar cache de geocodificação:', error);
+    }
+  }, []);
+  
+  // Salvar cache de geocodificação no localStorage quando atualizado
+  useEffect(() => {
+    if (Object.keys(geocodedCoordinates).length > 0) {
+      try {
+        localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(geocodedCoordinates));
+        console.log('Cache de geocodificação salvo:', Object.keys(geocodedCoordinates).length, 'endereços');
+      } catch (error) {
+        console.error('Erro ao salvar cache de geocodificação:', error);
+      }
+    }
+  }, [geocodedCoordinates]);
+  
+  // Geocodificar todos os endereços para garantir que os marcadores fiquem fixos nos locais corretos
+  useEffect(() => {
+    const geocodeDeliveries = async () => {
+      // Verificar quais entregas precisam ser geocodificadas
+      const deliveriesToGeocode = deliveries.filter(d => {
+        // Pular entregas sem endereço
+        if (!d.endereco) return false;
+        
+        // Verificar se já temos coordenadas geocodificadas para este endereço
+        const addressKey = `${d.endereco}, ${d.cidade}, ${d.estado}`.toLowerCase().trim();
+        const hasCache = Object.keys(geocodedCoordinates).some(key => {
+          return key === d.id || geocodedCoordinates[key].addressKey === addressKey;
+        });
+        
+        // Geocodificar apenas se não tivermos coordenadas em cache
+        return !hasCache;
+      });
+      
+      if (deliveriesToGeocode.length === 0) {
+        console.log('Todos os endereços já estão geocodificados');
+        return;
+      }
+      
+      toast({
+        title: 'Geocodificando endereços',
+        description: `Obtendo coordenadas precisas para ${deliveriesToGeocode.length} endereços...`,
+        duration: 3000,
+      });
+      
+      const newCoordinates: Record<string, MapPosition & { addressKey: string }> = {};
+      let successCount = 0;
+      let errorCount = 0;
+      
+      // Limitar o número de requisições simultâneas para evitar sobrecarga da API
+      const batchSize = 5;
+      
+      for (let i = 0; i < deliveriesToGeocode.length; i += batchSize) {
+        const batch = deliveriesToGeocode.slice(i, i + batchSize);
+        
+        // Processar lote de endereços em paralelo
+        const results = await Promise.allSettled(
+          batch.map(async (delivery) => {
+            const fullAddress = `${delivery.endereco}, ${delivery.cidade}, ${delivery.estado}, Brasil`;
+            const addressKey = `${delivery.endereco}, ${delivery.cidade}, ${delivery.estado}`.toLowerCase().trim();
+            
+            try {
+              console.log(`Geocodificando: ${fullAddress}`);
+              const coordinates = await geocodeAddress(fullAddress);
+              
+              if (coordinates) {
+                console.log(`Coordenadas precisas obtidas para ${delivery.id}:`, coordinates);
+                return { 
+                  id: delivery.id, 
+                  coordinates: { ...coordinates, addressKey } 
+                };
+              }
+              return null;
+            } catch (error) {
+              console.error(`Erro ao geocodificar ${delivery.id}:`, error);
+              return null;
+            }
+          })
+        );
+        
+        // Processar resultados do lote
+        results.forEach(result => {
+          if (result.status === 'fulfilled' && result.value) {
+            const { id, coordinates } = result.value;
+            newCoordinates[id] = coordinates;
+            successCount++;
+          } else {
+            errorCount++;
+          }
+        });
+        
+        // Pequena pausa entre lotes para não sobrecarregar a API
+        if (i + batchSize < deliveriesToGeocode.length) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      
+      if (Object.keys(newCoordinates).length > 0) {
+        setGeocodedCoordinates(prev => ({ ...prev, ...newCoordinates }));
+        
+        toast({
+          title: 'Geocodificação concluída',
+          description: `Coordenadas obtidas para ${successCount} endereços. ${errorCount > 0 ? `Falha em ${errorCount} endereços.` : ''}`,
+          duration: 3000,
+        });
+      } else if (errorCount > 0) {
+        toast({
+          title: 'Erro na geocodificação',
+          description: `Não foi possível obter coordenadas para ${errorCount} endereços.`,
+          variant: 'destructive',
+          duration: 5000,
+        });
+      }
+    };
+    
+    if (mapLoaded) {
+      // Adicionar um pequeno atraso para garantir que o mapa esteja completamente carregado
+      const timer = setTimeout(() => {
+        geocodeDeliveries();
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [deliveries, mapLoaded, geocodedCoordinates]);
+  
   // Update markers when deliveries or selected delivery changes
   useEffect(() => {
     if (!mapLoaded || !mapboxMapRef.current) return;
@@ -239,60 +399,64 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       // Skip if we already created a marker for this coordinate
       if (addressMarkers[coordKey]) return;
       
-      // Create marker element
+      // Criar um marcador simples com o número da ordem
       const markerEl = document.createElement('div');
+      markerEl.className = 'order-marker';
       
-      // Determine marker color based on status priority (ocorrencia > pendente > entregue)
-      const hasOcorrencia = group.statuses.includes('ocorrencia');
-      const hasPendente = group.statuses.includes('pendente');
-      
-      if (hasOcorrencia) {
-        markerEl.className = 'marker-occurrence';
-      } else if (hasPendente) {
-        markerEl.className = 'marker-pending';
-      } else {
-        markerEl.className = 'marker-delivered';
+      // Adicionar classe de status
+      if (delivery.status === 'entregue') {
+        markerEl.classList.add('status-entregue');
+      } else if (delivery.status === 'ocorrencia') {
+        markerEl.classList.add('status-ocorrencia');
       }
       
-      // Add multiple class if this coordinate has multiple deliveries
-      if (group.deliveryIds.length > 1) {
-        markerEl.classList.add('marker-multiple');
-      }
+      // Adicionar número da entrega diretamente como texto
+      markerEl.innerText = `${index + 1}`;
       
+      // Se for a entrega selecionada, destacar
       if (delivery.id === selectedDeliveryId) {
         markerEl.classList.add('marker-selected');
       }
       
-      // Add delivery number inside the marker
-      const spanEl = document.createElement('span');
-      spanEl.textContent = `${index + 1}`;
-      markerEl.appendChild(spanEl);
+      // Verificar se temos coordenadas geocodificadas para esta entrega
+      if (!geocodedCoordinates[delivery.id]) {
+        // Se não houver coordenadas geocodificadas, não criar marcador
+        // Isso garante que só criamos marcadores para endereços que foram geocodificados corretamente
+        console.log(`Aguardando geocodificação para entrega ${delivery.id}`);
+        return;
+      }
       
-      // Create marker
+      // Usar exclusivamente as coordenadas geocodificadas, que são mais precisas
+      const lat = geocodedCoordinates[delivery.id].lat;
+      const lng = geocodedCoordinates[delivery.id].lng;
+      
+      console.log(`Posicionando marcador ${index + 1} em [${lng}, ${lat}] para entrega ${delivery.id}`);
+      
+      // Criar e adicionar o marcador ao mapa com configuração precisa para evitar qualquer bouncing
+      // Usar a API de marcadores HTML nativos do Mapbox para garantir posicionamento fixo
+      const el = document.createElement('div');
+      el.className = 'mapboxgl-marker mapboxgl-marker-anchor-bottom';
+      el.style.position = 'absolute';
+      el.style.pointerEvents = 'auto';
+      el.appendChild(markerEl);
+      
+      // Fixar o marcador diretamente nas coordenadas geográficas
       const marker = new mapboxgl.Marker({
-        element: markerEl,
-        anchor: 'center'
+        element: el,
+        anchor: 'bottom', // Ancorar na parte inferior do marcador
+        offset: [0, 0], // Sem deslocamento
+        pitchAlignment: 'viewport', // Manter alinhado com a viewport, não com o mapa
+        rotationAlignment: 'viewport', // Manter alinhado com a viewport, não com o mapa
+        // Desativar qualquer animação ou transição
+        draggable: false // Impedir que o marcador seja arrastado
       })
-        .setLngLat([delivery.lng, delivery.lat])
+        .setLngLat([lng, lat])
         .addTo(mapboxMapRef.current);
         
       markersRef.current[delivery.id] = marker;
       
-      // Create marker in mini map
+      // Mini marcadores removidos
       let miniMarker = null;
-      if (miniMapRef.current) {
-        const miniMarkerEl = document.createElement('div');
-        miniMarkerEl.className = hasOcorrencia ? 'mini-marker-occurrence' : 
-                                hasPendente ? 'mini-marker-pending' : 
-                                'mini-marker-delivered';
-        
-        miniMarker = new mapboxgl.Marker({
-          element: miniMarkerEl,
-          anchor: 'center',
-        })
-          .setLngLat([delivery.lng, delivery.lat])
-          .addTo(miniMapRef.current);
-      }
       
       // Add to address markers map
       addressMarkers[coordKey] = {
@@ -383,7 +547,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         }, 10);
       });
     });
-  }, [deliveries, selectedDeliveryId, mapLoaded, onSelectDelivery, addressGroups, currentLocation]);
+  }, [deliveries, selectedDeliveryId, mapLoaded, onSelectDelivery, addressGroups, currentLocation, geocodedCoordinates]);
 
   // Update markers when delivery status changes
   useEffect(() => {
@@ -538,10 +702,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         });
       }
       
-      // Update mini map too
-      if (miniMapRef.current) {
-        miniMapRef.current.setCenter(position);
-      }
+      // Mini mapa removido
     }
   }, [currentLocation, mapLoaded, isTrackingActive]);
 
@@ -621,6 +782,38 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       }
     }
   }, [selectedDeliveryId, pendingDeliveries, isMobile]);
+  
+  // Update marker styles when delivery status changes
+  useEffect(() => {
+    if (!mapLoaded || !mapboxMapRef.current) return;
+    
+    // Update all markers based on current delivery statuses
+    deliveries.forEach(delivery => {
+      const marker = markersRef.current[delivery.id];
+      if (marker) {
+        const markerEl = marker.getElement();
+        
+        // Reset classes first
+        markerEl.className = 'order-marker';
+        
+        // Add appropriate status class
+        if (delivery.status === 'entregue') {
+          markerEl.classList.add('status-entregue');
+        } else if (delivery.status === 'ocorrencia') {
+          markerEl.classList.add('status-ocorrencia');
+        }
+        
+        // Add selected class if this is the selected delivery
+        if (delivery.id === selectedDeliveryId) {
+          markerEl.classList.add('marker-selected');
+        }
+        
+        // Update the number in the marker
+        const index = deliveries.findIndex(d => d.id === delivery.id);
+        markerEl.innerText = `${index + 1}`;
+      }
+    });
+  }, [deliveries, selectedDeliveryId, mapLoaded]);
 
   if (showTokenInput) {
     return (
@@ -652,64 +845,74 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       
       <style>
         {`
-        /* Updated marker styles to match the reference image */
-        .marker-pending, .marker-delivered, .marker-occurrence {
-          width: 34px;
-          height: 34px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+        /* Estilo do marcador de ordem conforme especificação */
+        .order-marker {
+          background-color: #007BFF;
           border-radius: 50%;
-          cursor: pointer;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-          transition: all 0.2s ease;
-          font-weight: 700;
-          font-size: 14px;
+          width: 32px;
+          height: 32px;
           color: white;
-          position: relative;
-          z-index: 1;
-          border: 2px solid white;
+          text-align: center;
+          line-height: 32px;
+          font-weight: bold;
+          font-size: 14px;
+          box-shadow: 0 0 4px rgba(0,0,0,0.3);
+          cursor: pointer;
+          /* Garantir que não haja deslocamentos */
+          margin: 0;
+          padding: 0;
+          transform: translate(0, 0);
+          /* Garantir que o tamanho seja consistente em diferentes níveis de zoom */
+          will-change: transform;
+          /* Desativar qualquer animação ou transição que possa causar bouncing */
+          transition: none !important;
+          animation: none !important;
+          -webkit-animation: none !important;
         }
         
-        .marker-pending {
-          background-color: #3b82f6; /* Brighter blue to match reference */
-          border: 2px solid white;
+        /* Estilos para garantir que os marcadores fiquem fixos */
+        .mapboxgl-marker {
+          transform-origin: bottom center !important;
+          pointer-events: auto !important;
+          /* Desativar qualquer animação ou transição */
+          transition: none !important;
+          animation: none !important;
+          -webkit-animation: none !important;
         }
         
-        .marker-delivered {
+        /* Estilos para diferentes status */
+        .status-entregue {
           background-color: #10B981;
-          border: 2px solid white;
         }
         
-        .marker-occurrence {
-          background-color: #ef4444; /* Brighter red to match reference */
-          border: 2px solid white;
-        }
-        
-        .marker-multiple {
-          border-color: #F97316;
-          border-width: 3px;
-        }
-        
-        .marker-multiple::after {
-          content: "";
-          position: absolute;
-          top: -4px;
-          right: -4px;
-          width: 12px;
-          height: 12px;
-          border-radius: 50%;
-          background-color: #F97316;
-          border: 2px solid white;
-          z-index: 2;
+        .status-ocorrencia {
+          background-color: #EF4444;
         }
         
         .marker-selected {
           transform: scale(1.2);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+          box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.9), 0 2px 8px rgba(0, 0, 0, 0.4);
           z-index: 10;
-          border-color: #8B5CF6;
-          border-width: 3px;
+        }
+        
+        .modern-marker span {
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        
+        .animate-marker-flash {
+          animation: marker-pulse 1.5s ease-out;
+        }
+        
+        @keyframes marker-pulse {
+          0% {
+            box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7), 0 3px 10px rgba(0, 0, 0, 0.25);
+          }
+          70% {
+            box-shadow: 0 0 0 15px rgba(255, 255, 255, 0), 0 3px 10px rgba(0, 0, 0, 0.25);
+          }
+          100% {
+            box-shadow: 0 0 0 0 rgba(255, 255, 255, 0), 0 3px 10px rgba(0, 0, 0, 0.25);
+          }
         }
         
         .mini-marker-pending, .mini-marker-delivered, .mini-marker-occurrence {
