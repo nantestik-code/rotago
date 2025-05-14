@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { DeliveryItem } from '@/utils/deliveryUtils';
 
@@ -11,7 +12,7 @@ interface SupabaseDelivery {
   state: string;
   zip_code: string;
   phone: string;
-  notes: string;
+  notes: string | null;
   status: 'pendente' | 'entregue' | 'ocorrencia';
   latitude: number | null;
   longitude: number | null;
@@ -29,7 +30,7 @@ const mapSupabaseToDelivery = (data: SupabaseDelivery): DeliveryItem => {
     estado: data.state,
     cep: data.zip_code,
     telefone: data.phone,
-    observacoes: data.notes,
+    observacoes: data.notes || '',
     status: data.status,
     lat: data.latitude || undefined,
     lng: data.longitude || undefined,
@@ -57,17 +58,18 @@ const mapDeliveryToSupabase = (delivery: DeliveryItem): Partial<SupabaseDelivery
 // Buscar todas as entregas
 export const fetchDeliveries = async (): Promise<DeliveryItem[]> => {
   try {
+    // Utilizando o tipo explícito para a resposta
     const { data, error } = await supabase
       .from('deliveries')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false }) as { data: SupabaseDelivery[] | null, error: any };
 
     if (error) {
       console.error('Erro ao buscar entregas:', error);
       throw error;
     }
 
-    return (data as SupabaseDelivery[]).map(mapSupabaseToDelivery);
+    return (data || []).map(mapSupabaseToDelivery);
   } catch (error) {
     console.error('Erro ao buscar entregas:', error);
     throw error;
@@ -79,7 +81,7 @@ export const fetchDeliveriesByRoute = async (routeId: string): Promise<DeliveryI
   try {
     const { data, error } = await supabase
       .from('route_deliveries')
-      .select('delivery_id, sequence_number, deliveries(*)')
+      .select('delivery_id, sequence_number')
       .eq('route_id', routeId)
       .order('sequence_number', { ascending: true });
 
@@ -88,7 +90,34 @@ export const fetchDeliveriesByRoute = async (routeId: string): Promise<DeliveryI
       throw error;
     }
 
-    return data.map((item: any) => mapSupabaseToDelivery(item.deliveries));
+    if (!data || data.length === 0) {
+      return [];
+    }
+
+    const deliveryIds = data.map(item => item.delivery_id);
+    
+    const { data: deliveries, error: deliveriesError } = await supabase
+      .from('deliveries')
+      .select('*')
+      .in('id', deliveryIds) as { data: SupabaseDelivery[] | null, error: any };
+
+    if (deliveriesError) {
+      console.error('Erro ao buscar detalhes das entregas:', deliveriesError);
+      throw deliveriesError;
+    }
+
+    // Mapeando entregas e ordenando segundo a sequência original
+    const deliveriesMap = new Map<string, SupabaseDelivery>();
+    (deliveries || []).forEach(delivery => {
+      deliveriesMap.set(delivery.id, delivery);
+    });
+
+    return data
+      .map(item => {
+        const delivery = deliveriesMap.get(item.delivery_id);
+        return delivery ? mapSupabaseToDelivery(delivery) : null;
+      })
+      .filter((delivery): delivery is DeliveryItem => delivery !== null);
   } catch (error) {
     console.error('Erro ao buscar entregas da rota:', error);
     throw error;
@@ -102,14 +131,18 @@ export const createDelivery = async (delivery: DeliveryItem): Promise<DeliveryIt
       .from('deliveries')
       .insert(mapDeliveryToSupabase(delivery))
       .select()
-      .single();
+      .single() as { data: SupabaseDelivery | null, error: any };
 
     if (error) {
       console.error('Erro ao criar entrega:', error);
       throw error;
     }
 
-    return mapSupabaseToDelivery(data as SupabaseDelivery);
+    if (!data) {
+      throw new Error('Nenhum dado retornado ao criar entrega');
+    }
+
+    return mapSupabaseToDelivery(data);
   } catch (error) {
     console.error('Erro ao criar entrega:', error);
     throw error;
@@ -122,14 +155,14 @@ export const createDeliveries = async (deliveries: DeliveryItem[]): Promise<Deli
     const { data, error } = await supabase
       .from('deliveries')
       .insert(deliveries.map(mapDeliveryToSupabase))
-      .select();
+      .select() as { data: SupabaseDelivery[] | null, error: any };
 
     if (error) {
       console.error('Erro ao criar entregas em lote:', error);
       throw error;
     }
 
-    return (data as SupabaseDelivery[]).map(mapSupabaseToDelivery);
+    return (data || []).map(mapSupabaseToDelivery);
   } catch (error) {
     console.error('Erro ao criar entregas em lote:', error);
     throw error;
@@ -144,14 +177,18 @@ export const updateDelivery = async (delivery: DeliveryItem): Promise<DeliveryIt
       .update(mapDeliveryToSupabase(delivery))
       .eq('id', delivery.id)
       .select()
-      .single();
+      .single() as { data: SupabaseDelivery | null, error: any };
 
     if (error) {
       console.error('Erro ao atualizar entrega:', error);
       throw error;
     }
 
-    return mapSupabaseToDelivery(data as SupabaseDelivery);
+    if (!data) {
+      throw new Error('Nenhum dado retornado ao atualizar entrega');
+    }
+
+    return mapSupabaseToDelivery(data);
   } catch (error) {
     console.error('Erro ao atualizar entrega:', error);
     throw error;

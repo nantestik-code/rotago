@@ -185,6 +185,57 @@ export type Database = {
           },
         ]
       }
+      deliveries: {
+        Row: {
+          address: string
+          city: string
+          client_name: string
+          created_at: string | null
+          id: string
+          latitude: number | null
+          longitude: number | null
+          notes: string | null
+          order_number: string
+          phone: string
+          state: string
+          status: string
+          updated_at: string | null
+          zip_code: string
+        }
+        Insert: {
+          address: string
+          city: string
+          client_name: string
+          created_at?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          notes?: string | null
+          order_number: string
+          phone: string
+          state: string
+          status?: string
+          updated_at?: string | null
+          zip_code: string
+        }
+        Update: {
+          address?: string
+          city?: string
+          client_name?: string
+          created_at?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          notes?: string | null
+          order_number?: string
+          phone?: string
+          state?: string
+          status?: string
+          updated_at?: string | null
+          zip_code?: string
+        }
+        Relationships: []
+      }
       documents: {
         Row: {
           content: string | null
@@ -355,6 +406,41 @@ export type Database = {
           Valor?: string | null
         }
         Relationships: []
+      }
+      route_deliveries: {
+        Row: {
+          created_at: string | null
+          delivery_id: string
+          id: string
+          route_id: string
+          sequence_number: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          delivery_id: string
+          id?: string
+          route_id: string
+          sequence_number: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          delivery_id?: string
+          id?: string
+          route_id?: string
+          sequence_number?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "route_deliveries_delivery_id_fkey"
+            columns: ["delivery_id"]
+            isOneToOne: false
+            referencedRelation: "deliveries"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       teste: {
         Row: {
