@@ -36,23 +36,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const setupAuth = async () => {
       setIsLoading(true);
       
-      // Get initial session
-      const { data: { session: initialSession } } = await supabase.auth.getSession();
-      setSession(initialSession);
-      setUser(initialSession?.user ?? null);
-      
-      if (initialSession?.user) {
-        await fetchProfile(initialSession.user.id);
-      }
-      
-      // Set up auth change listener
+      // Primeiro configuramos o listener de mudança de estado de autenticação
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        async (event, newSession) => {
+        (event, newSession) => {
           setSession(newSession);
           setUser(newSession?.user ?? null);
           
           if (newSession?.user) {
-            await fetchProfile(newSession.user.id);
+            // Usamos setTimeout(0) para evitar deadlocks
+            setTimeout(() => {
+              fetchProfile(newSession.user.id);
+            }, 0);
           } else {
             setProfile(null);
           }
@@ -71,6 +65,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         }
       );
+      
+      // Depois pegamos a sessão atual
+      const { data: { session: initialSession } } = await supabase.auth.getSession();
+      setSession(initialSession);
+      setUser(initialSession?.user ?? null);
+      
+      if (initialSession?.user) {
+        await fetchProfile(initialSession.user.id);
+      }
       
       setIsLoading(false);
       

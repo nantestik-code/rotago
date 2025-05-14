@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,9 +8,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from '@/hooks/use-toast';
 import { Truck, ArrowLeft, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
 
 const SignUp = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     fullName: '',
@@ -18,6 +20,13 @@ const SignUp = () => {
     password: '',
     confirmPassword: '',
   });
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/app', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -90,13 +99,30 @@ const SignUp = () => {
         return;
       }
 
-      toast({
-        title: "Cadastro realizado com sucesso!",
-        description: "Verifique seu email para confirmar sua conta.",
+      // Because we disabled email confirmation in development environment,
+      // we can log the user in right away
+      const { error: loginError } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password,
       });
-      
-      // Redirect to login page after successful signup
-      navigate('/auth/login');
+
+      if (loginError) {
+        toast({
+          title: "Cadastro realizado com sucesso!",
+          description: "Verifique seu email para confirmar sua conta.",
+        });
+        
+        // Redirect to login page if there was an error logging in
+        navigate('/auth/login');
+      } else {
+        toast({
+          title: "Cadastro realizado com sucesso!",
+          description: "Bem-vindo ao RotaFacil!",
+        });
+        
+        // Login was successful, navigate to app
+        navigate('/app');
+      }
     } catch (error) {
       console.error('Error during signup:', error);
       toast({

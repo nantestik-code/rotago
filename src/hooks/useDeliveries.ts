@@ -1,164 +1,160 @@
 
-import { useState, useEffect, useCallback } from 'react';
-import { DeliveryItem } from '@/utils/deliveryUtils';
-import { toast } from '@/components/ui/use-toast';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as deliveryService from '@/services/deliveryService';
+import { useState } from 'react';
+import { DeliveryItem, Delivery, deliveryMapper } from '@/types/delivery';
+import { toast } from '@/hooks/use-toast';
 
-export const useDeliveries = (initialDeliveries: DeliveryItem[] = []) => {
-  const [deliveries, setDeliveries] = useState<DeliveryItem[]>(initialDeliveries);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+export const useDeliveries = () => {
+  const [deliveries, setDeliveries] = useState<DeliveryItem[]>([]);
+  const queryClient = useQueryClient();
 
-  // Carregar entregas do Supabase
-  const loadDeliveries = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await deliveryService.fetchDeliveries();
-      setDeliveries(data);
-    } catch (err) {
-      console.error('Erro ao carregar entregas:', err);
-      setError('Falha ao carregar entregas. Tente novamente mais tarde.');
+  // Buscar entregas
+  const { isLoading, error } = useQuery({
+    queryKey: ['deliveries'],
+    queryFn: deliveryService.fetchDeliveries,
+    onSuccess: (data: Delivery[]) => {
+      // Converter do formato de API para o formato do frontend
+      const mappedItems = deliveryMapper.toItemArray(data);
+      setDeliveries(mappedItems);
+    },
+    onError: (error: Error) => {
       toast({
-        title: 'Erro',
-        description: 'Falha ao carregar entregas. Tente novamente mais tarde.',
+        title: 'Erro ao carregar entregas',
+        description: error.message,
         variant: 'destructive',
       });
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+  });
 
-  // Carregar entregas ao inicializar
-  useEffect(() => {
-    if (initialDeliveries.length === 0) {
-      loadDeliveries();
-    }
-  }, [initialDeliveries.length, loadDeliveries]);
-
-  // Adicionar entregas
-  const addDeliveries = useCallback(async (newDeliveries: DeliveryItem[]) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await deliveryService.createDeliveries(newDeliveries);
-      setDeliveries(prev => [...prev, ...data]);
+  // Criar entrega
+  const { mutate: addDelivery } = useMutation({
+    mutationFn: (item: Omit<DeliveryItem, 'id'>) => {
+      // Converter do formato de frontend para o formato de API
+      const newDelivery: Omit<Delivery, 'id'> = {
+        client_name: item.cliente,
+        address: item.endereco,
+        city: item.cidade,
+        state: item.estado,
+        zip_code: item.cep,
+        phone: item.telefone,
+        notes: item.observacoes,
+        order_number: Math.random().toString(36).substring(2, 10), // ID aleatório
+        status: 'pendente',
+        latitude: item.lat,
+        longitude: item.lng,
+      };
+      return deliveryService.createDelivery(newDelivery);
+    },
+    onSuccess: (data: Delivery) => {
+      // Converter o resultado da API para o formato de frontend
+      const newItem = deliveryMapper.toItem(data);
+      setDeliveries((prev) => [...prev, newItem]);
+      
+      queryClient.invalidateQueries({ queryKey: ['deliveries'] });
       toast({
-        title: 'Sucesso',
-        description: `${data.length} entregas adicionadas com sucesso.`,
+        title: 'Entrega adicionada',
+        description: 'A entrega foi adicionada com sucesso!',
       });
-      return data;
-    } catch (err) {
-      console.error('Erro ao adicionar entregas:', err);
-      setError('Falha ao adicionar entregas. Tente novamente mais tarde.');
+    },
+    onError: (error: Error) => {
       toast({
-        title: 'Erro',
-        description: 'Falha ao adicionar entregas. Tente novamente mais tarde.',
+        title: 'Erro ao adicionar entrega',
+        description: error.message,
         variant: 'destructive',
       });
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+  });
 
   // Atualizar entrega
-  const updateDelivery = useCallback(async (updatedDelivery: DeliveryItem) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await deliveryService.updateDelivery(updatedDelivery);
+  const { mutate: updateDelivery } = useMutation({
+    mutationFn: (item: DeliveryItem) => {
+      // Converter do formato de frontend para o formato de API
+      const updatedDelivery = deliveryMapper.fromItem(item);
+      return deliveryService.updateDelivery(item.id, updatedDelivery);
+    },
+    onSuccess: (data: Delivery) => {
+      const updatedItem = deliveryMapper.toItem(data);
+      
       setDeliveries(prev => 
-        prev.map(delivery => delivery.id === data.id ? data : delivery)
+        prev.map(item => item.id === updatedItem.id ? updatedItem : item)
       );
+      
+      queryClient.invalidateQueries({ queryKey: ['deliveries'] });
       toast({
-        title: 'Sucesso',
-        description: 'Entrega atualizada com sucesso.',
+        title: 'Entrega atualizada',
+        description: 'A entrega foi atualizada com sucesso!',
       });
-      return data;
-    } catch (err) {
-      console.error('Erro ao atualizar entrega:', err);
-      setError('Falha ao atualizar entrega. Tente novamente mais tarde.');
+    },
+    onError: (error: Error) => {
       toast({
-        title: 'Erro',
-        description: 'Falha ao atualizar entrega. Tente novamente mais tarde.',
+        title: 'Erro ao atualizar entrega',
+        description: error.message,
         variant: 'destructive',
       });
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+  });
 
-  // Atualizar status de entrega
-  const updateDeliveryStatus = useCallback(async (
-    id: string, 
-    status: 'pendente' | 'entregue' | 'ocorrencia'
-  ) => {
-    try {
-      setLoading(true);
-      setError(null);
-      await deliveryService.updateDeliveryStatus(id, status);
-      setDeliveries(prev => 
-        prev.map(delivery => 
-          delivery.id === id 
-            ? { ...delivery, status, statusChanged: true }
-            : delivery
-        )
-      );
+  // Deletar entrega
+  const { mutate: deleteDelivery } = useMutation({
+    mutationFn: (id: string) => {
+      return deliveryService.deleteDelivery(id);
+    },
+    onSuccess: (_, variables) => {
+      setDeliveries(prev => prev.filter(item => item.id !== variables));
+      
+      queryClient.invalidateQueries({ queryKey: ['deliveries'] });
       toast({
-        title: 'Sucesso',
-        description: `Status da entrega atualizado para ${status}.`,
+        title: 'Entrega removida',
+        description: 'A entrega foi removida com sucesso!',
       });
-    } catch (err) {
-      console.error('Erro ao atualizar status da entrega:', err);
-      setError('Falha ao atualizar status da entrega. Tente novamente mais tarde.');
+    },
+    onError: (error: Error) => {
       toast({
-        title: 'Erro',
-        description: 'Falha ao atualizar status da entrega. Tente novamente mais tarde.',
+        title: 'Erro ao remover entrega',
+        description: error.message,
         variant: 'destructive',
       });
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+  });
 
-  // Excluir entrega
-  const deleteDelivery = useCallback(async (id: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-      await deliveryService.deleteDelivery(id);
-      setDeliveries(prev => prev.filter(delivery => delivery.id !== id));
-      toast({
-        title: 'Sucesso',
-        description: 'Entrega excluída com sucesso.',
+  // Importar entregas
+  const importDeliveries = (items: DeliveryItem[]) => {
+    // Mapear os itens do frontend para o formato da API
+    const apiDeliveries = deliveryMapper.fromItemArray(items);
+    
+    // Remover propriedade ID para criar novos registros
+    const newDeliveries = apiDeliveries.map(({ id, ...rest }) => rest);
+    
+    deliveryService.createMultipleDeliveries(newDeliveries)
+      .then(createdDeliveries => {
+        const newItems = deliveryMapper.toItemArray(createdDeliveries);
+        setDeliveries(prev => [...prev, ...newItems]);
+        
+        queryClient.invalidateQueries({ queryKey: ['deliveries'] });
+        toast({
+          title: 'Entregas importadas',
+          description: `${newItems.length} entregas foram importadas com sucesso!`,
+        });
+      })
+      .catch(error => {
+        toast({
+          title: 'Erro ao importar entregas',
+          description: error.message,
+          variant: 'destructive',
+        });
       });
-    } catch (err) {
-      console.error('Erro ao excluir entrega:', err);
-      setError('Falha ao excluir entrega. Tente novamente mais tarde.');
-      toast({
-        title: 'Erro',
-        description: 'Falha ao excluir entrega. Tente novamente mais tarde.',
-        variant: 'destructive',
-      });
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  };
 
   return {
     deliveries,
-    setDeliveries,
-    loading,
+    isLoading,
     error,
-    loadDeliveries,
-    addDeliveries,
+    addDelivery,
     updateDelivery,
-    updateDeliveryStatus,
     deleteDelivery,
+    importDeliveries,
+    setDeliveries,
   };
 };
 

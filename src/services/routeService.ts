@@ -1,76 +1,55 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { Route } from '@/types/route';
+import { Route, RouteWithDeliveries, DeliveryWithSequence } from '@/types/route';
 import { Delivery } from '@/types/delivery';
-import { mapSupabaseToDelivery } from './deliveryService';
 
-// Interface matching the Supabase routes table
-export interface SupabaseRoute {
-  id: string;
-  name: string;
-  description: string | null;
-  date: string | null;
-  status: string;
-  created_at: string | null;
-  updated_at: string | null;
-}
-
-// Interface for route_deliveries join table
-export interface SupabaseRouteDelivery {
-  id: string;
-  route_id: string;
-  delivery_id: string;
-  sequence_number: number;
-  created_at: string | null;
-  updated_at: string | null;
-}
-
-// Convert Supabase route to client route model
-export const mapSupabaseToRoute = (data: SupabaseRoute): Route => ({
-  id: data.id,
-  name: data.name,
-  description: data.description || '',
-  date: data.date || new Date().toISOString(),
-  status: data.status,
-  createdAt: data.created_at || new Date().toISOString(),
-  updatedAt: data.updated_at || new Date().toISOString(),
-  deliveries: []
-});
-
-// Convert client route model to Supabase format
-export const mapRouteToSupabase = (route: Route): SupabaseRoute => ({
-  id: route.id,
-  name: route.name,
-  description: route.description || null,
-  date: route.date,
-  status: route.status,
-  created_at: route.createdAt || new Date().toISOString(),
-  updated_at: route.updatedAt || new Date().toISOString()
-});
-
-// Fetch all routes
+// Função para buscar todas as rotas
 export const fetchRoutes = async (): Promise<Route[]> => {
   try {
     const { data, error } = await supabase
       .from('routes')
-      .select('*');
+      .select('*')
+      .order('date', { ascending: false });
     
     if (error) {
       console.error('Error fetching routes:', error);
-      throw new Error(`Failed to fetch routes: ${error.message}`);
+      throw error;
     }
     
-    return (data as SupabaseRoute[] || []).map(mapSupabaseToRoute);
+    return data || [];
   } catch (error) {
     console.error('Error in fetchRoutes:', error);
     throw error;
   }
 };
 
-// Fetch a single route by ID with its deliveries
-export const fetchRouteById = async (id: string): Promise<Route | null> => {
+// Função para formatar dados da rota
+const formatRoute = (route: Partial<Route>): any => {
+  return {
+    name: route.name,
+    date: route.date,
+    status: route.status || "ativo",
+    driver_id: route.driver_id
+  };
+};
+
+// Função para converter dados da API para o formato da aplicação
+const formatRouteFromAPI = (data: any): Route => {
+  return {
+    id: data.id,
+    name: data.name,
+    date: data.date,
+    status: data.status,
+    driver_id: data.driver_id,
+    created_at: data.created_at,
+    updated_at: data.updated_at
+  };
+};
+
+// Função para buscar uma rota específica com suas entregas
+export const fetchRouteWithDeliveries = async (id: string): Promise<RouteWithDeliveries> => {
   try {
-    // Fetch the route
+    // Primeiro, busca a rota
     const { data: routeData, error: routeError } = await supabase
       .from('routes')
       .select('*')
@@ -78,163 +57,129 @@ export const fetchRouteById = async (id: string): Promise<Route | null> => {
       .single();
     
     if (routeError) {
-      if (routeError.code === 'PGRST116') {
-        // No rows returned (not found)
-        return null;
-      }
-      console.error('Error fetching route:', routeError);
-      throw new Error(`Failed to fetch route: ${routeError.message}`);
+      console.error(`Error fetching route with ID ${id}:`, routeError);
+      throw routeError;
     }
     
-    if (!routeData) return null;
-    
-    // Fetch the route's deliveries through route_deliveries
-    const { data: routeDeliveriesData, error: routeDeliveriesError } = await supabase
+    // Depois, busca as entregas associadas a esta rota
+    const { data: deliveriesData, error: deliveriesError } = await supabase
       .from('route_deliveries')
       .select(`
-        delivery_id,
         sequence_number,
         deliveries:delivery_id(*)
       `)
       .eq('route_id', id)
-      .order('sequence_number');
+      .order('sequence_number', { ascending: true });
     
-    if (routeDeliveriesError) {
-      console.error('Error fetching route deliveries:', routeDeliveriesError);
-      throw new Error(`Failed to fetch route deliveries: ${routeDeliveriesError.message}`);
+    if (deliveriesError) {
+      console.error(`Error fetching deliveries for route with ID ${id}:`, deliveriesError);
+      throw deliveriesError;
     }
     
-    // Map to Route type
-    const route = mapSupabaseToRoute(routeData as SupabaseRoute);
+    // Formata as entregas
+    const deliveries: DeliveryWithSequence[] = deliveriesData.map((item: any) => ({
+      ...item.deliveries,
+      sequence_number: item.sequence_number
+    }));
     
-    // Add deliveries to the route
-    if (routeDeliveriesData && routeDeliveriesData.length > 0) {
-      route.deliveries = routeDeliveriesData
-        .filter(item => item.deliveries)
-        .map(item => mapSupabaseToDelivery(item.deliveries as any))
-        .sort((a, b) => {
-          const aSequence = routeDeliveriesData.find(d => d.delivery_id === a.id)?.sequence_number || 0;
-          const bSequence = routeDeliveriesData.find(d => d.delivery_id === b.id)?.sequence_number || 0;
-          return aSequence - bSequence;
-        });
-    }
-    
-    return route;
+    return {
+      ...formatRouteFromAPI(routeData),
+      deliveries
+    };
   } catch (error) {
-    console.error('Error in fetchRouteById:', error);
+    console.error(`Error in fetchRouteWithDeliveries for route with ID ${id}:`, error);
     throw error;
   }
 };
 
-// Create a new route
+// Função para criar uma nova rota
 export const createRoute = async (route: Omit<Route, 'id'>): Promise<Route> => {
   try {
-    // Convert to Supabase format, omitting id
-    const supabaseRoute: Omit<SupabaseRoute, 'id'> = {
-      name: route.name,
-      description: route.description || null,
-      date: route.date,
-      status: route.status,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+    const formattedRoute = formatRoute(route);
     
     const { data, error } = await supabase
       .from('routes')
-      .insert(supabaseRoute)
+      .insert(formattedRoute)
       .select()
       .single();
     
     if (error) {
       console.error('Error creating route:', error);
-      throw new Error(`Failed to create route: ${error.message}`);
+      throw error;
     }
     
-    const newRoute = mapSupabaseToRoute(data as SupabaseRoute);
-    
-    // If deliveries are provided, associate them with the route
-    if (route.deliveries && route.deliveries.length > 0) {
-      await associateDeliveriesWithRoute(newRoute.id, route.deliveries);
-      newRoute.deliveries = route.deliveries;
-    }
-    
-    return newRoute;
+    return formatRouteFromAPI(data);
   } catch (error) {
     console.error('Error in createRoute:', error);
     throw error;
   }
 };
 
-// Update a route
-export const updateRoute = async (route: Route): Promise<Route> => {
+// Função para atualizar uma rota
+export const updateRoute = async (id: string, route: Partial<Route>): Promise<Route> => {
   try {
-    const supabaseRoute = mapRouteToSupabase(route);
+    const formattedRoute = formatRoute(route);
     
     const { data, error } = await supabase
       .from('routes')
-      .update(supabaseRoute)
-      .eq('id', route.id)
+      .update(formattedRoute)
+      .eq('id', id)
       .select()
       .single();
     
     if (error) {
-      console.error('Error updating route:', error);
-      throw new Error(`Failed to update route: ${error.message}`);
+      console.error(`Error updating route with ID ${id}:`, error);
+      throw error;
     }
     
-    const updatedRoute = mapSupabaseToRoute(data as SupabaseRoute);
-    
-    // If deliveries are provided, update the route-delivery associations
-    if (route.deliveries && route.deliveries.length > 0) {
-      // First remove all existing associations
-      await supabase
-        .from('route_deliveries')
-        .delete()
-        .eq('route_id', route.id);
-      
-      // Then add the new ones
-      await associateDeliveriesWithRoute(route.id, route.deliveries);
-      updatedRoute.deliveries = route.deliveries;
-    }
-    
-    return updatedRoute;
+    return formatRouteFromAPI(data);
   } catch (error) {
-    console.error('Error in updateRoute:', error);
+    console.error(`Error in updateRoute for route with ID ${id}:`, error);
     throw error;
   }
 };
 
-// Delete a route
+// Função para excluir uma rota
 export const deleteRoute = async (id: string): Promise<void> => {
   try {
-    // The cascade delete will handle route_deliveries due to the foreign key constraint
-    const { error } = await supabase
+    // Primeiro, exclui as associações com entregas
+    const { error: deliveriesError } = await supabase
+      .from('route_deliveries')
+      .delete()
+      .eq('route_id', id);
+    
+    if (deliveriesError) {
+      console.error(`Error deleting route_deliveries for route with ID ${id}:`, deliveriesError);
+      throw deliveriesError;
+    }
+    
+    // Depois, exclui a rota
+    const { error: routeError } = await supabase
       .from('routes')
       .delete()
       .eq('id', id);
     
-    if (error) {
-      console.error('Error deleting route:', error);
-      throw new Error(`Failed to delete route: ${error.message}`);
+    if (routeError) {
+      console.error(`Error deleting route with ID ${id}:`, routeError);
+      throw routeError;
     }
   } catch (error) {
-    console.error('Error in deleteRoute:', error);
+    console.error(`Error in deleteRoute for route with ID ${id}:`, error);
     throw error;
   }
 };
 
-// Associate deliveries with a route (creating route_deliveries entries)
-export const associateDeliveriesWithRoute = async (
+// Função para adicionar entregas a uma rota
+export const addDeliveriesToRoute = async (
   routeId: string, 
-  deliveries: Delivery[]
+  deliveries: Delivery[], 
+  startSequence = 1
 ): Promise<void> => {
   try {
     const routeDeliveries = deliveries.map((delivery, index) => ({
       route_id: routeId,
       delivery_id: delivery.id,
-      sequence_number: index + 1, // 1-based sequence
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      sequence_number: startSequence + index
     }));
     
     const { error } = await supabase
@@ -242,11 +187,53 @@ export const associateDeliveriesWithRoute = async (
       .insert(routeDeliveries);
     
     if (error) {
-      console.error('Error associating deliveries with route:', error);
-      throw new Error(`Failed to associate deliveries with route: ${error.message}`);
+      console.error(`Error adding deliveries to route with ID ${routeId}:`, error);
+      throw error;
     }
   } catch (error) {
-    console.error('Error in associateDeliveriesWithRoute:', error);
+    console.error(`Error in addDeliveriesToRoute for route with ID ${routeId}:`, error);
+    throw error;
+  }
+};
+
+// Função para remover uma entrega de uma rota
+export const removeDeliveryFromRoute = async (routeId: string, deliveryId: string): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('route_deliveries')
+      .delete()
+      .eq('route_id', routeId)
+      .eq('delivery_id', deliveryId);
+    
+    if (error) {
+      console.error(`Error removing delivery ${deliveryId} from route ${routeId}:`, error);
+      throw error;
+    }
+  } catch (error) {
+    console.error(`Error in removeDeliveryFromRoute for route ${routeId} and delivery ${deliveryId}:`, error);
+    throw error;
+  }
+};
+
+// Função para atualizar a sequência de entregas em uma rota
+export const updateDeliverySequence = async (
+  routeId: string, 
+  deliveryId: string, 
+  newSequence: number
+): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('route_deliveries')
+      .update({ sequence_number: newSequence })
+      .eq('route_id', routeId)
+      .eq('delivery_id', deliveryId);
+    
+    if (error) {
+      console.error(`Error updating sequence for delivery ${deliveryId} in route ${routeId}:`, error);
+      throw error;
+    }
+  } catch (error) {
+    console.error(`Error in updateDeliverySequence for route ${routeId} and delivery ${deliveryId}:`, error);
     throw error;
   }
 };

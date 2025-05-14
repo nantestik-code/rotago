@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from '@/hooks/use-toast';
 import { Truck, ArrowLeft, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
 import { 
   Dialog,
   DialogContent,
@@ -19,6 +20,8 @@ import {
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { isAuthenticated } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [isResendDialogOpen, setIsResendDialogOpen] = useState(false);
   const [resendEmail, setResendEmail] = useState('');
@@ -26,6 +29,15 @@ const Login = () => {
     email: '',
     password: '',
   });
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Get the intended destination or default to /app
+      const from = location.state?.from?.pathname || '/app';
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, navigate, location]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -86,8 +98,7 @@ const Login = () => {
         description: "Bem-vindo de volta ao RotaFacil",
       });
       
-      // Redirect to main app after successful login
-      navigate('/app');
+      // Redirect to main app after successful login is now handled by the useEffect
     } catch (error) {
       console.error('Error during login:', error);
       toast({

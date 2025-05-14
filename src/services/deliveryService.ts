@@ -2,82 +2,65 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Delivery, DeliveryStatus } from '@/types/delivery';
 
-// Interface matching the Supabase deliveries table
-export interface SupabaseDelivery {
-  id: string;
-  client_name: string;
-  address: string;
-  city: string;
-  state: string;
-  zip_code: string;
-  phone: string;
-  order_number: string;
-  notes: string | null;
-  status: string;
-  latitude: number | null;
-  longitude: number | null;
-  created_at: string | null;
-  updated_at: string | null;
-}
-
-// Convert Supabase delivery to client delivery model
-export const mapSupabaseToDelivery = (data: SupabaseDelivery): Delivery => ({
-  id: data.id,
-  clientName: data.client_name,
-  address: data.address,
-  city: data.city,
-  state: data.state,
-  zipCode: data.zip_code,
-  phone: data.phone,
-  orderNumber: data.order_number,
-  notes: data.notes || '',
-  status: data.status as DeliveryStatus,
-  location: data.latitude && data.longitude 
-    ? { lat: data.latitude, lng: data.longitude } 
-    : null,
-  createdAt: data.created_at || new Date().toISOString(),
-  updatedAt: data.updated_at || new Date().toISOString(),
-});
-
-// Convert client delivery model to Supabase format
-export const mapDeliveryToSupabase = (delivery: Delivery): SupabaseDelivery => ({
-  id: delivery.id,
-  client_name: delivery.clientName,
-  address: delivery.address,
-  city: delivery.city,
-  state: delivery.state,
-  zip_code: delivery.zipCode,
-  phone: delivery.phone,
-  order_number: delivery.orderNumber,
-  notes: delivery.notes || null,
-  status: delivery.status,
-  latitude: delivery.location ? delivery.location.lat : null,
-  longitude: delivery.location ? delivery.location.lng : null,
-  created_at: delivery.createdAt,
-  updated_at: delivery.updatedAt,
-});
-
-// Fetch all deliveries
+// Função para buscar todas as entregas
 export const fetchDeliveries = async (): Promise<Delivery[]> => {
   try {
     const { data, error } = await supabase
       .from('deliveries')
-      .select('*');
+      .select('*')
+      .order('created_at', { ascending: false });
     
     if (error) {
       console.error('Error fetching deliveries:', error);
-      throw new Error(`Failed to fetch deliveries: ${error.message}`);
+      throw error;
     }
     
-    return (data || []).map(mapSupabaseToDelivery);
+    return data || [];
   } catch (error) {
     console.error('Error in fetchDeliveries:', error);
     throw error;
   }
 };
 
-// Fetch a single delivery by ID
-export const fetchDeliveryById = async (id: string): Promise<Delivery | null> => {
+// Função para formatar dados da entrega para API
+const formatDeliveryForAPI = (delivery: Partial<Delivery>): any => {
+  return {
+    client_name: delivery.client_name,
+    address: delivery.address,
+    city: delivery.city,
+    state: delivery.state,
+    zip_code: delivery.zip_code,
+    phone: delivery.phone,
+    notes: delivery.notes,
+    order_number: delivery.order_number,
+    status: delivery.status,
+    latitude: delivery.latitude,
+    longitude: delivery.longitude
+  };
+};
+
+// Função para converter dados da API para o formato da aplicação
+const formatDeliveryFromAPI = (data: any): Delivery => {
+  return {
+    id: data.id,
+    client_name: data.client_name,
+    address: data.address,
+    city: data.city,
+    state: data.state,
+    zip_code: data.zip_code,
+    phone: data.phone,
+    notes: data.notes,
+    order_number: data.order_number,
+    status: data.status,
+    latitude: data.latitude,
+    longitude: data.longitude,
+    created_at: data.created_at,
+    updated_at: data.updated_at
+  };
+};
+
+// Função para buscar uma entrega específica
+export const fetchDelivery = async (id: string): Promise<Delivery> => {
   try {
     const { data, error } = await supabase
       .from('deliveries')
@@ -86,143 +69,109 @@ export const fetchDeliveryById = async (id: string): Promise<Delivery | null> =>
       .single();
     
     if (error) {
-      if (error.code === 'PGRST116') {
-        // No rows returned (not found)
-        return null;
-      }
-      console.error('Error fetching delivery:', error);
-      throw new Error(`Failed to fetch delivery: ${error.message}`);
+      console.error(`Error fetching delivery with ID ${id}:`, error);
+      throw error;
     }
     
-    return data ? mapSupabaseToDelivery(data) : null;
+    return formatDeliveryFromAPI(data);
   } catch (error) {
-    console.error('Error in fetchDeliveryById:', error);
+    console.error(`Error in fetchDelivery with ID ${id}:`, error);
     throw error;
   }
 };
 
-// Create a new delivery
+// Função para criar uma nova entrega
 export const createDelivery = async (delivery: Omit<Delivery, 'id'>): Promise<Delivery> => {
   try {
-    // Convert to Supabase format, omitting id
-    const supabaseDelivery: Omit<SupabaseDelivery, 'id'> = {
-      client_name: delivery.clientName,
-      address: delivery.address,
-      city: delivery.city,
-      state: delivery.state,
-      zip_code: delivery.zipCode,
-      phone: delivery.phone,
-      order_number: delivery.orderNumber,
-      notes: delivery.notes || null,
-      status: delivery.status,
-      latitude: delivery.location ? delivery.location.lat : null,
-      longitude: delivery.location ? delivery.location.lng : null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+    const formattedDelivery = formatDeliveryForAPI(delivery);
     
     const { data, error } = await supabase
       .from('deliveries')
-      .insert(supabaseDelivery)
+      .insert(formattedDelivery)
       .select()
       .single();
     
     if (error) {
       console.error('Error creating delivery:', error);
-      throw new Error(`Failed to create delivery: ${error.message}`);
+      throw error;
     }
     
-    return mapSupabaseToDelivery(data);
+    return formatDeliveryFromAPI(data);
   } catch (error) {
     console.error('Error in createDelivery:', error);
     throw error;
   }
 };
 
-// Create multiple deliveries
-export const createDeliveries = async (deliveries: Omit<Delivery, 'id'>[]): Promise<Delivery[]> => {
+// Função para criar múltiplas entregas
+export const createMultipleDeliveries = async (deliveries: Omit<Delivery, 'id'>[]): Promise<Delivery[]> => {
   try {
-    // Convert to Supabase format, omitting id
-    const supabaseDeliveries = deliveries.map(delivery => ({
-      client_name: delivery.clientName,
-      address: delivery.address,
-      city: delivery.city,
-      state: delivery.state,
-      zip_code: delivery.zipCode,
-      phone: delivery.phone,
-      order_number: delivery.orderNumber,
-      notes: delivery.notes || null,
-      status: delivery.status,
-      latitude: delivery.location ? delivery.location.lat : null,
-      longitude: delivery.location ? delivery.location.lng : null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }));
+    const formattedDeliveries = deliveries.map(delivery => formatDeliveryForAPI(delivery));
     
     const { data, error } = await supabase
       .from('deliveries')
-      .insert(supabaseDeliveries)
+      .insert(formattedDeliveries)
       .select();
     
     if (error) {
-      console.error('Error creating deliveries:', error);
-      throw new Error(`Failed to create deliveries: ${error.message}`);
+      console.error('Error creating multiple deliveries:', error);
+      throw error;
     }
     
-    return (data || []).map(mapSupabaseToDelivery);
+    return data.map(formatDeliveryFromAPI);
   } catch (error) {
-    console.error('Error in createDeliveries:', error);
+    console.error('Error in createMultipleDeliveries:', error);
     throw error;
   }
 };
 
-// Update a delivery
-export const updateDelivery = async (delivery: Delivery): Promise<Delivery> => {
+// Função para atualizar uma entrega
+export const updateDelivery = async (id: string, delivery: Omit<Delivery, 'id'>): Promise<Delivery> => {
   try {
-    const supabaseDelivery = mapDeliveryToSupabase(delivery);
+    const formattedDelivery = formatDeliveryForAPI(delivery);
     
     const { data, error } = await supabase
       .from('deliveries')
-      .update(supabaseDelivery)
-      .eq('id', delivery.id)
-      .select()
-      .single();
-    
-    if (error) {
-      console.error('Error updating delivery:', error);
-      throw new Error(`Failed to update delivery: ${error.message}`);
-    }
-    
-    return mapSupabaseToDelivery(data);
-  } catch (error) {
-    console.error('Error in updateDelivery:', error);
-    throw error;
-  }
-};
-
-// Update delivery status
-export const updateDeliveryStatus = async (id: string, status: DeliveryStatus): Promise<Delivery> => {
-  try {
-    const { data, error } = await supabase
-      .from('deliveries')
-      .update({ status, updated_at: new Date().toISOString() })
+      .update(formattedDelivery)
       .eq('id', id)
       .select()
       .single();
     
     if (error) {
-      console.error('Error updating delivery status:', error);
-      throw new Error(`Failed to update delivery status: ${error.message}`);
+      console.error(`Error updating delivery with ID ${id}:`, error);
+      throw error;
     }
     
-    return mapSupabaseToDelivery(data);
+    return formatDeliveryFromAPI(data);
   } catch (error) {
-    console.error('Error in updateDeliveryStatus:', error);
+    console.error(`Error in updateDelivery with ID ${id}:`, error);
     throw error;
   }
 };
 
-// Delete a delivery
+// Função para atualizar o status de uma entrega
+export const updateDeliveryStatus = async (id: string, status: DeliveryStatus): Promise<Delivery> => {
+  try {
+    const { data, error } = await supabase
+      .from('deliveries')
+      .update({ status })
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error(`Error updating status for delivery with ID ${id}:`, error);
+      throw error;
+    }
+    
+    return formatDeliveryFromAPI(data);
+  } catch (error) {
+    console.error(`Error in updateDeliveryStatus for delivery with ID ${id}:`, error);
+    throw error;
+  }
+};
+
+// Função para excluir uma entrega
 export const deleteDelivery = async (id: string): Promise<void> => {
   try {
     const { error } = await supabase
@@ -231,11 +180,11 @@ export const deleteDelivery = async (id: string): Promise<void> => {
       .eq('id', id);
     
     if (error) {
-      console.error('Error deleting delivery:', error);
-      throw new Error(`Failed to delete delivery: ${error.message}`);
+      console.error(`Error deleting delivery with ID ${id}:`, error);
+      throw error;
     }
   } catch (error) {
-    console.error('Error in deleteDelivery:', error);
+    console.error(`Error in deleteDelivery with ID ${id}:`, error);
     throw error;
   }
 };

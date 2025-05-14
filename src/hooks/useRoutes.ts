@@ -1,238 +1,224 @@
-import { useState, useEffect, useCallback } from 'react';
-import { toast } from '@/components/ui/use-toast';
+
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as routeService from '@/services/routeService';
-import { Route } from '@/services/routeService';
-import { DeliveryItem } from '@/utils/deliveryUtils';
+import { useState } from 'react';
+import { Route, RouteWithDeliveries } from '@/types/route';
+import { Delivery } from '@/types/delivery';
+import { toast } from '@/hooks/use-toast';
 
 export const useRoutes = () => {
   const [routes, setRoutes] = useState<Route[]>([]);
-  const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const [currentRoute, setCurrentRoute] = useState<RouteWithDeliveries | null>(null);
+  const queryClient = useQueryClient();
 
-  // Carregar rotas do Supabase
-  const loadRoutes = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await routeService.fetchRoutes();
+  // Buscar rotas
+  const { isLoading, error } = useQuery({
+    queryKey: ['routes'],
+    queryFn: routeService.fetchRoutes,
+    onSuccess: (data: Route[]) => {
       setRoutes(data);
-    } catch (err) {
-      console.error('Erro ao carregar rotas:', err);
-      setError('Falha ao carregar rotas. Tente novamente mais tarde.');
+    },
+    onError: (error: Error) => {
       toast({
-        title: 'Erro',
-        description: 'Falha ao carregar rotas. Tente novamente mais tarde.',
+        title: 'Erro ao carregar rotas',
+        description: error.message,
         variant: 'destructive',
       });
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+  });
 
-  // Carregar rotas ao inicializar
-  useEffect(() => {
-    loadRoutes();
-  }, [loadRoutes]);
-
-  // Selecionar uma rota específica
-  const selectRoute = useCallback(async (id: string) => {
+  // Buscar rota específica com entregas
+  const fetchRouteDetails = async (id: string) => {
     try {
-      setLoading(true);
-      setError(null);
-      const data = await routeService.fetchRoute(id);
-      setSelectedRoute(data);
+      const data = await routeService.fetchRouteWithDeliveries(id);
+      setCurrentRoute(data);
       return data;
-    } catch (err) {
-      console.error('Erro ao selecionar rota:', err);
-      setError('Falha ao carregar detalhes da rota. Tente novamente mais tarde.');
+    } catch (error) {
       toast({
-        title: 'Erro',
-        description: 'Falha ao carregar detalhes da rota. Tente novamente mais tarde.',
+        title: 'Erro ao carregar detalhes da rota',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
         variant: 'destructive',
       });
-      throw err;
-    } finally {
-      setLoading(false);
+      throw error;
     }
-  }, []);
+  };
 
-  // Criar nova rota
-  const createRoute = useCallback(async (
-    routeData: Omit<Route, 'id' | 'criadoEm' | 'atualizadoEm'>
-  ) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await routeService.createRoute(routeData);
-      setRoutes(prev => [data, ...prev]);
+  // Criar rota
+  const { mutate: addRoute } = useMutation({
+    mutationFn: (route: Omit<Route, 'id'>) => {
+      return routeService.createRoute(route);
+    },
+    onSuccess: (data: Route) => {
+      setRoutes((prev) => [...prev, data]);
+      
+      queryClient.invalidateQueries({ queryKey: ['routes'] });
       toast({
-        title: 'Sucesso',
-        description: 'Rota criada com sucesso.',
+        title: 'Rota criada',
+        description: 'A rota foi criada com sucesso!',
       });
-      return data;
-    } catch (err) {
-      console.error('Erro ao criar rota:', err);
-      setError('Falha ao criar rota. Tente novamente mais tarde.');
+    },
+    onError: (error: Error) => {
       toast({
-        title: 'Erro',
-        description: 'Falha ao criar rota. Tente novamente mais tarde.',
+        title: 'Erro ao criar rota',
+        description: error.message,
         variant: 'destructive',
       });
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+  });
 
   // Atualizar rota
-  const updateRoute = useCallback(async (routeData: Route) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await routeService.updateRoute(routeData);
+  const { mutate: updateRoute } = useMutation({
+    mutationFn: ({ id, route }: { id: string; route: Partial<Route> }) => {
+      return routeService.updateRoute(id, route);
+    },
+    onSuccess: (data: Route) => {
       setRoutes(prev => 
         prev.map(route => route.id === data.id ? data : route)
       );
-      if (selectedRoute && selectedRoute.id === data.id) {
-        setSelectedRoute(data);
+      
+      if (currentRoute && currentRoute.id === data.id) {
+        setCurrentRoute({
+          ...currentRoute,
+          ...data
+        });
       }
+      
+      queryClient.invalidateQueries({ queryKey: ['routes'] });
       toast({
-        title: 'Sucesso',
-        description: 'Rota atualizada com sucesso.',
+        title: 'Rota atualizada',
+        description: 'A rota foi atualizada com sucesso!',
       });
-      return data;
-    } catch (err) {
-      console.error('Erro ao atualizar rota:', err);
-      setError('Falha ao atualizar rota. Tente novamente mais tarde.');
+    },
+    onError: (error: Error) => {
       toast({
-        title: 'Erro',
-        description: 'Falha ao atualizar rota. Tente novamente mais tarde.',
+        title: 'Erro ao atualizar rota',
+        description: error.message,
         variant: 'destructive',
       });
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedRoute]);
+    },
+  });
 
   // Excluir rota
-  const deleteRoute = useCallback(async (id: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-      await routeService.deleteRoute(id);
-      setRoutes(prev => prev.filter(route => route.id !== id));
-      if (selectedRoute && selectedRoute.id === id) {
-        setSelectedRoute(null);
+  const { mutate: deleteRoute } = useMutation({
+    mutationFn: (id: string) => {
+      return routeService.deleteRoute(id);
+    },
+    onSuccess: (_, variables) => {
+      setRoutes(prev => prev.filter(route => route.id !== variables));
+      
+      if (currentRoute && currentRoute.id === variables) {
+        setCurrentRoute(null);
       }
+      
+      queryClient.invalidateQueries({ queryKey: ['routes'] });
       toast({
-        title: 'Sucesso',
-        description: 'Rota excluída com sucesso.',
+        title: 'Rota excluída',
+        description: 'A rota foi excluída com sucesso!',
       });
-    } catch (err) {
-      console.error('Erro ao excluir rota:', err);
-      setError('Falha ao excluir rota. Tente novamente mais tarde.');
+    },
+    onError: (error: Error) => {
       toast({
-        title: 'Erro',
-        description: 'Falha ao excluir rota. Tente novamente mais tarde.',
+        title: 'Erro ao excluir rota',
+        description: error.message,
         variant: 'destructive',
       });
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedRoute]);
+    },
+  });
 
   // Adicionar entregas a uma rota
-  const addDeliveriesToRoute = useCallback(async (
-    routeId: string,
-    deliveries: DeliveryItem[]
-  ) => {
+  const addDeliveriesToRoute = async (routeId: string, deliveries: Delivery[], startSequence = 1) => {
     try {
-      setLoading(true);
-      setError(null);
-      await routeService.addDeliveriesToRoute(routeId, deliveries);
+      await routeService.addDeliveriesToRoute(routeId, deliveries, startSequence);
+      
+      // Atualizar o cache e o estado atual
+      if (currentRoute && currentRoute.id === routeId) {
+        // Recarregar os detalhes da rota atual
+        await fetchRouteDetails(routeId);
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ['routes', routeId] });
       toast({
-        title: 'Sucesso',
-        description: `${deliveries.length} entregas adicionadas à rota.`,
+        title: 'Entregas adicionadas',
+        description: `${deliveries.length} entregas foram adicionadas à rota!`,
       });
-    } catch (err) {
-      console.error('Erro ao adicionar entregas à rota:', err);
-      setError('Falha ao adicionar entregas à rota. Tente novamente mais tarde.');
+    } catch (error) {
       toast({
-        title: 'Erro',
-        description: 'Falha ao adicionar entregas à rota. Tente novamente mais tarde.',
+        title: 'Erro ao adicionar entregas',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
         variant: 'destructive',
       });
-      throw err;
-    } finally {
-      setLoading(false);
     }
-  }, []);
+  };
 
   // Remover entrega de uma rota
-  const removeDeliveryFromRoute = useCallback(async (
-    routeId: string,
-    deliveryId: string
-  ) => {
+  const removeDeliveryFromRoute = async (routeId: string, deliveryId: string) => {
     try {
-      setLoading(true);
-      setError(null);
       await routeService.removeDeliveryFromRoute(routeId, deliveryId);
+      
+      // Atualizar o estado atual se for a rota atual
+      if (currentRoute && currentRoute.id === routeId) {
+        setCurrentRoute({
+          ...currentRoute,
+          deliveries: currentRoute.deliveries.filter(d => d.id !== deliveryId)
+        });
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ['routes', routeId] });
       toast({
-        title: 'Sucesso',
-        description: 'Entrega removida da rota.',
+        title: 'Entrega removida',
+        description: 'A entrega foi removida da rota com sucesso!',
       });
-    } catch (err) {
-      console.error('Erro ao remover entrega da rota:', err);
-      setError('Falha ao remover entrega da rota. Tente novamente mais tarde.');
+    } catch (error) {
       toast({
-        title: 'Erro',
-        description: 'Falha ao remover entrega da rota. Tente novamente mais tarde.',
+        title: 'Erro ao remover entrega',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
         variant: 'destructive',
       });
-      throw err;
-    } finally {
-      setLoading(false);
     }
-  }, []);
+  };
 
-  // Atualizar sequência de entregas em uma rota
-  const updateDeliverySequence = useCallback(async (
-    routeId: string,
-    deliverySequence: { deliveryId: string; sequenceNumber: number }[]
-  ) => {
+  // Atualizar sequência de uma entrega
+  const updateDeliverySequence = async (routeId: string, deliveryId: string, newSequence: number) => {
     try {
-      setLoading(true);
-      setError(null);
-      await routeService.updateDeliverySequence(routeId, deliverySequence);
+      await routeService.updateDeliverySequence(routeId, deliveryId, newSequence);
+      
+      // Atualizar o estado atual se for a rota atual
+      if (currentRoute && currentRoute.id === routeId) {
+        // Reordenar as entregas com a nova sequência
+        const updatedDeliveries = [...currentRoute.deliveries].map(d => {
+          if (d.id === deliveryId) {
+            return { ...d, sequence_number: newSequence };
+          }
+          return d;
+        }).sort((a, b) => a.sequence_number - b.sequence_number);
+        
+        setCurrentRoute({
+          ...currentRoute,
+          deliveries: updatedDeliveries
+        });
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ['routes', routeId] });
       toast({
-        title: 'Sucesso',
-        description: 'Sequência de entregas atualizada.',
+        title: 'Sequência atualizada',
+        description: 'A ordem das entregas foi atualizada com sucesso!',
       });
-    } catch (err) {
-      console.error('Erro ao atualizar sequência de entregas:', err);
-      setError('Falha ao atualizar sequência de entregas. Tente novamente mais tarde.');
+    } catch (error) {
       toast({
-        title: 'Erro',
-        description: 'Falha ao atualizar sequência de entregas. Tente novamente mais tarde.',
+        title: 'Erro ao atualizar sequência',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
         variant: 'destructive',
       });
-      throw err;
-    } finally {
-      setLoading(false);
     }
-  }, []);
+  };
 
   return {
     routes,
-    selectedRoute,
-    loading,
+    currentRoute,
+    isLoading,
     error,
-    loadRoutes,
-    selectRoute,
-    createRoute,
+    fetchRouteDetails,
+    addRoute,
     updateRoute,
     deleteRoute,
     addDeliveriesToRoute,
