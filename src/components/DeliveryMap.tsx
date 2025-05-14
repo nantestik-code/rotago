@@ -403,6 +403,11 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       const markerEl = document.createElement('div');
       markerEl.className = 'order-marker';
       
+      // Check if this is a multiple delivery location
+      if (group.deliveryIds.length > 1) {
+        markerEl.classList.add('multiple-deliveries');
+      }
+      
       // Adicionar classe de status
       if (delivery.status === 'entregue') {
         markerEl.classList.add('status-entregue');
@@ -847,27 +852,34 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         {`
         /* Estilo do marcador de ordem conforme especificação */
         .order-marker {
-          background-color: #007BFF;
+          background-color: #3b82f6;
           border-radius: 50%;
-          width: 32px;
-          height: 32px;
+          width: 24px; /* Tamanho reduzido */
+          height: 24px; /* Tamanho reduzido */
           color: white;
           text-align: center;
-          line-height: 32px;
-          font-weight: bold;
-          font-size: 14px;
-          box-shadow: 0 0 4px rgba(0,0,0,0.3);
+          line-height: 24px; /* Ajustado para o novo tamanho */
+          font-weight: 600;
+          font-size: 12px; /* Fonte menor para o número */
+          box-shadow: 0 2px 5px rgba(0,0,0,0.2);
           cursor: pointer;
           /* Garantir que não haja deslocamentos */
           margin: 0;
           padding: 0;
           transform: translate(0, 0);
+          border: 2px solid white; /* Borda branca para destacar */
           /* Garantir que o tamanho seja consistente em diferentes níveis de zoom */
           will-change: transform;
           /* Desativar qualquer animação ou transição que possa causar bouncing */
           transition: none !important;
           animation: none !important;
           -webkit-animation: none !important;
+        }
+        
+        /* Marcador para múltiplas entregas - contorno laranja */
+        .multiple-deliveries {
+          border: 2px solid #F97316 !important; /* Contorno laranja */
+          box-shadow: 0 0 0 1px #F97316, 0 2px 4px rgba(0,0,0,0.2);
         }
         
         /* Estilos para garantir que os marcadores fiquem fixos */
@@ -893,10 +905,6 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           transform: scale(1.2);
           box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.9), 0 2px 8px rgba(0, 0, 0, 0.4);
           z-index: 10;
-        }
-        
-        .modern-marker span {
-          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
         }
         
         .animate-marker-flash {
@@ -987,7 +995,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         }
         
         .popup-content {
-          padding: 8px;
+          padding: 10px;
         }
         
         .status-badge {
