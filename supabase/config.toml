@@ -4,3 +4,6 @@ project_id = "hsubouwujfcdyuyikvbi"
 [auth]
 # Disable email confirmation for local development
 disable_email_confirmation = true
+# Site URL for redirects
+site_url = "http://localhost:3000"
+
