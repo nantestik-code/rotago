@@ -8,10 +8,20 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from '@/hooks/use-toast';
 import { Truck, ArrowLeft, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 const Login = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [isResendDialogOpen, setIsResendDialogOpen] = useState(false);
+  const [resendEmail, setResendEmail] = useState('');
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -48,6 +58,21 @@ const Login = () => {
       });
 
       if (error) {
+        console.error('Login error:', error);
+        
+        // Verificar se o erro é de email não confirmado
+        if (error.message.includes('Email not confirmed')) {
+          toast({
+            title: "Email não confirmado",
+            description: "Por favor, confirme seu email para continuar ou solicite um novo link de confirmação.",
+            variant: "destructive"
+          });
+          
+          setResendEmail(formData.email);
+          setIsResendDialogOpen(true);
+          return;
+        } 
+        
         toast({
           title: "Erro ao entrar",
           description: "Email ou senha incorretos",
@@ -62,12 +87,48 @@ const Login = () => {
       });
       
       // Redirect to main app after successful login
-      navigate('/');
+      navigate('/app');
     } catch (error) {
       console.error('Error during login:', error);
       toast({
         title: "Erro ao entrar",
         description: "Ocorreu um erro ao fazer login. Tente novamente mais tarde.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    setIsLoading(true);
+    
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: resendEmail,
+      });
+      
+      if (error) {
+        toast({
+          title: "Erro ao reenviar confirmação",
+          description: error.message,
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      toast({
+        title: "Link de confirmação enviado",
+        description: "Verifique seu email para confirmar sua conta.",
+      });
+      
+      setIsResendDialogOpen(false);
+    } catch (error) {
+      console.error('Error resending confirmation:', error);
+      toast({
+        title: "Erro ao reenviar confirmação",
+        description: "Ocorreu um erro ao reenviar o link de confirmação.",
         variant: "destructive"
       });
     } finally {
@@ -151,6 +212,42 @@ const Login = () => {
           </CardFooter>
         </form>
       </Card>
+      
+      <p className="mt-8 text-sm text-center text-gray-500 max-w-md">
+        Ao se cadastrar, você concorda com nossos Termos de Serviço e Política de Privacidade.
+        Seus dados estão seguros conosco.
+      </p>
+      
+      {/* Dialog para reenvio de confirmação de email */}
+      <Dialog open={isResendDialogOpen} onOpenChange={setIsResendDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Email não confirmado</DialogTitle>
+            <DialogDescription>
+              Para acessar sua conta, é necessário confirmar seu email. Deseja que enviemos um novo link de confirmação?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col sm:flex-row gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsResendDialogOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleResendConfirmation} 
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Enviando...
+                </>
+              ) : 'Reenviar confirmação'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

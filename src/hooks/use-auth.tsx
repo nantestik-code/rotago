@@ -85,24 +85,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   
   const fetchProfile = async (userId: string) => {
     try {
+      // Usamos tipagem explícita para evitar os erros de TypeScript
+      type ProfileType = {
+        id: string;
+        full_name?: string;
+        avatar_url?: string;
+        is_early_adopter?: boolean;
+        subscription_status?: string;
+      };
+
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .single<ProfileType>();
       
       if (error) {
         console.error('Error fetching user profile:', error);
         return;
       }
       
-      setProfile({
-        id: userId,
-        full_name: data.full_name,
-        avatar_url: data.avatar_url,
-        is_early_adopter: data.is_early_adopter,
-        subscription_status: data.subscription_status,
-      });
+      if (data) {
+        setProfile({
+          id: userId,
+          full_name: data.full_name,
+          avatar_url: data.avatar_url,
+          is_early_adopter: data.is_early_adopter,
+          subscription_status: data.subscription_status,
+        });
+      }
     } catch (error) {
       console.error('Error in fetchProfile:', error);
     }
