@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -163,7 +164,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     miniMarker: mapboxgl.Marker | null,
     deliveryIds: string[],
     orderIndices: number[]
-  }>({}));
+  }>>({});
 
   const [geocodedCoordinates, setGeocodedCoordinates] = useState<Record<string, MapPosition>>({});
   
@@ -455,7 +456,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
 
   // Open external navigation app
   const openExternalNavigation = (lat: number, lng: number) => {
-    const userAgent = navigator.userAgent || navigator.vendor;
+    const userAgent = navigator.userAgent || navigator.vendor || '';
     
     if (/iPad|iPhone|iPod/.test(userAgent)) {
       window.open(`maps://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`, '_blank');
@@ -943,3 +944,4 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
 };
 
 export default DeliveryMap;
+
