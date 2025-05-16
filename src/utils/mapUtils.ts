@@ -180,7 +180,7 @@ export const geocodeAddress = async (address: string, retryCount = 0): Promise<M
   }
 };
 
-// Novas funções para melhor visualização de marcadores fixos no mapa
+// Funções para estilização de marcadores de entrega
 export const getMarkerCssClassByStatus = (status: string): string => {
   switch (status) {
     case 'entregue':
@@ -193,13 +193,37 @@ export const getMarkerCssClassByStatus = (status: string): string => {
   }
 };
 
-export const createFixedMarker = (number: number, lat: number, lng: number, status: string, isMultiple: boolean, isSelected: boolean): mapboxgl.Marker => {
+// Cores para os marcadores de acordo com o status
+export const getMarkerColorByStatus = (status: string): string => {
+  switch (status) {
+    case 'entregue':
+      return '#10B981'; // Verde
+    case 'ocorrencia':
+      return '#EF4444'; // Vermelho
+    case 'pendente':
+    default:
+      return '#3b82f6'; // Azul
+  }
+};
+
+// Função melhorada para criar marcadores visuais modernos
+export const createDeliveryMarker = (
+  orderNumber: number, 
+  lat: number, 
+  lng: number, 
+  status: string, 
+  isMultiple: boolean, 
+  isSelected: boolean
+): mapboxgl.Marker => {
   // Criar o elemento do marcador
   const markerEl = document.createElement('div');
-  markerEl.className = `square-marker ${getMarkerCssClassByStatus(status)}`;
+  markerEl.className = `delivery-marker ${getMarkerCssClassByStatus(status)}`;
   
-  // Adicionar número
-  markerEl.innerText = number.toString();
+  // Criar o elemento do conteúdo do marcador (número da ordem)
+  const contentEl = document.createElement('div');
+  contentEl.className = 'delivery-marker-content';
+  contentEl.innerText = orderNumber.toString();
+  markerEl.appendChild(contentEl);
   
   // Adicionar classe para múltiplas entregas
   if (isMultiple) {
@@ -228,6 +252,30 @@ export const createFixedMarker = (number: number, lat: number, lng: number, stat
     draggable: false
   }).setLngLat([lng, lat]);
 };
+
+// Função para criar marcador para localização atual
+export const createCurrentLocationMarker = (lat: number, lng: number): mapboxgl.Marker => {
+  const markerEl = document.createElement('div');
+  markerEl.className = 'current-location-marker';
+  
+  const pulseEl = document.createElement('div');
+  pulseEl.className = 'pulse-circle';
+  markerEl.appendChild(pulseEl);
+  
+  const innerCircleEl = document.createElement('div');
+  innerCircleEl.className = 'inner-circle';
+  markerEl.appendChild(innerCircleEl);
+  
+  return new mapboxgl.Marker({
+    element: markerEl,
+    anchor: 'center',
+    pitchAlignment: 'viewport',
+    rotationAlignment: 'viewport'
+  }).setLngLat([lng, lat]);
+};
+
+// Backward compatibility for old function name
+export const createFixedMarker = createDeliveryMarker;
 
 export const geocodeAddresses = async (
   deliveries: DeliveryItem[],

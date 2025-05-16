@@ -99,12 +99,42 @@
 
 /* Marker animations */
 @keyframes marker-flash {
-  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-  50% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
-  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  0% { transform: scale(1) rotate(45deg); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+  50% { transform: scale(1.2) rotate(45deg); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+  100% { transform: scale(1) rotate(45deg); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
 
 .animate-marker-flash {
   animation: marker-flash 0.7s ease 2; /* Run the animation twice */
 }
 
+/* Map marker styles for status colors */
+.delivery-marker.status-pendente {
+  background-color: #3b82f6; /* Blue for pending */
+}
+
+.delivery-marker.status-entregue {
+  background-color: #10B981; /* Green for delivered */
+}
+
+.delivery-marker.status-ocorrencia {
+  background-color: #EF4444; /* Red for occurrence */
+}
+
+/* Multiple deliveries indicator */
+.delivery-marker.multiple-deliveries {
+  border-color: #F97316; /* Orange for multiple deliveries */
+}
+
+/* Mapbox popup styling */
+.mapboxgl-popup-content {
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+}
+
+.mapboxgl-popup-close-button {
+  font-size: 18px;
+  padding: 4px;
+  color: #6b7280;
+}
