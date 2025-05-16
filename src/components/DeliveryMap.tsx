@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -412,7 +411,10 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           markerEl.classList.add('status-ocorrencia');
           if (hasStatusChanged) {
             markerEl.classList.remove('animate-marker-flash');
-            void markerEl.offsetWidth;
+            // Cast the Element to HTMLElement before accessing offsetWidth
+            if (markerEl instanceof HTMLElement) {
+              void markerEl.offsetWidth;
+            }
             markerEl.classList.add('animate-marker-flash');
             
             setTimeout(() => {
@@ -436,7 +438,10 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           miniMarkerEl.classList.add('mini-marker-occurrence');
           if (hasStatusChanged && markerStatus === 'ocorrencia') {
             miniMarkerEl.classList.remove('animate-marker-flash');
-            void miniMarkerEl.offsetWidth;
+            // Cast the Element to HTMLElement before accessing offsetWidth
+            if (miniMarkerEl instanceof HTMLElement) {
+              void miniMarkerEl.offsetWidth;
+            }
             miniMarkerEl.classList.add('animate-marker-flash');
             
             setTimeout(() => {
@@ -944,4 +949,3 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
 };
 
 export default DeliveryMap;
-
