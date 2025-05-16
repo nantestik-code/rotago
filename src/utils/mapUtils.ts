@@ -1,3 +1,4 @@
+
 import { DeliveryItem } from './deliveryUtils';
 import mapboxgl from 'mapbox-gl';
 
@@ -26,8 +27,6 @@ export const getMapboxToken = () => mapboxToken;
 export const initMapbox = () => {
   mapboxgl.accessToken = mapboxToken;
 };
-
-// A função geocodeAddress já está definida abaixo
 
 // Helper function to calculate distance between two points
 export const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -179,6 +178,55 @@ export const geocodeAddress = async (address: string, retryCount = 0): Promise<M
     console.error('Erro ao geocodificar endereço:', error);
     return null;
   }
+};
+
+// Novas funções para melhor visualização de marcadores fixos no mapa
+export const getMarkerCssClassByStatus = (status: string): string => {
+  switch (status) {
+    case 'entregue':
+      return 'status-entregue';
+    case 'ocorrencia':
+      return 'status-ocorrencia';
+    case 'pendente':
+    default:
+      return 'status-pendente';
+  }
+};
+
+export const createFixedMarker = (number: number, lat: number, lng: number, status: string, isMultiple: boolean, isSelected: boolean): mapboxgl.Marker => {
+  // Criar o elemento do marcador
+  const markerEl = document.createElement('div');
+  markerEl.className = `square-marker ${getMarkerCssClassByStatus(status)}`;
+  
+  // Adicionar número
+  markerEl.innerText = number.toString();
+  
+  // Adicionar classe para múltiplas entregas
+  if (isMultiple) {
+    markerEl.classList.add('multiple-deliveries');
+  }
+  
+  // Destacar se selecionado
+  if (isSelected) {
+    markerEl.classList.add('marker-selected');
+  }
+  
+  // Criar o elemento principal para o Mapbox
+  const el = document.createElement('div');
+  el.className = 'mapboxgl-marker mapboxgl-marker-anchor-center';
+  el.style.position = 'absolute';
+  el.style.pointerEvents = 'auto';
+  el.appendChild(markerEl);
+  
+  // Criar e retornar o marcador
+  return new mapboxgl.Marker({
+    element: el,
+    anchor: 'center',
+    offset: [0, 0],
+    pitchAlignment: 'viewport',
+    rotationAlignment: 'viewport',
+    draggable: false
+  }).setLngLat([lng, lat]);
 };
 
 export const geocodeAddresses = async (
