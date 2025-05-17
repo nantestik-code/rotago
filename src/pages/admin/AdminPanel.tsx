@@ -10,7 +10,8 @@ import UsersManagement from "@/components/admin/UsersManagement";
 import SiteContent from "@/components/admin/SiteContent";
 import Analytics from "@/components/admin/Analytics";
 import { toast } from "@/hooks/use-toast";
-import { Shield } from "lucide-react";
+import { Shield, Users, FileText, BarChart } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 
 const AdminPanel = () => {
   const { user, profile } = useAuth();
@@ -66,28 +67,47 @@ const AdminPanel = () => {
   }
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="flex items-center justify-between mb-6">
+    <div className="container mx-auto py-6">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
         <div className="flex items-center">
           <Shield className="h-8 w-8 mr-2 text-primary" />
-          <h1 className="text-3xl font-bold">Painel Administrativo</h1>
+          <div>
+            <h1 className="text-3xl font-bold">Painel Administrativo</h1>
+            <p className="text-muted-foreground">
+              Gerencie usuários, conteúdo e visualize estatísticas do sistema.
+            </p>
+          </div>
         </div>
-        <Button onClick={() => navigate("/app")}>Voltar ao App</Button>
+        <Button onClick={() => navigate("/app")} className="shrink-0">Voltar ao App</Button>
       </div>
       
-      <Tabs defaultValue="users" className="space-y-4">
-        <TabsList className="grid grid-cols-3 w-full max-w-md">
-          <TabsTrigger value="users">Usuários</TabsTrigger>
-          <TabsTrigger value="content">Conteúdo</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+      <Separator className="my-6" />
+      
+      <Tabs defaultValue="users" className="space-y-6">
+        <TabsList className="grid grid-cols-3 w-full max-w-md mx-auto mb-4">
+          <TabsTrigger value="users" className="flex items-center gap-2">
+            <Users className="h-4 w-4 md:mr-1" />
+            <span className="hidden sm:inline">Usuários</span>
+          </TabsTrigger>
+          <TabsTrigger value="content" className="flex items-center gap-2">
+            <FileText className="h-4 w-4 md:mr-1" />
+            <span className="hidden sm:inline">Conteúdo</span>
+          </TabsTrigger>
+          <TabsTrigger value="analytics" className="flex items-center gap-2">
+            <BarChart className="h-4 w-4 md:mr-1" />
+            <span className="hidden sm:inline">Analytics</span>
+          </TabsTrigger>
         </TabsList>
         
-        <TabsContent value="users" className="space-y-4">
+        <TabsContent value="users">
           <Card>
             <CardHeader>
-              <CardTitle>Gerenciamento de Usuários</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Gerenciamento de Usuários
+              </CardTitle>
               <CardDescription>
-                Gerencie os usuários cadastrados na plataforma.
+                Visualize, filtre e gerencie os usuários cadastrados na plataforma.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -96,10 +116,13 @@ const AdminPanel = () => {
           </Card>
         </TabsContent>
         
-        <TabsContent value="content" className="space-y-4">
+        <TabsContent value="content">
           <Card>
             <CardHeader>
-              <CardTitle>Conteúdo do Site</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Conteúdo do Site
+              </CardTitle>
               <CardDescription>
                 Atualize banners, mensagens e outros conteúdos do site.
               </CardDescription>
@@ -110,10 +133,13 @@ const AdminPanel = () => {
           </Card>
         </TabsContent>
         
-        <TabsContent value="analytics" className="space-y-4">
+        <TabsContent value="analytics">
           <Card>
             <CardHeader>
-              <CardTitle>Analytics</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart className="h-5 w-5" />
+                Analytics
+              </CardTitle>
               <CardDescription>
                 Visualize estatísticas de uso e desempenho do app.
               </CardDescription>
