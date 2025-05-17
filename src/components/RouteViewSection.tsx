@@ -7,7 +7,7 @@ import DeliveryMap from '@/components/DeliveryMap';
 import StatusCounter from '@/components/StatusCounter';
 import { DeliveryItem } from '@/utils/deliveryUtils';
 import { MapPosition } from '@/utils/mapUtils';
-import { List, X } from 'lucide-react';
+import { List, X, LayoutList, ArrowLeft, FileUp } from 'lucide-react';
 
 interface RouteViewSectionProps {
   deliveries: DeliveryItem[];
@@ -29,6 +29,7 @@ interface RouteViewSectionProps {
   geocodeProgress: number;
   processingOptimization: boolean;
   isMobile: boolean;
+  onBackToImport?: () => void; // Nova prop para voltar à tela de importação
 }
 
 const RouteViewSection: React.FC<RouteViewSectionProps> = ({
@@ -45,7 +46,8 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
   processingGeocode,
   geocodeProgress,
   processingOptimization,
-  isMobile
+  isMobile,
+  onBackToImport
 }) => {
   const [showListOverlay, setShowListOverlay] = React.useState(false);
 
@@ -55,8 +57,23 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
 
   return (
     <>
-      <div className="mb-4">
-        <h2 className="text-2xl font-semibold mb-2">Rota Otimizada</h2>
+      {/* Header - Escondido no mobile para maximizar espaço do mapa */}
+      <div className={`${isMobile ? 'hidden' : 'mb-4'}`}>
+        <div className="flex justify-between items-center mb-2">
+          <h2 className="text-2xl font-semibold">Rota Otimizada</h2>
+          {onBackToImport && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={onBackToImport}
+              className="flex items-center gap-1"
+            >
+              <ArrowLeft size={16} />
+              <FileUp size={16} />
+              Importar Arquivo
+            </Button>
+          )}
+        </div>
         <StatusCounter 
           pendente={statusCounts.pendente} 
           entregue={statusCounts.entregue} 
@@ -65,24 +82,25 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
         />
       </div>
 
+      {/* Indicadores de processamento */}
       {processingGeocode && geocodeProgress > 0 && (
-        <div className="my-4">
-          <p className="text-sm mb-1">Convertendo endereços em coordenadas...</p>
+        <div className={`${isMobile ? 'fixed top-0 left-0 right-0 z-50' : 'my-4'}`}>
+          <p className="text-sm mb-1 px-4">Convertendo endereços em coordenadas...</p>
           <Progress value={geocodeProgress} className="h-1" />
         </div>
       )}
 
       {processingOptimization && (
-        <div className="my-4">
-          <p className="text-sm mb-1">Otimizando rota...</p>
+        <div className={`${isMobile ? 'fixed top-0 left-0 right-0 z-50' : 'my-4'}`}>
+          <p className="text-sm mb-1 px-4">Otimizando rota...</p>
           <Progress value={50} className="h-1" />
         </div>
       )}
 
       {isMobile ? (
         <>
-          {/* Fixed position map that fills the screen for mobile */}
-          <div className="fixed inset-0 pt-[170px] pb-4 px-4 z-10 bg-white">
+          {/* Versão mobile com mapa em tela cheia */}
+          <div className="fixed inset-0 z-10 bg-white">
             <DeliveryMap
               deliveries={deliveries}
               selectedDeliveryId={selectedDeliveryId}
@@ -93,36 +111,74 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
               onStopTracking={onStopTracking}
               onOptimizeRoute={onOptimizeRoute}
               onStatusChange={onStatusChange}
+              isMobileView={true}
             />
             
-            {/* Floating Button to show full list */}
-            <Button
-              onClick={toggleListOverlay}
-              className="absolute bottom-4 left-4 z-10 shadow-lg flex items-center gap-2"
-              variant="default"
-            >
-              <List size={18} />
-              Ver Lista Completa
-            </Button>
+            {/* Mini contador de status fixo no topo */}
+            <div className="fixed top-2 left-2 right-2 z-20 bg-white/80 backdrop-blur-sm rounded-lg p-2 shadow-md flex justify-between items-center">
+              <div className="flex gap-2">
+                {onBackToImport && (
+                  <Button
+                    onClick={onBackToImport}
+                    className="h-8 px-2 flex items-center gap-1 mr-1"
+                    variant="outline"
+                    size="sm"
+                  >
+                    <ArrowLeft size={14} />
+                    <span className="text-xs">Voltar</span>
+                  </Button>
+                )}
+                <div className="flex items-center">
+                  <div className="w-3 h-3 rounded-full bg-blue-500 mr-1"></div>
+                  <span className="text-xs">{statusCounts.pendente}</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-3 h-3 rounded-full bg-green-500 mr-1"></div>
+                  <span className="text-xs">{statusCounts.entregue}</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-3 h-3 rounded-full bg-red-500 mr-1"></div>
+                  <span className="text-xs">{statusCounts.ocorrencia}</span>
+                </div>
+              </div>
+              <Button
+                onClick={toggleListOverlay}
+                className="h-8 px-2 flex items-center gap-1"
+                variant="outline"
+                size="sm"
+              >
+                <LayoutList size={16} />
+                <span className="text-xs">Lista</span>
+              </Button>
+            </div>
             
-            {/* List overlay */}
+            {/* Lista de entregas em overlay */}
             {showListOverlay && (
-              <div className="fixed inset-0 z-50 bg-white overflow-y-auto p-4">
-                <div className="flex justify-between items-center mb-4">
+              <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
+                <div className="sticky top-0 flex justify-between items-center p-4 bg-white border-b">
                   <h3 className="text-lg font-semibold">Lista de Entregas</h3>
                   <Button variant="ghost" size="icon" onClick={toggleListOverlay}>
                     <X size={20} />
                   </Button>
                 </div>
-                <DeliveryList
-                  deliveries={deliveries}
-                  onStatusChange={onStatusChange}
-                  onSelectDelivery={(id) => {
-                    onSelectDelivery(id);
-                    setShowListOverlay(false); // Close list and show map
-                  }}
-                  selectedDeliveryId={selectedDeliveryId}
-                />
+                <div className="p-4 pb-20">
+                  <StatusCounter 
+                    pendente={statusCounts.pendente} 
+                    entregue={statusCounts.entregue} 
+                    ocorrencia={statusCounts.ocorrencia} 
+                    total={statusCounts.total}
+                    className="mb-4"
+                  />
+                  <DeliveryList
+                    deliveries={deliveries}
+                    onStatusChange={onStatusChange}
+                    onSelectDelivery={(id) => {
+                      onSelectDelivery(id);
+                      setShowListOverlay(false); // Fecha a lista e mostra o mapa
+                    }}
+                    selectedDeliveryId={selectedDeliveryId}
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -148,6 +204,7 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
               onStopTracking={onStopTracking}
               onOptimizeRoute={onOptimizeRoute}
               onStatusChange={onStatusChange}
+              isMobileView={false}
             />
           </div>
         </div>

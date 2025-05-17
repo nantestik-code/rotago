@@ -91,6 +91,13 @@ const Index = () => {
             geocodeProgress={geocodeProgress}
             processingOptimization={processingOptimization}
             isMobile={isMobile}
+            onBackToImport={() => {
+              // Parar o rastreamento e voltar para a tela de importação
+              stopTracking();
+              setShowFileImport(true);
+              setDeliveries([]);
+              setSelectedDeliveryId(null);
+            }}
           />
         )}
       </div>

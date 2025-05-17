@@ -12,13 +12,16 @@ import {
   setMapboxToken, 
   calculateDistance, 
   createDeliveryMarker,
-  createCurrentLocationMarker 
+  createCurrentLocationMarker,
+  getDirectionsRoute,
+  openExternalNavigation
 } from '@/utils/mapUtils';
 import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
-import { Navigation, MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Navigation, MapPin, ChevronLeft, ChevronRight, Check, AlertTriangle, RotateCcw, X } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import DeliveryCard from './DeliveryCard';
+import AddressSearch from './AddressSearch';
 
 interface DeliveryMapProps {
   deliveries: DeliveryItem[];
@@ -30,6 +33,7 @@ interface DeliveryMapProps {
   onStopTracking: () => void;
   onOptimizeRoute: () => void;
   onStatusChange?: (id: string, status: 'pendente' | 'entregue' | 'ocorrencia') => void;
+  isMobileView?: boolean;
 }
 
 const DeliveryMap: React.FC<DeliveryMapProps> = ({
@@ -42,6 +46,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
   onStopTracking,
   onOptimizeRoute,
   onStatusChange,
+  isMobileView = false,
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapboxMapRef = useRef<mapboxgl.Map | null>(null);
@@ -53,6 +58,8 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
   const [mapboxTokenInput, setMapboxTokenInput] = useState(getMapboxToken());
   const [showTokenInput, setShowTokenInput] = useState(!getMapboxToken() || getMapboxToken() === 'pk.eyJ1IjoiZGVtby1hY2NvdW50IiwiYSI6ImNsbTUzNmh1bzBkYmwzY3FwbXpkeGsxcWUifQ.QJC4is2GrXvWYws7OsLb4g');
   const [currentMobileDeliveryIndex, setCurrentMobileDeliveryIndex] = useState(0);
+  const [navigationDestination, setNavigationDestination] = useState<{position: MapPosition, address: string} | null>(null);
+  const [showGpsSearch, setShowGpsSearch] = useState(false);
 
   // Filter to pending deliveries for mobile view
   const pendingDeliveries = useMemo(() => {
@@ -89,18 +96,55 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       }));
   }, [deliveries]);
 
-  // Show alerts for multiple deliveries
+  // Armazena grupos de endereços já notificados
+  const notifiedGroupsRef = useRef<Set<string>>(new Set());
+  
+  // Referência para controlar notificações de múltiplas entregas
+  const lastMultipleDeliveryNotificationRef = useRef<number>(0);
+  
+  // Show alerts for multiple deliveries gradually when approaching
   useEffect(() => {
-    if (addressGroups.length > 0 && mapLoaded) {
-      addressGroups.forEach(group => {
-        toast({
-          title: `${group.count} entregas no mesmo endereço`,
-          description: `${group.items[0].endereco} tem múltiplas entregas`,
-          duration: 5000,
-        });
+    if (addressGroups.length > 0 && mapLoaded && currentLocation && isTrackingActive) {
+      // Limitar notificações a uma a cada 20 segundos para evitar spam
+      const now = Date.now();
+      if (now - lastMultipleDeliveryNotificationRef.current < 20000) {
+        return;
+      }
+      
+      // Ordena os grupos por distância da localização atual
+      const sortedGroups = [...addressGroups].sort((a, b) => {
+        const [lngA, latA] = a.coordinates.split(',').map(parseFloat);
+        const [lngB, latB] = b.coordinates.split(',').map(parseFloat);
+        
+        const distanceA = calculateDistance(currentLocation.lat, currentLocation.lng, latA, lngA);
+        const distanceB = calculateDistance(currentLocation.lat, currentLocation.lng, latB, lngB);
+        
+        return distanceA - distanceB;
       });
+      
+      // Notifica apenas o grupo mais próximo que ainda não foi notificado
+      // e que esteja a menos de 1000 metros
+      const nearbyGroup = sortedGroups.find(group => {
+        const [lng, lat] = group.coordinates.split(',').map(parseFloat);
+        const distance = calculateDistance(currentLocation.lat, currentLocation.lng, lat, lng);
+        
+        return distance < 1000 && !notifiedGroupsRef.current.has(group.coordinates);
+      });
+      
+      if (nearbyGroup) {
+        // Marca como notificado
+        notifiedGroupsRef.current.add(nearbyGroup.coordinates);
+        lastMultipleDeliveryNotificationRef.current = now;
+        
+        // Mostra a notificação
+        toast({
+          title: `${nearbyGroup.count} entregas no mesmo endereço próximo`,
+          description: `${nearbyGroup.items[0].endereco} tem múltiplas entregas`,
+          duration: 8000,
+        });
+      }
     }
-  }, [addressGroups, mapLoaded]);
+  }, [addressGroups, mapLoaded, currentLocation, isTrackingActive]);
 
   // Initialize map
   useEffect(() => {
@@ -393,6 +437,134 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     });
   }, [deliveries, selectedDeliveryId, mapLoaded, onSelectDelivery, currentLocation, geocodedCoordinates]);
 
+  // Referência para controlar notificações de rota calculada
+  const lastRouteNotificationRef = useRef<number>(0);
+  const lastRouteDestinationRef = useRef<string>('');
+  
+  // Lidar com a navegação para um endereço pesquisado
+  const handleAddressFound = (position: MapPosition, address: string) => {
+    setNavigationDestination({ position, address });
+    const destinationKey = `${position.lat.toFixed(6)},${position.lng.toFixed(6)}`;
+    const now = Date.now();
+    
+    // Se tiver mapa e localização atual, traçar rota
+    if (mapboxMapRef.current && currentLocation) {
+      drawNavigationRoute(currentLocation, position);
+      
+      // Centralizar o mapa para mostrar a rota completa
+      const bounds = new mapboxgl.LngLatBounds()
+        .extend([currentLocation.lng, currentLocation.lat])
+        .extend([position.lng, position.lat]);
+      
+      mapboxMapRef.current.fitBounds(bounds, {
+        padding: 50,
+        maxZoom: 15
+      });
+      
+      // Mostrar notificação apenas se for um destino diferente ou se passaram mais de 30 segundos
+      if (destinationKey !== lastRouteDestinationRef.current || (now - lastRouteNotificationRef.current > 30000)) {
+        lastRouteNotificationRef.current = now;
+        lastRouteDestinationRef.current = destinationKey;
+        
+        toast({
+          title: 'Rota calculada',
+          description: `Navegando para: ${address}`,
+          duration: 5000,
+        });
+      }
+    } else if (!currentLocation) {
+      toast({
+        title: 'Localização não disponível',
+        description: 'Sua localização atual é necessária para navegação.',
+        variant: 'destructive',
+      });
+    }
+  };
+  
+  // Desenhar rota de navegação no mapa
+  const drawNavigationRoute = async (origin: MapPosition, destination: MapPosition) => {
+    if (!mapboxMapRef.current) return;
+    
+    try {
+      // Remover rota anterior se existir
+      if (mapboxMapRef.current.getSource('navigation-route')) {
+        mapboxMapRef.current.removeLayer('navigation-route');
+        mapboxMapRef.current.removeSource('navigation-route');
+      }
+      
+      // Obter rota da API do Mapbox
+      const route = await getDirectionsRoute(origin, destination);
+      
+      // Adicionar rota ao mapa
+      if (route && route.geometry) {
+        mapboxMapRef.current.addSource('navigation-route', {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            properties: {},
+            geometry: route.geometry
+          }
+        });
+        
+        mapboxMapRef.current.addLayer({
+          id: 'navigation-route',
+          type: 'line',
+          source: 'navigation-route',
+          layout: {
+            'line-join': 'round',
+            'line-cap': 'round'
+          },
+          paint: {
+            'line-color': '#10b981', // Verde
+            'line-width': 6,
+            'line-opacity': 0.8,
+            'line-dasharray': [0.5, 1.5] // Linha tracejada
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao desenhar rota de navegação:', error);
+      toast({
+        title: 'Erro de navegação',
+        description: 'Não foi possível calcular a rota para o destino.',
+        variant: 'destructive',
+      });
+    }
+  };
+  
+  // Referência para controlar notificações de localização
+  const lastLocationNotificationRef = useRef<number>(0);
+
+  // Atualizar marcador de localização atual
+  useEffect(() => {
+    if (!mapLoaded || !mapboxMapRef.current) return;
+    
+    // Remover marcador de localização atual existente
+    if (currentLocationMarkerRef.current) {
+      currentLocationMarkerRef.current.remove();
+      currentLocationMarkerRef.current = null;
+    }
+    
+    // Adicionar novo marcador de localização atual
+    if (currentLocation) {
+      const marker = createCurrentLocationMarker(currentLocation.lat, currentLocation.lng);
+      marker.addTo(mapboxMapRef.current);
+      currentLocationMarkerRef.current = marker;
+      
+      // Exibir mensagem de localização atual apenas quando o rastreamento é ativado
+      // e no máximo uma vez a cada 30 segundos
+      const now = Date.now();
+      if (isTrackingActive && (now - lastLocationNotificationRef.current > 30000)) {
+        lastLocationNotificationRef.current = now;
+        toast({
+          title: 'Localização atualizada',
+          description: 'Sua localização atual está sendo rastreada.',
+          duration: 3000,
+        });
+      }
+    }
+  }, [currentLocation, mapLoaded, isTrackingActive]);
+
   // Update markers when delivery status changes
   useEffect(() => {
     if (!mapLoaded || !mapboxMapRef.current) return;
@@ -469,10 +641,17 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     });
   }, [deliveries, mapLoaded]);
 
+  // Referência para controlar notificações de navegação GPS
+  const lastNavigationNotificationRef = useRef<number>(0);
+  const lastNavigationDestinationRef = useRef<string>('');
+  
   // Open external navigation app
   const openExternalNavigation = (lat: number, lng: number) => {
     const userAgent = navigator.userAgent || navigator.vendor || '';
+    const destinationKey = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+    const now = Date.now();
     
+    // Abrir o aplicativo de navegação apropriado
     if (/iPad|iPhone|iPod/.test(userAgent)) {
       window.open(`maps://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`, '_blank');
     } 
@@ -483,10 +662,17 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
     }
     
-    toast({
-      title: 'Abrindo navegação GPS',
-      description: 'Iniciando navegação para o endereço selecionado',
-    });
+    // Mostrar notificação apenas se for um destino diferente ou se passaram mais de 30 segundos
+    if (destinationKey !== lastNavigationDestinationRef.current || (now - lastNavigationNotificationRef.current > 30000)) {
+      lastNavigationNotificationRef.current = now;
+      lastNavigationDestinationRef.current = destinationKey;
+      
+      toast({
+        title: 'Abrindo navegação GPS',
+        description: 'Iniciando navegação para o endereço selecionado',
+        duration: 3000,
+      });
+    }
   };
 
   // Handle mobile delivery navigation
@@ -608,33 +794,102 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     }
   }, [selectedDeliveryId, pendingDeliveries, isMobile]);
   
-  if (showTokenInput) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full p-4 space-y-4">
-        <div className="text-center">
-          <h3 className="text-lg font-medium">Token do Mapbox necessário</h3>
-          <p className="text-sm text-gray-500 mb-4">
-            Para usar o mapa, é necessário um token de acesso do Mapbox. 
-            Você pode obter um gratuitamente em <a href="https://mapbox.com" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">mapbox.com</a>
-          </p>
-        </div>
-        <div className="flex w-full max-w-md gap-2">
-          <Input
-            type="text"
-            placeholder="Insira seu token do Mapbox"
-            value={mapboxTokenInput}
-            onChange={(e) => setMapboxTokenInput(e.target.value)}
-            className="flex-1"
-          />
-          <Button onClick={handleTokenSubmit}>Salvar</Button>
-        </div>
-      </div>
-    );
-  }
+  // Renderiza o componente principal mesmo quando precisar do token
 
   return (
     <div className="relative h-full">
       <div ref={mapRef} className="h-full w-full rounded-md"></div>
+      
+      {/* Barra de pesquisa de endereços para navegação GPS */}
+      <div className={`absolute ${isMobileView ? 'top-14 left-2 right-2' : 'top-2 left-2'} z-20`}>
+        {showGpsSearch ? (
+          <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-2">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-sm font-medium">Navegação GPS</h3>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-6 w-6 p-0"
+                onClick={() => setShowGpsSearch(false)}
+              >
+                <X size={14} />
+              </Button>
+            </div>
+            <AddressSearch 
+              onAddressFound={handleAddressFound}
+              currentLocation={currentLocation}
+              isMobile={isMobileView}
+            />
+            
+            {navigationDestination && (
+              <div className="mt-2 text-xs bg-green-50 p-2 rounded-md">
+                <p className="font-medium">Destino:</p>
+                <p className="truncate">{navigationDestination.address}</p>
+                <div className="flex justify-end mt-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs bg-green-100"
+                    onClick={() => openExternalNavigation(
+                      navigationDestination.position.lat,
+                      navigationDestination.position.lng
+                    )}
+                  >
+                    <Navigation size={12} className="mr-1" />
+                    Abrir no GPS
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <Button
+            size="sm"
+            variant="default"
+            className="shadow-md bg-green-600 hover:bg-green-700"
+            onClick={() => setShowGpsSearch(true)}
+          >
+            <Navigation size={16} className="mr-1" />
+            GPS
+          </Button>
+        )}
+      </div>
+      
+      {/* Modal de token do Mapbox como overlay não intrusivo */}
+      {showTokenInput && (
+        <div className="absolute top-2 right-2 z-50 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-4 max-w-md">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-sm font-medium">Token do Mapbox necessário</h3>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-6 w-6 p-0"
+              onClick={() => setShowTokenInput(false)}
+            >
+              <X size={14} />
+            </Button>
+          </div>
+          <p className="text-xs text-gray-500 mb-2">
+            Para usar o mapa, é necessário um token de acesso válido do Mapbox.
+          </p>
+          <div className="flex gap-2">
+            <Input
+              type="text"
+              placeholder="Insira seu token do Mapbox"
+              value={mapboxTokenInput}
+              onChange={(e) => setMapboxTokenInput(e.target.value)}
+              className="flex-1 h-8 text-xs"
+            />
+            <Button 
+              onClick={handleTokenSubmit} 
+              size="sm"
+              className="h-8 text-xs"
+            >
+              Salvar
+            </Button>
+          </div>
+        </div>
+      )}
       
       <style>
         {`
@@ -706,35 +961,51 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         
         /* Círculo de pulso */
         .pulse-circle {
-          width: 24px;
-          height: 24px;
+          width: 36px;
+          height: 36px;
           border-radius: 50%;
-          background-color: rgba(15, 160, 206, 0.2);
+          background-color: rgba(15, 160, 206, 0.3);
           position: absolute;
           animation: pulse 2s infinite;
         }
         
         /* Círculo interno */
         .inner-circle {
-          width: 12px;
-          height: 12px;
+          width: 16px;
+          height: 16px;
           position: absolute;
           top: 50%;
           left: 50%;
           transform: translate(-50%, -50%);
           background-color: rgb(15, 160, 206);
           border-radius: 50%;
-          border: 2px solid white;
-          box-shadow: 0 0 0 2px rgba(15, 160, 206, 0.4);
+          border: 3px solid white;
+          box-shadow: 0 0 0 2px rgba(15, 160, 206, 0.6);
+        }
+        
+        /* Texto "Você está aqui" */
+        .location-label {
+          position: absolute;
+          top: -25px;
+          left: 50%;
+          transform: translateX(-50%);
+          background-color: rgba(0, 0, 0, 0.7);
+          color: white;
+          font-size: 10px;
+          padding: 2px 6px;
+          border-radius: 4px;
+          white-space: nowrap;
+          font-weight: 500;
+          pointer-events: none;
         }
         
         @keyframes pulse {
           0% {
             transform: scale(1);
-            opacity: 1;
+            opacity: 0.8;
           }
           70% {
-            transform: scale(2);
+            transform: scale(2.5);
             opacity: 0;
           }
           100% {
@@ -909,22 +1180,107 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         `}
       </style>
       
-      <div className="absolute bottom-4 right-4 flex flex-col gap-2">
-        <Button onClick={onOptimizeRoute} className="bg-primary flex items-center gap-1">
-          <Navigation size={16} />
-          Otimizar Rota
-        </Button>
+      {/* Botões de controle (desktop) */}
+      {!isMobileView && (
+        <div className="absolute bottom-4 right-4 flex flex-col gap-2">
+          <Button onClick={onOptimizeRoute} className="bg-primary flex items-center gap-1">
+            <Navigation size={16} />
+            Otimizar Rota
+          </Button>
+          <Button
+            onClick={isTrackingActive ? onStopTracking : onStartTracking}
+            variant={isTrackingActive ? "destructive" : "default"}
+            className="flex items-center gap-1"
+          >
+            <MapPin size={16} />
+            {isTrackingActive ? 'Parar Rastreamento' : 'Iniciar Rastreamento'}
+          </Button>
+        </div>
+      )}
+      
+      {/* Controles de rastreamento para mobile (fixo no canto superior direito) */}
+      {isMobileView && (
         <Button
           onClick={isTrackingActive ? onStopTracking : onStartTracking}
           variant={isTrackingActive ? "destructive" : "default"}
-          className="flex items-center gap-1"
+          size="sm"
+          className="absolute top-14 right-2 z-20 h-8 w-8 p-0 shadow-md"
         >
           <MapPin size={16} />
-          {isTrackingActive ? 'Parar Rastreamento' : 'Iniciar Rastreamento'}
         </Button>
-      </div>
+      )}
       
-      {isMobile && pendingDeliveries.length > 0 && (
+      {/* Mini-ficha no rodapé para mobile quando há uma entrega selecionada */}
+      {isMobileView && selectedDeliveryId && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg rounded-t-xl z-30 transition-transform duration-300">
+          {/* Barra de arraste */}
+          <div className="flex justify-center py-1">
+            <div className="w-10 h-1 bg-gray-300 rounded-full"></div>
+          </div>
+          
+          {/* Informações da entrega selecionada */}
+          {deliveries.find(d => d.id === selectedDeliveryId) && (
+            <div className="p-3 pb-safe">
+              <div className="flex justify-between items-start mb-2">
+                <div>
+                  <h3 className="font-semibold text-base">
+                    {deliveries.find(d => d.id === selectedDeliveryId)?.cliente}
+                  </h3>
+                  <p className="text-xs text-gray-600">
+                    {deliveries.find(d => d.id === selectedDeliveryId)?.endereco}
+                  </p>
+                </div>
+                <div className="flex gap-1">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="h-8 w-8 p-0"
+                    onClick={onOptimizeRoute}
+                  >
+                    <Navigation size={14} />
+                  </Button>
+                </div>
+              </div>
+              
+              {/* Botões de ação unificados */}
+              <div className="flex justify-between gap-1 mt-2">
+                <Button 
+                  size="sm" 
+                  variant={deliveries.find(d => d.id === selectedDeliveryId)?.status === 'entregue' ? 'default' : 'outline'}
+                  className={`flex-1 h-9 ${deliveries.find(d => d.id === selectedDeliveryId)?.status === 'entregue' ? 'bg-green-500 hover:bg-green-600' : ''}`}
+                  onClick={() => onStatusChange && onStatusChange(selectedDeliveryId, 'entregue')}
+                >
+                  <Check size={14} className="mr-1" />
+                  Entregue
+                </Button>
+                
+                <Button 
+                  size="sm" 
+                  variant={deliveries.find(d => d.id === selectedDeliveryId)?.status === 'ocorrencia' ? 'default' : 'outline'}
+                  className={`flex-1 h-9 ${deliveries.find(d => d.id === selectedDeliveryId)?.status === 'ocorrencia' ? 'bg-red-500 hover:bg-red-600' : ''}`}
+                  onClick={() => onStatusChange && onStatusChange(selectedDeliveryId, 'ocorrencia')}
+                >
+                  <AlertTriangle size={14} className="mr-1" />
+                  Ocorrência
+                </Button>
+                
+                <Button 
+                  size="sm" 
+                  variant={deliveries.find(d => d.id === selectedDeliveryId)?.status === 'pendente' ? 'default' : 'outline'}
+                  className={`flex-1 h-9 ${deliveries.find(d => d.id === selectedDeliveryId)?.status === 'pendente' ? 'bg-blue-500 hover:bg-blue-600' : ''}`}
+                  onClick={() => onStatusChange && onStatusChange(selectedDeliveryId, 'pendente')}
+                >
+                  <RotateCcw size={14} className="mr-1" />
+                  Pendente
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Navegação entre entregas pendentes (apenas para mobile quando não há entrega selecionada) */}
+      {isMobileView && !selectedDeliveryId && pendingDeliveries.length > 0 && (
         <div className="mobile-delivery-card">
           <div className="delivery-counter">
             {currentMobileDeliveryIndex + 1} de {pendingDeliveries.length} pendentes
@@ -961,27 +1317,26 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         </div>
       )}
       
-      <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm shadow rounded-lg text-sm p-3">
-        <h3 className="font-medium text-xs uppercase mb-1 text-gray-500">Legenda</h3>
-        <div className="flex items-center mb-1.5">
-          <div className="w-5 h-5 bg-[#3b82f6] border-2 border-white mr-2 rounded-md rotate-45"></div>
-          <span className="text-xs">Pendente</span>
-        </div>
-        <div className="flex items-center mb-1.5">
-          <div className="w-5 h-5 bg-[#10B981] border-2 border-white mr-2 rounded-md rotate-45"></div>
-          <span className="text-xs">Entregue</span>
-        </div>
-        <div className="flex items-center mb-1.5">
-          <div className="w-5 h-5 bg-[#ef4444] border-2 border-white mr-2 rounded-md rotate-45"></div>
-          <span className="text-xs">Ocorrência</span>
-        </div>
-        <div className="flex items-center">
-          <div className="w-5 h-5 border-2 border-orange-500 mr-2 rounded-md rotate-45 relative">
-            <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full"></div>
+      {/* Legenda do mapa - apenas no desktop */}
+      {!isMobileView && (
+        <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-sm shadow-md rounded-lg text-sm p-2.5 z-10">
+          <div className="flex flex-col space-y-2">
+            <div className="flex items-center gap-1.5">
+              <div className="w-4 h-4 bg-[#3b82f6] border border-white rounded-full"></div>
+              <span className="text-xs">Pendente</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-4 h-4 bg-[#EF4444] border border-white rounded-full"></div>
+              <span className="text-xs">Ocorrência</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-4 h-4 border-2 border-[#F97316] bg-white/80 rounded-full"></div>
+              <span className="text-xs">Múltiplas Entregas</span>
+            </div>
           </div>
-          <span className="text-xs">Múltiplas Entregas</span>
         </div>
-      </div>
+      )}
+      
     </div>
   );
 };

@@ -93,10 +93,8 @@ const Login = () => {
         return;
       }
 
-      toast({
-        title: "Login realizado com sucesso!",
-        description: "Bem-vindo de volta ao RotaFacil",
-      });
+      // Notificação de login bem-sucedido agora é gerenciada pelo hook de autenticação
+      // para evitar notificações duplicadas
       
       // Redirect to main app after successful login is now handled by the useEffect
     } catch (error) {

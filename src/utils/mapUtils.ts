@@ -77,7 +77,8 @@ export const watchPosition = (
     return null;
   }
 
-  const watchId = navigator.geolocation.watchPosition(
+  // Obter posição imediatamente para não ter que esperar pelo primeiro evento de watch
+  navigator.geolocation.getCurrentPosition(
     (position) => {
       onPositionChange({
         lat: position.coords.latitude,
@@ -85,10 +86,29 @@ export const watchPosition = (
       });
     },
     (error) => {
+      console.error('Erro ao obter posição inicial:', error);
+    },
+    { enableHighAccuracy: true }
+  );
+
+  // Configurar o monitoramento contínuo com maior precisão
+  const watchId = navigator.geolocation.watchPosition(
+    (position) => {
+      onPositionChange({
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+      });
+      console.log('Posição atualizada:', position.coords.latitude, position.coords.longitude);
+    },
+    (error) => {
       console.error('Erro ao monitorar posição:', error);
       if (onError) onError(error);
     },
-    { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+    { 
+      enableHighAccuracy: true, 
+      maximumAge: 5000,  // Reduzido para 5 segundos para maior precisão
+      timeout: 10000     // Aumentado para 10 segundos para dar mais tempo para obter a posição
+    }
   );
 
   return watchId;
@@ -253,24 +273,33 @@ export const createDeliveryMarker = (
   }).setLngLat([lng, lat]);
 };
 
-// Função para criar marcador para localização atual
+// Função para criar marcador para localização atual com efeito de pulso mais visível
 export const createCurrentLocationMarker = (lat: number, lng: number): mapboxgl.Marker => {
-  const markerEl = document.createElement('div');
-  markerEl.className = 'current-location-marker';
+  const el = document.createElement('div');
+  el.className = 'current-location-marker';
   
-  const pulseEl = document.createElement('div');
-  pulseEl.className = 'pulse-circle';
-  markerEl.appendChild(pulseEl);
+  // Adicionar múltiplos círculos de pulso para efeito mais visível
+  for (let i = 0; i < 2; i++) {
+    const pulseCircle = document.createElement('div');
+    pulseCircle.className = 'pulse-circle';
+    pulseCircle.style.animationDelay = `${i * 0.5}s`;
+    el.appendChild(pulseCircle);
+  }
   
-  const innerCircleEl = document.createElement('div');
-  innerCircleEl.className = 'inner-circle';
-  markerEl.appendChild(innerCircleEl);
+  // Adicionar círculo interno maior e mais visível
+  const innerCircle = document.createElement('div');
+  innerCircle.className = 'inner-circle';
+  el.appendChild(innerCircle);
+  
+  // Adicionar texto "Você está aqui"
+  const label = document.createElement('div');
+  label.className = 'location-label';
+  label.textContent = 'Você está aqui';
+  el.appendChild(label);
   
   return new mapboxgl.Marker({
-    element: markerEl,
-    anchor: 'center',
-    pitchAlignment: 'viewport',
-    rotationAlignment: 'viewport'
+    element: el,
+    anchor: 'center'
   }).setLngLat([lng, lat]);
 };
 
@@ -323,6 +352,52 @@ export const geocodeAddresses = async (
   return updatedDeliveries;
 };
 
+// Obter rota entre dois pontos usando a API de direções do Mapbox
+export const getDirectionsRoute = async (
+  origin: MapPosition,
+  destination: MapPosition
+): Promise<any> => {
+  try {
+    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?steps=true&geometries=geojson&access_token=${mapboxToken}`;
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`Erro na API de direções: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data.routes && data.routes.length > 0) {
+      return data.routes[0];
+    }
+    
+    throw new Error('Nenhuma rota encontrada');
+  } catch (error) {
+    console.error('Erro ao obter rota:', error);
+    throw error;
+  }
+};
+
+// Abrir navegação externa para um endereço
+export const openExternalNavigation = (lat: number, lng: number): void => {
+  // Detectar plataforma e abrir app apropriado
+  const userAgent = navigator.userAgent || navigator.vendor;
+  
+  // iOS
+  if (/iPad|iPhone|iPod/.test(userAgent)) {
+    window.open(`maps://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`, '_blank');
+  } 
+  // Android
+  else if (/android/i.test(userAgent)) {
+    window.open(`geo:0,0?q=${lat},${lng}`, '_blank');
+  } 
+  // Fallback para Google Maps web
+  else {
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+  }
+};
+
 export const optimizeRoute = async (
   origin: MapPosition,
   destinations: DeliveryItem[]
@@ -335,20 +410,21 @@ export const optimizeRoute = async (
   }
 
   try {
-    // Group deliveries by exact coordinates
+    // Group deliveries by exact coordinates AND address
     const coordinateGroups: { [key: string]: DeliveryItem[] } = {};
     
     pendingDeliveries.forEach(delivery => {
-      if (!delivery.lat || !delivery.lng) return;
+      if (!delivery.lat || !delivery.lng || !delivery.endereco) return;
       
-      const coordKey = `${delivery.lat.toFixed(6)},${delivery.lng.toFixed(6)}`;
+      // Usar coordenadas E endereço como chave para garantir que apenas entregas no mesmo local sejam agrupadas
+      const coordKey = `${delivery.lat.toFixed(6)},${delivery.lng.toFixed(6)},${delivery.endereco}`;
       if (!coordinateGroups[coordKey]) {
         coordinateGroups[coordKey] = [];
       }
       coordinateGroups[coordKey].push(delivery);
     });
     
-    // Collect unique coordinate points (only one item per coordinate)
+    // Collect unique coordinate points (only one item per coordinate/address combination)
     const uniqueCoordinates = Object.values(coordinateGroups).map(group => group[0]);
     
     // Sort by distance from origin using nearest neighbor algorithm
@@ -396,10 +472,13 @@ export const optimizeRoute = async (
     
     // First, add all pending deliveries in the optimized order
     sortedCoordinates.forEach(uniqueAddress => {
-      const coordKey = `${uniqueAddress.lat!.toFixed(6)},${uniqueAddress.lng!.toFixed(6)}`;
+      if (!uniqueAddress.endereco) return;
+      
+      // Usar a mesma chave composta (coordenadas + endereço) para manter a consistência
+      const coordKey = `${uniqueAddress.lat!.toFixed(6)},${uniqueAddress.lng!.toFixed(6)},${uniqueAddress.endereco}`;
       const group = coordinateGroups[coordKey] || [];
       
-      // Add all deliveries at this coordinate
+      // Add all deliveries at this coordinate and address
       optimizedDeliveries.push(...group);
     });
     

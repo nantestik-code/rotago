@@ -7,11 +7,12 @@ interface StatusCounterProps {
   entregue: number;
   ocorrencia: number;
   total: number;
+  className?: string;
 }
 
-const StatusCounter: React.FC<StatusCounterProps> = ({ pendente, entregue, ocorrencia, total }) => {
+const StatusCounter: React.FC<StatusCounterProps> = ({ pendente, entregue, ocorrencia, total, className = '' }) => {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div className={`grid grid-cols-1 md:grid-cols-4 gap-4 ${className}`}>
       <Card>
         <CardContent className="p-4 flex items-center justify-between">
           <div>

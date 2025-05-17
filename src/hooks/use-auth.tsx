@@ -51,7 +51,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setProfile(null);
           }
           
-          if (event === 'SIGNED_IN') {
+          // Apenas mostra notificação em eventos reais de login/logout, não em recargas de página
+          if (event === 'SIGNED_IN' && !initialSession) {
+            // Só mostra a notificação se for um novo login, não uma reconexão
             toast({
               title: 'Login realizado com sucesso',
               description: 'Bem-vindo ao RotaFacil',

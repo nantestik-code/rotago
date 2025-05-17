@@ -8,7 +8,9 @@ import { processFile, ProcessedFile } from '@/utils/fileUtils';
 import { DeliveryItem } from '@/utils/deliveryUtils';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Navigation, MapPin, Upload } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Separator } from "@/components/ui/separator";
 
 interface FileImportProps {
   onImportComplete: (deliveries: DeliveryItem[]) => void;
@@ -133,26 +135,52 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete }) => {
     }
   };
 
+  // Função para iniciar GPS sem importação de arquivo
+  const handleStartGPS = () => {
+    // Criar uma entrega vazia apenas para iniciar o GPS - sem coordenadas definidas
+    // para que o usuário possa escolher o destino
+    const emptyDelivery: DeliveryItem[] = [];
+    
+    toast({
+      title: "Modo GPS ativado",
+      description: "Use o botão GPS no mapa para buscar e navegar para qualquer endereço.",
+    });
+    
+    onImportComplete(emptyDelivery);
+  };
+
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="text-lg">Importar Entregas</CardTitle>
+        <CardTitle className="text-lg">Rota Fácil Turbo</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col gap-4">
-          <div className="grid w-full items-center gap-1.5">
-            <Input
-              type="file"
-              accept=".csv,.xlsx,.xls"
-              id="file-upload"
-              onChange={handleFileChange}
-              disabled={isProcessing}
-              className="cursor-pointer"
-            />
-            <p className="text-xs text-gray-500">
-              Formatos aceitos: CSV, XLS, XLSX
-            </p>
-          </div>
+        <Tabs defaultValue="import" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="import" className="flex items-center gap-1">
+              <Upload size={16} />
+              Importar Entregas
+            </TabsTrigger>
+            <TabsTrigger value="gps" className="flex items-center gap-1">
+              <Navigation size={16} />
+              Usar GPS
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="import" className="flex flex-col gap-4">
+            <div className="grid w-full items-center gap-1.5">
+              <Input
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                id="file-upload"
+                onChange={handleFileChange}
+                disabled={isProcessing}
+                className="cursor-pointer"
+              />
+              <p className="text-xs text-gray-500">
+                Formatos aceitos: CSV, XLS, XLSX
+              </p>
+            </div>
           
           {importError && (
             <Alert variant="destructive">
@@ -185,19 +213,40 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete }) => {
             <Progress value={progress} className="h-1" />
           )}
 
-          <Button 
-            onClick={handleImport}
-            disabled={!file || isProcessing}
-            className="w-full"
-          >
-            {isProcessing ? 'Processando...' : 'Importar dados'}
-          </Button>
+            <Button 
+              onClick={handleImport}
+              disabled={!file || isProcessing}
+              className="w-full"
+            >
+              {isProcessing ? 'Processando...' : 'Importar dados'}
+            </Button>
+            
+            <div className="text-xs text-gray-500 mt-2">
+              <p><strong>Dica:</strong> Certifique-se que sua planilha tenha pelo menos duas colunas: uma para o nome do cliente e outra para o endereço.</p>
+              <p>Colunas recomendadas: Cliente, Endereço, Cidade, Estado, CEP, Telefone, Observações</p>
+            </div>
+          </TabsContent>
           
-          <div className="text-xs text-gray-500 mt-2">
-            <p><strong>Dica:</strong> Certifique-se que sua planilha tenha pelo menos duas colunas: uma para o nome do cliente e outra para o endereço.</p>
-            <p>Colunas recomendadas: Cliente, Endereço, Cidade, Estado, CEP, Telefone, Observações</p>
-          </div>
-        </div>
+          <TabsContent value="gps" className="flex flex-col gap-4">
+            <div className="text-center py-6 flex flex-col items-center">
+              <div className="bg-blue-50 p-4 rounded-full mb-4">
+                <MapPin size={48} className="text-blue-500" />
+              </div>
+              <h3 className="text-lg font-medium mb-2">Modo GPS</h3>
+              <p className="text-sm text-gray-600 mb-6 max-w-md">
+                Inicie a navegação GPS sem importar entregas. Você poderá usar o GPS para navegar para qualquer endereço.  
+              </p>
+              
+              <Button 
+                onClick={handleStartGPS}
+                className="w-full max-w-xs bg-green-600 hover:bg-green-700 flex items-center gap-2"
+              >
+                <Navigation size={18} />
+                Iniciar Navegação GPS
+              </Button>
+            </div>
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );
