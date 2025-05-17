@@ -185,9 +185,16 @@ const createDeliveryFromRow = (
   if (!fieldMapping.endereco || !row[fieldMapping.endereco]) {
     throw new Error('Campo endereço é obrigatório');
   }
+  
+  // Calcular o número da ordem (rowIndex + 1)
+  const orderNumber = rowIndex + 1;
+  
+  // Criar um ID que inclui o número da ordem para facilitar a identificação
+  const orderId = `ordem-${orderNumber}-${generateId()}`;
 
   return {
-    id: generateId(),
+    id: orderId,
+    orderNumber: orderNumber, // Adicionar o número da ordem como propriedade
     cliente: row[fieldMapping.cliente] || '',
     endereco: row[fieldMapping.endereco] || '',
     cidade: fieldMapping.cidade && row[fieldMapping.cidade] ? row[fieldMapping.cidade] : '',

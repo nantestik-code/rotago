@@ -1,6 +1,7 @@
 
 export interface DeliveryItem {
   id: string;
+  orderNumber?: number; // Número da ordem (1, 2, 3, etc.)
   cliente: string;
   endereco: string;
   cidade: string;

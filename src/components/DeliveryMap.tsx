@@ -307,7 +307,25 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       }
       
       coordinateGroups[coordKey].deliveryIds.push(delivery.id);
-      coordinateGroups[coordKey].orderIndices.push(index + 1);
+      
+      // Usar o número da ordem diretamente da propriedade orderNumber se disponível
+      let orderNumber;
+      
+      if (delivery.orderNumber) {
+        // Usar o número da ordem definido na propriedade orderNumber
+        orderNumber = delivery.orderNumber;
+      } else {
+        // Tentar extrair o número da ordem do ID
+        const orderMatch = delivery.id.match(/ordem[\s-]*(\d+)/i);
+        if (orderMatch) {
+          orderNumber = parseInt(orderMatch[1]);
+        } else {
+          // Fallback para o índice + 1
+          orderNumber = index + 1;
+        }
+      }
+      
+      coordinateGroups[coordKey].orderIndices.push(orderNumber);
       coordinateGroups[coordKey].statuses.push(delivery.status);
     });
     
@@ -332,9 +350,13 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         markerStatus = 'pendente';
       }
       
+      // Obter o número da ordem para este marcador
+      // Usar o primeiro índice de ordem do grupo (que deve ser o número real da ordem)
+      const orderNumber = group.orderIndices[0];
+      
       // Create the marker
       const marker = createDeliveryMarker(
-        index + 1,
+        orderNumber,
         delivery.lat,
         delivery.lng,
         markerStatus,
