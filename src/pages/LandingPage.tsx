@@ -8,7 +8,6 @@ import {
   Truck, 
   Clock, 
   BarChart4, 
-  LucideShield, 
   Package, 
   Route, 
   CheckCheck, 
@@ -73,11 +72,10 @@ const LandingPage = () => {
               <div className="relative bg-white p-4 rounded-xl shadow-2xl">
                 <AspectRatio ratio={16/9} className="bg-gray-100 rounded-lg overflow-hidden">
                   <img 
-                    src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=2426&q=80" 
-                    alt="Dashboard RotaFacil" 
+                    src="/lovable-uploads/40d87efa-c141-4230-9169-0423b48170d2.png" 
+                    alt="Mapa interativo com rotas de entrega" 
                     className="object-cover w-full h-full rounded-lg" 
                   />
-                  <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 to-transparent rounded-lg"></div>
                 </AspectRatio>
                 <div className="absolute -bottom-4 -right-4 bg-white rounded-lg shadow-lg p-3 animate-bounce">
                   <div className="flex items-center gap-2 text-sm font-medium">
@@ -141,8 +139,170 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Success Metrics */}
+      {/* Visual Demo Section - NOVO */}
       <section className="py-20 bg-gradient-to-b from-blue-50 to-white">
+        <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-6xl">
+          <div className="text-center mb-12">
+            <span className="px-3 py-1 text-sm font-medium bg-primary/10 text-primary rounded-full">
+              Sistema em ação
+            </span>
+            <h2 className="mt-4 text-3xl md:text-4xl font-bold text-gray-900">
+              Conheça nosso sistema na prática
+            </h2>
+            <p className="mt-3 text-xl text-gray-600 max-w-3xl mx-auto">
+              Veja como o RotaFacil funciona e como ele pode otimizar suas entregas
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="bg-white p-4 rounded-xl shadow-xl">
+              <h3 className="font-semibold text-lg mb-3">Visualização de Rotas Otimizadas</h3>
+              <AspectRatio ratio={16/9} className="bg-gray-100 rounded-lg overflow-hidden mb-3">
+                <img 
+                  src="/lovable-uploads/40d87efa-c141-4230-9169-0423b48170d2.png"
+                  alt="Mapa com rotas e marcadores de entrega" 
+                  className="object-cover w-full h-full rounded-lg" 
+                />
+              </AspectRatio>
+              <p className="text-sm text-gray-600">
+                Marcadores coloridos indicam o status e sequência de cada entrega no mapa interativo.
+              </p>
+            </div>
+            
+            <div className="bg-white p-4 rounded-xl shadow-xl">
+              <h3 className="font-semibold text-lg mb-3">Dashboard de Acompanhamento</h3>
+              <AspectRatio ratio={16/9} className="bg-gray-100 rounded-lg overflow-hidden mb-3">
+                <div className="flex items-center justify-center h-full bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg">
+                  <div className="bg-white w-[90%] h-[90%] rounded-lg shadow-md p-4 flex flex-col">
+                    <div className="flex justify-between items-center mb-4 border-b pb-2">
+                      <div className="flex items-center">
+                        <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white mr-2">
+                          <Truck className="w-4 h-4" />
+                        </div>
+                        <span className="font-bold">Painel de Entregas</span>
+                      </div>
+                      <div className="flex space-x-2">
+                        <div className="px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-xs">Pendentes: 15</div>
+                        <div className="px-2 py-1 bg-green-100 text-green-700 rounded-md text-xs">Concluídas: 27</div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 flex-grow overflow-auto">
+                      {[1, 2, 3, 4, 5, 6].map((item) => (
+                        <div key={item} className="p-2 border rounded-md bg-gray-50">
+                          <div className="text-xs text-gray-500">Cliente #{item}</div>
+                          <div className="text-sm font-medium truncate">Entrega #{item * 10}</div>
+                          <div className="flex items-center mt-1">
+                            <div className="w-2 h-2 rounded-full bg-blue-500 mr-1"></div>
+                            <span className="text-xs">Pendente</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </AspectRatio>
+              <p className="text-sm text-gray-600">
+                Interface intuitiva para monitorar todas as suas entregas em um só lugar.
+              </p>
+            </div>
+          </div>
+          
+          <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white p-4 rounded-xl shadow-md">
+              <h3 className="font-semibold text-lg mb-2">Múltiplos Pontos de Entrega</h3>
+              <AspectRatio ratio={16/9} className="bg-gray-100 rounded-lg overflow-hidden mb-3">
+                <div className="bg-slate-100 w-full h-full rounded-lg flex items-center justify-center overflow-hidden">
+                  <div className="relative w-full h-full">
+                    <div className="absolute top-[20%] left-[30%] w-10 h-10 bg-blue-500 rounded-lg rotate-45 flex items-center justify-center shadow-md">
+                      <span className="text-white font-bold rotate-[315deg]">12</span>
+                    </div>
+                    <div className="absolute top-[50%] left-[60%] w-10 h-10 bg-orange-500 border-2 border-white rounded-lg rotate-45 flex items-center justify-center shadow-md">
+                      <span className="text-white font-bold rotate-[315deg]">8</span>
+                    </div>
+                    <div className="absolute top-[30%] left-[70%] w-10 h-10 bg-blue-500 rounded-lg rotate-45 flex items-center justify-center shadow-md">
+                      <span className="text-white font-bold rotate-[315deg]">3</span>
+                    </div>
+                    <div className="absolute top-[60%] left-[20%] w-10 h-10 bg-green-500 rounded-lg rotate-45 flex items-center justify-center shadow-md">
+                      <span className="text-white font-bold rotate-[315deg]">5</span>
+                    </div>
+                  </div>
+                </div>
+              </AspectRatio>
+              <p className="text-sm text-gray-600">Identifique facilmente onde há múltiplas entregas no mesmo local.</p>
+            </div>
+            
+            <div className="bg-white p-4 rounded-xl shadow-md">
+              <h3 className="font-semibold text-lg mb-2">Status em Tempo Real</h3>
+              <AspectRatio ratio={16/9} className="bg-gray-100 rounded-lg overflow-hidden mb-3">
+                <div className="p-4 bg-white w-full h-full flex flex-col">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold">Status da Rota</h4>
+                    <div className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Em Progresso</div>
+                  </div>
+                  <div className="space-y-2 flex-grow">
+                    <div className="p-2 border-l-4 border-green-500 bg-green-50 rounded">
+                      <div className="text-xs text-gray-500">Entrega #125</div>
+                      <div className="text-sm">Loja Conceito</div>
+                      <div className="flex items-center mt-1">
+                        <CheckCheck className="w-3 h-3 text-green-500 mr-1" />
+                        <span className="text-xs text-green-700">Concluído às 10:23</span>
+                      </div>
+                    </div>
+                    <div className="p-2 border-l-4 border-green-500 bg-green-50 rounded">
+                      <div className="text-xs text-gray-500">Entrega #126</div>
+                      <div className="text-sm">Supermercado Central</div>
+                      <div className="flex items-center mt-1">
+                        <CheckCheck className="w-3 h-3 text-green-500 mr-1" />
+                        <span className="text-xs text-green-700">Concluído às 11:05</span>
+                      </div>
+                    </div>
+                    <div className="p-2 border-l-4 border-blue-500 bg-blue-50 rounded">
+                      <div className="text-xs text-gray-500">Entrega #127</div>
+                      <div className="text-sm">Farmácia Popular</div>
+                      <div className="flex items-center mt-1">
+                        <Clock className="w-3 h-3 text-blue-500 mr-1" />
+                        <span className="text-xs text-blue-700">Em andamento</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </AspectRatio>
+              <p className="text-sm text-gray-600">Acompanhe o status das entregas à medida que são realizadas.</p>
+            </div>
+            
+            <div className="bg-white p-4 rounded-xl shadow-md">
+              <h3 className="font-semibold text-lg mb-2">Relatórios e Análises</h3>
+              <AspectRatio ratio={16/9} className="bg-gray-100 rounded-lg overflow-hidden mb-3">
+                <div className="bg-white w-full h-full p-4 flex flex-col">
+                  <h4 className="text-sm font-semibold mb-2">Desempenho de Entregas</h4>
+                  <div className="flex-1 grid grid-cols-2 gap-2">
+                    <div className="bg-blue-50 rounded p-2 flex flex-col items-center justify-center">
+                      <div className="text-3xl font-bold text-blue-600">94%</div>
+                      <div className="text-xs text-gray-600">Entregas no prazo</div>
+                    </div>
+                    <div className="bg-green-50 rounded p-2 flex flex-col items-center justify-center">
+                      <div className="text-3xl font-bold text-green-600">85</div>
+                      <div className="text-xs text-gray-600">Entregas hoje</div>
+                    </div>
+                    <div className="bg-purple-50 rounded p-2 flex flex-col items-center justify-center">
+                      <div className="text-3xl font-bold text-purple-600">28</div>
+                      <div className="text-xs text-gray-600">min médio</div>
+                    </div>
+                    <div className="bg-amber-50 rounded p-2 flex flex-col items-center justify-center">
+                      <div className="text-3xl font-bold text-amber-600">12</div>
+                      <div className="text-xs text-gray-600">km/entrega</div>
+                    </div>
+                  </div>
+                </div>
+              </AspectRatio>
+              <p className="text-sm text-gray-600">Métricas detalhadas para melhorar continuamente suas operações.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Success Metrics */}
+      <section className="py-20 bg-white">
         <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-6xl">
           <div className="text-center mb-16">
             <span className="px-3 py-1 text-sm font-medium bg-primary/10 text-primary rounded-full">
@@ -186,7 +346,7 @@ const LandingPage = () => {
       </section>
 
       {/* How It Works */}
-      <section className="py-20 bg-white">
+      <section className="py-20 bg-gradient-to-b from-blue-50 to-white">
         <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-6xl">
           <div className="text-center mb-16">
             <span className="px-3 py-1 text-sm font-medium bg-primary/10 text-primary rounded-full">

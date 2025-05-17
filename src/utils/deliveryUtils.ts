@@ -13,13 +13,20 @@ export interface DeliveryItem {
   lat?: number;
   lng?: number;
   statusChanged?: boolean; // Track if status was recently changed
+  isMultiple?: boolean;  // Indica se há múltiplas entregas neste local
 }
 
 export const generateId = (): string => {
   return Math.random().toString(36).substring(2, 11);
 };
 
-export const getStatusColor = (status: string): string => {
+export const getStatusColor = (status: string, isMultiple?: boolean): string => {
+  // Se for um ponto com múltiplas entregas, retorna laranja
+  if (isMultiple) {
+    return 'bg-orange-500';
+  }
+  
+  // Caso contrário, retorna a cor baseada no status
   switch (status) {
     case 'entregue':
       return 'bg-green-500';
@@ -36,25 +43,36 @@ export const getStatusCounts = (deliveries: DeliveryItem[]) => {
     pendente: 0,
     entregue: 0,
     ocorrencia: 0,
+    multiple: 0, // Novo contador para pontos com múltiplas entregas
     total: deliveries.length,
   };
 
   deliveries.forEach((delivery) => {
     counts[delivery.status]++;
+    if (delivery.isMultiple) {
+      counts.multiple++;
+    }
   });
 
   return counts;
 };
 
 // Helper to manage status change animations
-export const animateMarkerStatus = (markerEl: HTMLElement, status: string) => {
+export const animateMarkerStatus = (markerEl: HTMLElement, status: string, isMultiple?: boolean) => {
   // First remove any existing animation classes
   markerEl.classList.remove('animate-marker-flash');
   
   // Apply appropriate status class
-  markerEl.classList.remove('marker-occurrence', 'marker-pending', 'marker-delivered');
+  markerEl.classList.remove('marker-occurrence', 'marker-pending', 'marker-delivered', 'marker-multiple');
   
-  if (status === 'ocorrencia') {
+  if (isMultiple) {
+    markerEl.classList.add('marker-multiple');
+    markerEl.classList.add('animate-marker-flash');
+    
+    setTimeout(() => {
+      markerEl.classList.remove('animate-marker-flash');
+    }, 1500);
+  } else if (status === 'ocorrencia') {
     markerEl.classList.add('marker-occurrence');
     // Add animation class
     markerEl.classList.add('animate-marker-flash');
@@ -67,5 +85,23 @@ export const animateMarkerStatus = (markerEl: HTMLElement, status: string) => {
     markerEl.classList.add('marker-pending');
   } else {
     markerEl.classList.add('marker-delivered');
+  }
+};
+
+// Helper para formatação de endereços para exibição
+export const formatEnderecoCompleto = (delivery: DeliveryItem): string => {
+  return `${delivery.endereco}, ${delivery.cidade} - ${delivery.estado}, ${delivery.cep}`;
+};
+
+// Helper para mapear status para texto em português
+export const getStatusText = (status: string): string => {
+  switch (status) {
+    case 'entregue':
+      return 'Entregue';
+    case 'ocorrencia':
+      return 'Ocorrência';
+    case 'pendente':
+    default:
+      return 'Pendente';
   }
 };
