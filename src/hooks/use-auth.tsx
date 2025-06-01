@@ -1,11 +1,10 @@
-
 import { createContext, useContext, useEffect, useState, useRef, ReactNode, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 import { smartToast } from '@/hooks/use-smart-toast';
 
-// Interface completa para o perfil do usuário com todas as propriedades necessárias
+// Interface simplificada para o perfil do usuário
 interface UserProfile {
   id: string;
   full_name?: string;
@@ -98,48 +97,70 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
       
-      // Buscar perfil do usuário
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('id, full_name, avatar_url, role, is_early_adopter, subscription_status, created_at, updated_at')
-          .eq('id', userId)
-          .maybeSingle();
-        
-        if (error) {
-          // Marcar para não tentar novamente
-          attemptedProfileFetch.current.add(userId);
-          
-          if (error.code !== 'PGRST116') {
-            console.warn('Aviso ao buscar perfil (continuando com perfil mínimo):', error);
+      // Em desenvolvimento, criar perfil se não existir
+      if (isDevelopment) {
+        try {
+          const { data: existingProfile, error: checkError } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', userId)
+            .maybeSingle();
+            
+          if (checkError || !existingProfile) {
+            console.log('Criando perfil em ambiente de desenvolvimento');
+            const { error: insertError } = await supabase
+              .from('profiles')
+              .insert({
+                id: userId,
+                full_name: 'Usuário de Teste',
+                role: 'user',
+                is_early_adopter: true,
+                subscription_status: 'free',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              });
+              
+            if (insertError) {
+              console.error('Erro ao criar perfil:', insertError);
+            } else {
+              console.log('Perfil criado com sucesso');
+            }
           }
-          
-          setProfile({ id: userId });
-          return;
+        } catch (devError) {
+          console.error('Erro ao verificar/criar perfil:', devError);
+        }
+      }
+
+      // Buscar perfil do usuário
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url, role, is_early_adopter, subscription_status, created_at, updated_at')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      if (error) {
+        // Marcar para não tentar novamente
+        attemptedProfileFetch.current.add(userId);
+        
+        if (error.code !== 'PGRST116') {
+          console.error('Erro ao buscar perfil:', error);
         }
         
-        if (data) {
-          setProfile({
-            id: userId,
-            full_name: data.full_name,
-            avatar_url: data.avatar_url,
-            role: data.role,
-            is_early_adopter: data.is_early_adopter,
-            subscription_status: data.subscription_status,
-            created_at: data.created_at,
-            updated_at: data.updated_at
-          });
-          return;
-        }
-      } catch (e) {
-        console.warn('Erro ao buscar perfil, usando perfil mínimo:', e);
-        attemptedProfileFetch.current.add(userId);
         setProfile({ id: userId });
         return;
       }
       
-      // Se chegou aqui, não encontrou perfil
-      setProfile({ id: userId });
+      // Definir perfil
+      setProfile({
+        id: userId,
+        full_name: data?.full_name,
+        avatar_url: data?.avatar_url,
+        role: data?.role,
+        is_early_adopter: data?.is_early_adopter,
+        subscription_status: data?.subscription_status,
+        created_at: data?.created_at,
+        updated_at: data?.updated_at
+      });
     } catch (error) {
       console.error('Erro em fetchProfile:', error);
       setProfile({ id: userId });
