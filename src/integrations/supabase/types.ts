@@ -416,8 +416,6 @@ export type Database = {
           is_early_adopter: boolean | null
           subscription_status: string | null
           updated_at: string | null
-          cpf: string | null
-          trial_ends_at: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -427,8 +425,6 @@ export type Database = {
           is_early_adopter?: boolean | null
           subscription_status?: string | null
           updated_at?: string | null
-          cpf?: string | null
-          trial_ends_at?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -438,8 +434,6 @@ export type Database = {
           is_early_adopter?: boolean | null
           subscription_status?: string | null
           updated_at?: string | null
-          cpf?: string | null
-          trial_ends_at?: string | null
         }
         Relationships: []
       }
