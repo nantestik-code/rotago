@@ -1,9 +1,10 @@
+
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-// Credenciais do projeto RotaFacilTurbo
-const SUPABASE_URL = "https://sideyebtoulevdkaoasr.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpZGV5ZWJ0b3VsZXZka2FvYXNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyNDM5MDEsImV4cCI6MjA2MjgxOTkwMX0.XpZWqmPKgdxr_SesdeU3Odmjk9FiG0kVV0DEXw0kGwI";
+// Usar as credenciais corretas do projeto do .env.production
+const SUPABASE_URL = "https://hsubouwujfcdyuyikvbi.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhzdWJvdXd1amZjZHl1eWlrdmJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM3MzE2NjAsImV4cCI6MjA1OTMwNzY2MH0.wtDdFchXnutYMu2zTQeNIPbrw7jQqHNspUc37f7W-AI";
 
 // Função segura para acessar localStorage com fallback para ambientes sem localStorage
 const safeLocalStorage = {

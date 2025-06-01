@@ -414,6 +414,7 @@ export type Database = {
           full_name: string | null
           id: string
           is_early_adopter: boolean | null
+          role: string | null
           subscription_status: string | null
           updated_at: string | null
         }
@@ -423,6 +424,7 @@ export type Database = {
           full_name?: string | null
           id: string
           is_early_adopter?: boolean | null
+          role?: string | null
           subscription_status?: string | null
           updated_at?: string | null
         }
@@ -432,6 +434,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_early_adopter?: boolean | null
+          role?: string | null
           subscription_status?: string | null
           updated_at?: string | null
         }
@@ -472,6 +475,41 @@ export type Database = {
           },
           {
             foreignKeyName: "route_deliveries_route_id_fkey"
+            columns: ["route_id"]
+            isOneToOne: false
+            referencedRelation: "routes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      route_history: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json | null
+          id: string
+          route_id: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          route_id?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          route_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "route_history_route_id_fkey"
             columns: ["route_id"]
             isOneToOne: false
             referencedRelation: "routes"

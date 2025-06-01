@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useRouteHistory, RouteAction } from '@/hooks/use-route-history';
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -306,9 +306,9 @@ export function RouteHistoryList({ showUserInfo = false, routeId, limit = 10 }: 
           variant="outline" 
           className="w-full" 
           onClick={loadMore} 
-          disabled={loading}
+          disabled={isLoading}
         >
-          {loading ? (
+          {isLoading ? (
             <>
               <RotateCw className="mr-2 h-4 w-4 animate-spin" />
               Carregando...
