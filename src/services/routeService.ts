@@ -2,18 +2,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
 
-// Interface simples para evitar problemas de instanciação de tipos
-interface RouteData {
-  id: string;
-  name: string;
-  status: string;
-  date: string | null;
-  description: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-  user_id?: string;
-}
-
 export interface Route {
   id: string;
   name: string;
@@ -22,6 +10,7 @@ export interface Route {
   description?: string | null;
   created_at?: string;
   updated_at?: string;
+  user_id?: string;
 }
 
 export const getRoutes = async (user?: User | null): Promise<Route[]> => {
@@ -57,7 +46,7 @@ export const getRoutes = async (user?: User | null): Promise<Route[]> => {
   }
 
   // Mapear os dados para o formato esperado
-  return data.map((item: RouteData): Route => ({
+  return data.map((item): Route => ({
     id: item.id,
     name: item.name,
     status: mapStatusToType(item.status),
@@ -65,6 +54,7 @@ export const getRoutes = async (user?: User | null): Promise<Route[]> => {
     description: item.description,
     created_at: item.created_at || undefined,
     updated_at: item.updated_at || undefined,
+    user_id: item.user_id || undefined,
   }));
 };
 

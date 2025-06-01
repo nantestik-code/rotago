@@ -10,6 +10,7 @@ export const useRoutes = () => {
   return useQuery({
     queryKey: ["routes", user?.id],
     queryFn: () => getRoutes(user),
+    enabled: !!user, // Only run query when user is authenticated
     meta: {
       onError: (error: Error) => {
         toast({

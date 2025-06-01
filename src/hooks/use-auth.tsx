@@ -1,10 +1,11 @@
+
 import { createContext, useContext, useEffect, useState, useRef, ReactNode, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 import { smartToast } from '@/hooks/use-smart-toast';
 
-// Interface simplificada para o perfil do usuário
+// Interface para o perfil do usuário com todas as propriedades necessárias
 interface UserProfile {
   id: string;
   full_name?: string;
