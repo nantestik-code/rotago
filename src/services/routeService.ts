@@ -1,17 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
-
-// Definir tipo específico para Route para evitar problemas de instanciação excessiva
-export interface Route {
-  id: string;
-  name: string;
-  status: "ativo" | "concluido" | "cancelado";
-  date: string | null;
-  description: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-}
+import { Route } from "@/types/route";
 
 export const getRoutes = async (user?: User | null): Promise<Route[]> => {
   // Obter o usuário atual da sessão se não for fornecido
@@ -45,10 +35,9 @@ export const getRoutes = async (user?: User | null): Promise<Route[]> => {
   return data.map(item => ({
     ...item,
     status: mapStatusToType(item.status),
-    date: item.date || null,
-    description: item.description || null,
-    created_at: item.created_at || null,
-    updated_at: item.updated_at || null,
+    date: item.date || '',
+    created_at: item.created_at || undefined,
+    updated_at: item.updated_at || undefined,
   }));
 };
 

@@ -2,7 +2,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { getRoutes } from "@/services/routeService";
 import { toast } from "@/hooks/use-toast";
-import { Route } from "@/types/route";
 import { useAuth } from "@/hooks/use-auth";
 
 export const useRoutes = () => {
