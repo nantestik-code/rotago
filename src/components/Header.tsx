@@ -11,7 +11,9 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Loader2, User, Settings, LogOut, Shield } from "lucide-react";
+import { Loader2, User, Settings, LogOut, Shield, History } from "lucide-react";
+import SyncStatusButton from "./SyncStatusButton";
+import { useDeliveries } from "@/hooks/use-deliveries";
 
 export function Header({ onNewRouteClick, onExportClick }: { 
   onNewRouteClick?: () => void; 
@@ -19,6 +21,7 @@ export function Header({ onNewRouteClick, onExportClick }: {
 }) {
   const { user, profile, signOut, isLoading } = useAuth();
   const [initials, setInitials] = useState<string>("");
+  const deliveriesContext = useDeliveries();
 
   useEffect(() => {
     if (profile?.full_name) {
@@ -42,6 +45,10 @@ export function Header({ onNewRouteClick, onExportClick }: {
           <Loader2 className="h-5 w-5 animate-spin" />
         ) : user ? (
           <div className="flex items-center space-x-4">
+            {/* Botão de sincronização que só aparece quando há alterações pendentes */}
+            {deliveriesContext && (
+              <SyncStatusButton syncFunction={deliveriesContext.syncPendingStatusChanges} />
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="rounded-full h-8 w-8 p-0">
@@ -63,6 +70,13 @@ export function Header({ onNewRouteClick, onExportClick }: {
                   <DropdownMenuItem>
                     <Settings className="mr-2 h-4 w-4" />
                     <span>Meu Painel</span>
+                  </DropdownMenuItem>
+                </Link>
+                
+                <Link to="/history">
+                  <DropdownMenuItem>
+                    <History className="mr-2 h-4 w-4" />
+                    <span>Histórico de Rotas</span>
                   </DropdownMenuItem>
                 </Link>
                 

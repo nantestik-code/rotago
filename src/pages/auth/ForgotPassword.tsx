@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { toast } from '@/hooks/use-toast';
+import { smartToast } from '@/hooks/use-smart-toast';
 import { Truck, ArrowLeft, Loader2, CheckCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -29,7 +29,7 @@ const ForgotPassword = () => {
     
     // Basic validation
     if (!email.trim()) {
-      toast({
+      smartToast({
         title: "Email é obrigatório",
         description: "Por favor, informe seu email",
         variant: "destructive"
@@ -46,7 +46,7 @@ const ForgotPassword = () => {
       });
 
       if (error) {
-        toast({
+        smartToast({
           title: "Erro ao recuperar senha",
           description: error.message,
           variant: "destructive"
@@ -55,14 +55,14 @@ const ForgotPassword = () => {
       }
 
       setIsEmailSent(true);
-      toast({
+      smartToast({
         title: "Email enviado",
         description: "Se existir uma conta com este email, você receberá um link para redefinir sua senha.",
       });
       
     } catch (error: any) {
       console.error('Error requesting password reset:', error);
-      toast({
+      smartToast({
         title: "Erro ao recuperar senha",
         description: "Ocorreu um erro ao solicitar a recuperação de senha. Tente novamente mais tarde.",
         variant: "destructive"

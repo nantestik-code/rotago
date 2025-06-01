@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { toast } from '@/hooks/use-toast';
+import { smartToast } from '@/hooks/use-smart-toast';
 import { Truck, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -29,7 +29,7 @@ const ResetPassword = () => {
     
     // Basic validation
     if (password.length < 6) {
-      toast({
+      smartToast({
         title: "Senha muito curta",
         description: "A senha deve ter pelo menos 6 caracteres",
         variant: "destructive"
@@ -38,7 +38,7 @@ const ResetPassword = () => {
     }
 
     if (password !== confirmPassword) {
-      toast({
+      smartToast({
         title: "Senhas não conferem",
         description: "A confirmação de senha não corresponde à senha informada",
         variant: "destructive"
@@ -55,7 +55,7 @@ const ResetPassword = () => {
       });
 
       if (error) {
-        toast({
+        smartToast({
           title: "Erro ao redefinir senha",
           description: error.message,
           variant: "destructive"
@@ -63,7 +63,7 @@ const ResetPassword = () => {
         return;
       }
 
-      toast({
+      smartToast({
         title: "Senha redefinida com sucesso",
         description: "Você já pode entrar com sua nova senha",
       });
@@ -73,7 +73,7 @@ const ResetPassword = () => {
       
     } catch (error: any) {
       console.error('Error resetting password:', error);
-      toast({
+      smartToast({
         title: "Erro ao redefinir senha",
         description: "Ocorreu um erro ao redefinir sua senha. Tente novamente mais tarde.",
         variant: "destructive"

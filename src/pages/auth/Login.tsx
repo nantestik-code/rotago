@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { toast } from '@/hooks/use-toast';
+import { smartToast } from '@/hooks/use-smart-toast';
 import { Truck, ArrowLeft, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -17,6 +17,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+
+// Função auxiliar para verificar se estamos em ambiente de desenvolvimento
+const isDevelopmentEnv = () => {
+  return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+};
 
 const Login = () => {
   const navigate = useNavigate();
@@ -52,7 +57,7 @@ const Login = () => {
     
     // Basic validation
     if (!formData.email.trim() || !formData.password) {
-      toast({
+      smartToast({
         title: "Campos obrigatórios",
         description: "Por favor, preencha todos os campos",
         variant: "destructive"
@@ -63,43 +68,143 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      // Sign in with Supabase
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
+      // Verificar se estamos em ambiente de desenvolvimento
+      const isDevEnv = isDevelopmentEnv();
+      console.log(`Tentando login em ambiente de ${isDevEnv ? 'desenvolvimento' : 'produção'}:`, { 
+        email: formData.email, 
+        timestamp: new Date().toISOString() 
       });
+      
+      try {
+        // Tentar fazer login diretamente
+        console.log('Tentando login com credenciais:', { email: formData.email });
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password,
+        });
 
-      if (error) {
-        console.error('Login error:', error);
-        
-        // Verificar se o erro é de email não confirmado
-        if (error.message.includes('Email not confirmed')) {
-          toast({
-            title: "Email não confirmado",
-            description: "Por favor, confirme seu email para continuar ou solicite um novo link de confirmação.",
+        // Se houver erro no login
+        if (error) {
+          console.error('Erro no login:', error.message, error.code);
+          
+          // Tratar erro de credenciais inválidas
+          if (error.code === 'invalid_credentials') {
+            // Em ambiente de desenvolvimento, tentar criar o usuário automaticamente
+            if (isDevEnv) {
+              console.log('Tentando criar usuário em ambiente de desenvolvimento');
+              
+              const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+                email: formData.email,
+                password: formData.password,
+                options: {
+                  data: {
+                    full_name: 'Usuário de Teste',
+                    created_at: new Date().toISOString()
+                  }
+                }
+              });
+              
+              if (signUpError) {
+                console.error('Erro ao criar usuário:', signUpError);
+                smartToast({
+                  title: "Erro ao criar usuário",
+                  description: signUpError.message,
+                  variant: "destructive"
+                });
+              } else if (signUpData.user) {
+                console.log('Usuário criado com sucesso, tentando login automático');
+                
+                // Tentar login novamente após criar o usuário
+                const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+                  email: formData.email,
+                  password: formData.password,
+                });
+                
+                if (loginError) {
+                  console.error('Erro no login automático:', loginError);
+                  smartToast({
+                    title: "Erro no login automático",
+                    description: "Usuário criado, mas não foi possível fazer login automático.",
+                    variant: "destructive"
+                  });
+                } else {
+                  console.log('Login automático bem-sucedido após criar usuário');
+                  navigate('/app');
+                  return;
+                }
+              }
+            } else {
+              // Em produção, apenas mostrar mensagem de erro
+              smartToast({
+                title: "Credenciais inválidas",
+                description: "Email ou senha incorretos. Verifique suas credenciais e tente novamente.",
+                variant: "destructive"
+              });
+            }
+          } else if (error.message && error.message.includes('Email not confirmed')) {
+            // Tratar erro de email não confirmado
+            if (isDevEnv) {
+              // Em desenvolvimento, tentar fazer login sem confirmação
+              const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+                email: formData.email,
+                password: formData.password,
+              });
+              
+              if (!signInError && signInData.user) {
+                console.log('Login bem-sucedido em dev mesmo sem confirmação de email');
+                navigate('/app');
+                return;
+              } else {
+                smartToast({
+                  title: "Email não confirmado",
+                  description: "Não foi possível fazer login automático em ambiente de desenvolvimento.",
+                  variant: "destructive"
+                });
+              }
+            } else {
+              // Em produção, mostrar diálogo para reenviar email
+              smartToast({
+                title: "Email não confirmado",
+                description: "Por favor, confirme seu email para continuar.",
+                variant: "destructive"
+              });
+              setResendEmail(formData.email);
+              setIsResendDialogOpen(true);
+            }
+          } else {
+            // Outros erros
+            smartToast({
+              title: "Erro ao entrar",
+              description: error.message || "Ocorreu um erro durante o login. Tente novamente mais tarde.",
+              variant: "destructive"
+            });
+          }
+        } else if (data.user && data.session) {
+          // Login bem-sucedido
+          console.log('Login bem-sucedido:', { userId: data.user.id, email: data.user.email });
+          navigate('/app');
+        } else {
+          // Caso inesperado: sem erro, mas sem usuário ou sessão
+          console.error('Login falhou: Usuário ou sessão ausente');
+          smartToast({
+            title: "Erro ao entrar",
+            description: "Não foi possível iniciar a sessão. Tente novamente.",
             variant: "destructive"
           });
-          
-          setResendEmail(formData.email);
-          setIsResendDialogOpen(true);
-          return;
-        } 
-        
-        toast({
+        }
+      } catch (error) {
+        // Erro inesperado durante o processo de login
+        console.error('Erro durante o login:', error);
+        smartToast({
           title: "Erro ao entrar",
-          description: "Email ou senha incorretos",
+          description: "Ocorreu um erro ao fazer login. Tente novamente mais tarde.",
           variant: "destructive"
         });
-        return;
       }
-
-      // Notificação de login bem-sucedido agora é gerenciada pelo hook de autenticação
-      // para evitar notificações duplicadas
       
-      // Redirect to main app after successful login is now handled by the useEffect
     } catch (error) {
       console.error('Error during login:', error);
-      toast({
+      smartToast({
         title: "Erro ao entrar",
         description: "Ocorreu um erro ao fazer login. Tente novamente mais tarde.",
         variant: "destructive"
@@ -119,7 +224,7 @@ const Login = () => {
       });
       
       if (error) {
-        toast({
+        smartToast({
           title: "Erro ao reenviar confirmação",
           description: error.message,
           variant: "destructive"
@@ -127,7 +232,7 @@ const Login = () => {
         return;
       }
       
-      toast({
+      smartToast({
         title: "Link de confirmação enviado",
         description: "Verifique seu email para confirmar sua conta.",
       });
@@ -135,7 +240,7 @@ const Login = () => {
       setIsResendDialogOpen(false);
     } catch (error) {
       console.error('Error resending confirmation:', error);
-      toast({
+      smartToast({
         title: "Erro ao reenviar confirmação",
         description: "Ocorreu um erro ao reenviar o link de confirmação.",
         variant: "destructive"

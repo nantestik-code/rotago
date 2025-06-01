@@ -10,9 +10,12 @@ import SignUp from "./pages/auth/SignUp";
 import Login from "./pages/auth/Login";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
+import AuthCallback from "./pages/auth/AuthCallback";
 import { AuthProvider } from "@/hooks/use-auth";
+import { RouteHistoryProvider } from "@/hooks/use-route-history-provider";
 import PrivateRoute from "./components/PrivateRoute";
 import AdminPanel from "./pages/admin/AdminPanel";
+import RouteHistoryPage from "./pages/RouteHistoryPage";
 
 const queryClient = new QueryClient();
 
@@ -23,13 +26,15 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
+          <RouteHistoryProvider>
+            <Routes>
             {/* Public Routes */}
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth/signup" element={<SignUp />} />
             <Route path="/auth/login" element={<Login />} />
             <Route path="/auth/forgot-password" element={<ForgotPassword />} />
             <Route path="/auth/reset-password" element={<ResetPassword />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
             
             {/* Protected Routes */}
             <Route 
@@ -51,9 +56,20 @@ const App = () => (
               } 
             />
             
+            {/* Histórico de Rotas */}
+            <Route 
+              path="/history" 
+              element={
+                <PrivateRoute>
+                  <RouteHistoryPage />
+                </PrivateRoute>
+              } 
+            />
+            
             {/* Catch All - Redirect to home instead of NotFound page */}
             <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+            </Routes>
+          </RouteHistoryProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

@@ -7,10 +7,16 @@ import { useDeliveries } from '@/hooks/use-deliveries';
 import { useLocationTracking } from '@/hooks/use-location-tracking';
 import { useRouteActions } from '@/components/RouteActions';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useActivityTracker } from '@/hooks/use-activity-tracker';
+import { useRouteHistory } from '@/hooks/use-route-history';
 
 const Index = () => {
   const isMobile = useIsMobile();
   const [showFileImport, setShowFileImport] = useState(true);
+  const { logRouteAction } = useRouteHistory();
+  
+  // Ativar o rastreamento de atividade para manter a sessão ativa
+  useActivityTracker();
   
   const {
     deliveries,
@@ -36,9 +42,18 @@ const Index = () => {
   const { handleExport } = useRouteActions(deliveries, handleNewRoute);
 
   // Handle deliveries import with UI update
-  const handleImport = async (importedDeliveries) => {
-    await handleImportComplete(importedDeliveries);
+  const handleImport = async (importedDeliveries, routeName = 'Nova Rota') => {
+    // Registrar a criação da rota no histórico antes de processar a importação
+    const result = await handleImportComplete(importedDeliveries, routeName);
     setShowFileImport(false);
+    
+    // Registrar a ação no histórico de rotas se a importação foi bem-sucedida
+    if (result?.routeId) {
+      logRouteAction('create', result.routeId, {
+        message: `Rota "${routeName}" criada com ${importedDeliveries.length} entregas`,
+        delivery_count: importedDeliveries.length
+      });
+    }
     
     // On mobile, automatically show map view after import
     if (isMobile) {
@@ -56,6 +71,7 @@ const Index = () => {
 
   // Handle route optimization with current location
   const handleOptimizeRoute = () => {
+    // A função optimizeDeliveryRoute já registra a ação no histórico internamente
     optimizeDeliveryRoute(currentLocation);
   };
 
@@ -66,7 +82,7 @@ const Index = () => {
         onExportClick={handleExport} 
       />
       
-      <div className="flex-1 p-4 bg-gray-50 overflow-hidden">
+      <div className="flex-1 p-4 bg-gray-50 overflow-y-auto">
         {showFileImport && (
           <ImportSection 
             onImportComplete={handleImport}

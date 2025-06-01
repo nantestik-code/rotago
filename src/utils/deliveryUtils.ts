@@ -1,7 +1,9 @@
 
 export interface DeliveryItem {
   id: string;
-  orderNumber?: number; // Número da ordem (1, 2, 3, etc.)
+  orderNumber?: string | number; // Número da ordem (1, 2, 3, etc.)
+  sequence_number?: number; // Ordem na sequência da rota
+  // Campos originais
   cliente: string;
   endereco: string;
   cidade: string;
@@ -9,11 +11,30 @@ export interface DeliveryItem {
   cep: string;
   telefone: string;
   observacoes: string;
-  status: 'pendente' | 'entregue' | 'ocorrencia';
+  // Campos para compatibilidade com Supabase
+  client?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  notes?: string;
+  // Campos de posição
   lat?: number;
   lng?: number;
+  position?: { lat: number; lng: number } | null;
+  // Campos de status
+  status: 'pendente' | 'entregue' | 'ocorrencia';
   statusChanged?: boolean; // Track if status was recently changed
   isMultiple?: boolean;  // Indica se há múltiplas entregas neste local
+  horario?: string;      // Horário estimado de entrega (ex: "15:15")
+  // Campos de persistência e controle de versão
+  updated_at?: string;   // Data de última atualização (ISO string)
+  created_at?: string;   // Data de criação (ISO string)
+  delivered_at?: string | null; // Data de entrega (ISO string)
+  synced?: boolean;      // Se está sincronizado com o servidor
+  numero?: string;       // Número do endereço
+  complemento?: string;  // Complemento do endereço
+  bairro?: string;       // Bairro do endereço
 }
 
 export const generateId = (): string => {

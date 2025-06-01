@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,17 +10,27 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, Navigation, MapPin, Upload } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import ImportHelpDialog from "./ImportHelpDialog";
+import ColumnMappingDialog from "./ColumnMappingDialog";
 
 interface FileImportProps {
   onImportComplete: (deliveries: DeliveryItem[]) => void;
+  routeName?: string;
 }
 
-const FileImport: React.FC<FileImportProps> = ({ onImportComplete }) => {
+const FileImport: React.FC<FileImportProps> = ({ onImportComplete, routeName = '' }) => {
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [progress, setProgress] = useState<number>(0);
   const [importError, setImportError] = useState<string | null>(null);
   const [importWarnings, setImportWarnings] = useState<string[]>([]);
+  
+  // Estados para os diálogos de importação
+  const [showHelpDialog, setShowHelpDialog] = useState<boolean>(false);
+  const [showColumnMappingDialog, setShowColumnMappingDialog] = useState<boolean>(false);
+  const [processedDeliveries, setProcessedDeliveries] = useState<DeliveryItem[]>([]);
+  const [sampleData, setSampleData] = useState<Record<string, string[]>>({});
+  const [selectedColumns, setSelectedColumns] = useState<Record<string, boolean>>({});
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setImportError(null);
@@ -66,6 +75,16 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete }) => {
       });
       return;
     }
+    
+    // Verificar se o nome da rota foi informado
+    if (!routeName || routeName.trim() === '') {
+      toast({
+        title: "Nome da rota obrigatório",
+        description: "Por favor, informe um nome para a rota antes de importar.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsProcessing(true);
     setProgress(10);
@@ -99,16 +118,50 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete }) => {
           setProgress(0);
           return;
         }
-      } else {
-        toast({
-          title: "Importação concluída",
-          description: `${result.deliveries.length} entregas importadas com sucesso.`,
-        });
       }
 
       if (result.deliveries.length > 0) {
         setProgress(90);
-        onImportComplete(result.deliveries);
+        
+        // Extrair amostras de dados para exibir no diálogo de mapeamento de colunas
+        const sampleData: Record<string, string[]> = {
+          // Usar o orderNumber real se disponível, caso contrário usar o índice
+          atId: result.deliveries.slice(0, 3).map(d => d.orderNumber?.toString() || ''),
+          // Usar a sequência real baseada na ordem da planilha
+          sequence: result.deliveries.slice(0, 3).map((d, i) => {
+            // Tentar usar o orderNumber se disponível
+            if (d.orderNumber) return d.orderNumber.toString();
+            // Caso contrário, usar o índice + 1
+            return (i + 1).toString();
+          }),
+          stop: result.deliveries.slice(0, 3).map((d, i) => {
+            // Tentar usar o orderNumber se disponível
+            if (d.orderNumber) return d.orderNumber.toString();
+            // Caso contrário, usar o índice + 1
+            return (i + 1).toString();
+          }),
+          spxTn: result.deliveries.slice(0, 3).map(d => {
+            // Tentar usar o telefone como tracking number se disponível
+            if (d.telefone) return d.telefone;
+            // Caso contrário, gerar um aleatório para exemplo
+            return `BR${Math.floor(Math.random() * 10000000000000)}`;
+          }),
+          address: result.deliveries.slice(0, 3).map(d => d.endereco || d.address || ''),
+          neighborhood: result.deliveries.slice(0, 3).map(d => {
+            // Tentar extrair o bairro do endereço
+            const endereco = d.endereco || d.address || '';
+            const parts = endereco.split(',');
+            return parts.length > 1 ? parts[1].trim() : '';
+          }),
+          city: result.deliveries.slice(0, 3).map(d => d.cidade || d.city || ''),
+          zipcode: result.deliveries.slice(0, 3).map(d => d.cep || d.zipCode || ''),
+        };
+        
+        setSampleData(sampleData);
+        setProcessedDeliveries(result.deliveries);
+        
+        // Mostrar o diálogo de ajuda na importação
+        setShowHelpDialog(true);
       } else {
         setImportError("Nenhuma entrega foi importada. Verifique se o arquivo contém os dados necessários.");
       }
@@ -123,13 +176,8 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete }) => {
       setIsProcessing(false);
       setProgress(100);
       
-      // Reset file input if successful
-      if (!importError) {
-        setTimeout(() => {
-          setProgress(0);
-          setFile(null);
-        }, 1000);
-      } else {
+      // Não resetar o arquivo se vamos mostrar os diálogos
+      if (importError) {
         setProgress(0);
       }
     }
@@ -141,20 +189,71 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete }) => {
     // para que o usuário possa escolher o destino
     const emptyDelivery: DeliveryItem[] = [];
     
-    toast({
-      title: "Modo GPS ativado",
-      description: "Use o botão GPS no mapa para buscar e navegar para qualquer endereço.",
-    });
+    // Sem notificação para reduzir o número de toasts
     
     onImportComplete(emptyDelivery);
   };
+  
+  // Funções para lidar com os diálogos de importação
+  const handleHelpDialogCancel = () => {
+    setShowHelpDialog(false);
+    setProcessedDeliveries([]);
+    setProgress(0);
+    setFile(null);
+  };
+  
+  const handleHelpDialogContinue = () => {
+    setShowHelpDialog(false);
+    setShowColumnMappingDialog(true);
+  };
+  
+  const handleColumnMappingBack = () => {
+    setShowColumnMappingDialog(false);
+    setShowHelpDialog(true);
+  };
+  
+  const handleColumnMappingContinue = (selectedColumns: Record<string, boolean>) => {
+    setSelectedColumns(selectedColumns);
+    setShowColumnMappingDialog(false);
+    
+    // Finalizar a importação e passar as entregas para o componente pai
+    toast({
+      title: "Importação concluída",
+      description: `${processedDeliveries.length} entregas importadas com sucesso.`,
+    });
+    
+    // Limpar estados
+    setTimeout(() => {
+      setProgress(0);
+      setFile(null);
+    }, 1000);
+    
+    // Passar as entregas para o componente pai
+    onImportComplete(processedDeliveries);
+  };
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="text-lg">Rota Fácil Turbo</CardTitle>
-      </CardHeader>
-      <CardContent>
+    <>
+      {/* Diálogo de ajuda na importação */}
+      <ImportHelpDialog 
+        isOpen={showHelpDialog}
+        onCancel={handleHelpDialogCancel}
+        onContinue={handleHelpDialogContinue}
+      />
+      
+      {/* Diálogo de mapeamento de colunas */}
+      <ColumnMappingDialog 
+        isOpen={showColumnMappingDialog}
+        onBack={handleColumnMappingBack}
+        onContinue={handleColumnMappingContinue}
+        sampleData={sampleData}
+      />
+      
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle className="text-lg">Rota Fácil Turbo</CardTitle>
+        </CardHeader>
+        <CardContent>
         <Tabs defaultValue="import" className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-4">
             <TabsTrigger value="import" className="flex items-center gap-1">
@@ -169,17 +268,25 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete }) => {
           
           <TabsContent value="import" className="flex flex-col gap-4">
             <div className="grid w-full items-center gap-1.5">
-              <Input
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                id="file-upload"
-                onChange={handleFileChange}
-                disabled={isProcessing}
-                className="cursor-pointer"
-              />
-              <p className="text-xs text-gray-500">
-                Formatos aceitos: CSV, XLS, XLSX
-              </p>
+              <div className="relative">
+                <Button 
+                  variant="outline" 
+                  className="w-full h-auto py-8 flex flex-col items-center justify-center border-dashed border-2 hover:border-blue-500 hover:bg-blue-50 transition-colors"
+                  onClick={() => document.getElementById('file-upload')?.click()}
+                >
+                  <Upload size={24} className="mb-2 text-blue-500" />
+                  <span className="font-medium">Selecionar arquivo</span>
+                  <span className="text-xs text-gray-500 mt-1">{file ? file.name : 'Formatos aceitos: CSV, XLS, XLSX'}</span>
+                </Button>
+                <Input
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  id="file-upload"
+                  onChange={handleFileChange}
+                  disabled={isProcessing}
+                  className="sr-only"
+                />
+              </div>
             </div>
           
           {importError && (
@@ -209,17 +316,24 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete }) => {
             </Alert>
           )}
 
-          {progress > 0 && (
-            <Progress value={progress} className="h-1" />
-          )}
-
+          {isProcessing ? (
+            <div className="mt-4">
+              <Progress value={progress} className="h-2" />
+              <p className="text-xs text-center mt-1">
+                Processando arquivo... {progress}%
+              </p>
+            </div>
+          ) : (
             <Button 
-              onClick={handleImport}
+              onClick={handleImport} 
               disabled={!file || isProcessing}
-              className="w-full"
+              className="w-full mt-4"
+              size="lg"
             >
-              {isProcessing ? 'Processando...' : 'Importar dados'}
+              <Upload size={16} className="mr-2" />
+              {file ? 'Importar ' + file.name : 'Importar Arquivo'}
             </Button>
+          )}
             
             <div className="text-xs text-gray-500 mt-2">
               <p><strong>Dica:</strong> Certifique-se que sua planilha tenha pelo menos duas colunas: uma para o nome do cliente e outra para o endereço.</p>
@@ -249,6 +363,7 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete }) => {
         </Tabs>
       </CardContent>
     </Card>
+    </>
   );
 };
 

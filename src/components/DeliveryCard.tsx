@@ -1,7 +1,7 @@
 
-import React from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import React, { forwardRef } from 'react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { DeliveryItem } from '@/utils/deliveryUtils';
 import { Check, AlertTriangle, RotateCcw, Navigation, MapPin } from 'lucide-react';
 
@@ -12,14 +12,23 @@ interface DeliveryCardProps {
   isSelected: boolean;
 }
 
-const DeliveryCard: React.FC<DeliveryCardProps> = ({
-  delivery,
-  onStatusChange,
-  onSelect,
-  isSelected
-}) => {
-  const getStatusColor = (status: string) => {
-    switch (status) {
+const DeliveryCard = forwardRef<HTMLDivElement, DeliveryCardProps>(({ delivery, onStatusChange, onSelect, isSelected }, ref) => {
+  // Determinar as classes CSS baseadas no status
+  const getStatusClasses = () => {
+    switch (delivery.status) {
+      case 'entregue':
+        return 'bg-green-50 border-green-200';
+      case 'ocorrencia':
+        return 'bg-red-50 border-red-200';
+      case 'pendente':
+      default:
+        return '';
+    }
+  };
+
+  // Classe para o status badge
+  const getStatusBadgeClasses = () => {
+    switch (delivery.status) {
       case 'entregue':
         return 'bg-green-500';
       case 'ocorrencia':
@@ -64,13 +73,18 @@ const DeliveryCard: React.FC<DeliveryCardProps> = ({
 
   return (
     <Card 
-      className={`transition-all hover:shadow-md cursor-pointer ${isSelected ? 'ring-2 ring-blue-500 shadow-lg' : ''}`}
+      ref={ref}
+      className={`transition-all hover:shadow-md cursor-pointer 
+        ${isSelected ? 'ring-2 ring-blue-500 shadow-lg' : ''}
+        ${getStatusClasses()}
+        ${delivery.statusChanged ? 'animate-pulse scale-[1.02]' : ''}
+      `}
       onClick={() => onSelect(delivery.id)}
     >
       <CardContent className="p-3">
         <div className="flex justify-between">
           <h3 className="font-semibold text-lg">{delivery.cliente}</h3>
-          <div className={`w-3 h-3 rounded-full ${getStatusColor(delivery.status)}`}></div>
+          <div className={`w-3 h-3 rounded-full ${getStatusBadgeClasses()}`}></div>
         </div>
         
         <div className="text-sm text-gray-600 mt-1">
@@ -125,6 +139,6 @@ const DeliveryCard: React.FC<DeliveryCardProps> = ({
       </CardContent>
     </Card>
   );
-};
+});
 
 export default DeliveryCard;

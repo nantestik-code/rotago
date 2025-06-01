@@ -1,8 +1,8 @@
-
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Button } from '@/components/ui/button';
+import MobileDrawerMenu from './MobileDrawerMenu';
 import { DeliveryItem } from '@/utils/deliveryUtils';
 import { 
   MapPosition, 
@@ -13,9 +13,9 @@ import {
   calculateDistance, 
   createDeliveryMarker,
   createCurrentLocationMarker,
-  getDirectionsRoute,
-  openExternalNavigation
+  getDirectionsRoute
 } from '@/utils/mapUtils';
+import { openExternalNavigation } from '@/utils/mapUtils';
 import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { Navigation, MapPin, ChevronLeft, ChevronRight, Check, AlertTriangle, RotateCcw, X } from 'lucide-react';
@@ -47,10 +47,16 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
   onOptimizeRoute,
   onStatusChange,
   isMobileView = false,
-}) => {
+}): JSX.Element => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapboxMapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<{[key: string]: mapboxgl.Marker}>({});
+  const addressMarkersRef = useRef<{[key: string]: {
+    marker: mapboxgl.Marker,
+    miniMarker: mapboxgl.Marker | null,
+    deliveryIds: string[],
+    orderIndices: number[]
+  }}>({});
   const currentLocationMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const isMobile = useIsMobile();
   
@@ -60,6 +66,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
   const [currentMobileDeliveryIndex, setCurrentMobileDeliveryIndex] = useState(0);
   const [navigationDestination, setNavigationDestination] = useState<{position: MapPosition, address: string} | null>(null);
   const [showGpsSearch, setShowGpsSearch] = useState(false);
+  const [customHouseAddress, setCustomHouseAddress] = useState('');
 
   // Filter to pending deliveries for mobile view
   const pendingDeliveries = useMemo(() => {
@@ -98,6 +105,9 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
 
   // Armazena grupos de endereços já notificados
   const notifiedGroupsRef = useRef<Set<string>>(new Set());
+  
+  // Controle de tempo para notificações
+  const lastStatusNotificationRef = useRef<{[key: string]: number}>({});
   
   // Referência para controlar notificações de múltiplas entregas
   const lastMultipleDeliveryNotificationRef = useRef<number>(0);
@@ -188,11 +198,17 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           const markers = document.querySelectorAll('.delivery-marker');
           markers.forEach((marker: HTMLElement) => {
             const baseZoom = 12;
-            const baseSize = 30;
+            const baseSize = 22; // Tamanho base reduzido para 22px
             const zoomFactor = Math.min(Math.max(currentZoom / baseZoom, 0.7), 1.3);
             const newSize = Math.round(baseSize * zoomFactor);
             marker.style.width = `${newSize}px`;
             marker.style.height = `${newSize}px`;
+            // Ajustar tamanho da fonte também
+            const content = marker.querySelector('.delivery-marker-content');
+            if (content) {
+              const fontSize = Math.max(Math.round(11 * zoomFactor), 9);
+              (content as HTMLElement).style.fontSize = `${fontSize}px`;
+            }
           });
         });
       });
@@ -212,13 +228,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     window.location.reload();
   };
 
-  // Reference to store address markers
-  const addressMarkersRef = useRef<Record<string, {
-    marker: mapboxgl.Marker,
-    miniMarker: mapboxgl.Marker | null,
-    deliveryIds: string[],
-    orderIndices: number[]
-  }>>({});
+  // Reference to store address markers is already defined at the top of the component
 
   const [geocodedCoordinates, setGeocodedCoordinates] = useState<Record<string, MapPosition>>({});
   
@@ -249,10 +259,12 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       }
     }
   }, [geocodedCoordinates]);
-  
+
   // Create and update delivery markers on the map
   useEffect(() => {
     if (!mapLoaded || !mapboxMapRef.current) return;
+    
+    console.log('Updating map markers with current delivery statuses');
     
     // Remove existing markers
     Object.values(markersRef.current).forEach(marker => marker.remove());
@@ -264,11 +276,19 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     });
     addressMarkersRef.current = {};
     
+    // Identifica se há entrega com statusChanged para trigger de animação
+    const hasStatusChanged = deliveries.some(d => d.statusChanged);
+    if (hasStatusChanged) {
+      console.log('Detectada mudança de status, atualizando marcadores com animação');
+    }
+    
     // Sort deliveries by status and distance
     const sortedDeliveries = [...deliveries].sort((a, b) => {
+      // Prioriza entregas pendentes primeiro
       if (a.status === 'pendente' && b.status !== 'pendente') return -1;
       if (a.status !== 'pendente' && b.status === 'pendente') return 1;
       
+      // Depois ordena por distância
       if (currentLocation && a.lat && a.lng && b.lat && b.lng) {
         const distA = calculateDistance(currentLocation.lat, currentLocation.lng, a.lat, a.lng);
         const distB = calculateDistance(currentLocation.lat, currentLocation.lng, b.lat, b.lng);
@@ -350,13 +370,37 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         markerStatus = 'pendente';
       }
       
-      // Obter o número da ordem para este marcador
-      // Usar o primeiro índice de ordem do grupo (que deve ser o número real da ordem)
-      const orderNumber = group.orderIndices[0];
+      console.log(`Marker for coordinate ${coordKey} with orders ${group.orderIndices.join(', ')} set to status: ${markerStatus}`);
+      
+      // Find the delivery with the correct order number for this marker
+      // Usar orderNumber para manter o número original do pedido
+      let orderNumberToDisplay;
+      
+      // If this is a multiple delivery location, find the lowest order number
+      if (isMultiple) {
+        const deliveriesAtLocation = group.deliveryIds.map(id => deliveries.find(d => d.id === id));
+        const validDeliveries = deliveriesAtLocation.filter(d => d && d.orderNumber) as DeliveryItem[];
+        
+        if (validDeliveries.length > 0) {
+          // Sort by order number and get the lowest
+          validDeliveries.sort((a, b) => {
+            const orderA = typeof a.orderNumber === 'number' ? a.orderNumber : 0;
+            const orderB = typeof b.orderNumber === 'number' ? b.orderNumber : 0;
+            return orderA - orderB;
+          });
+          orderNumberToDisplay = validDeliveries[0].orderNumber;
+        } else {
+          // Fallback to the first order index if no valid deliveries found
+          orderNumberToDisplay = group.orderIndices[0];
+        }
+      } else {
+        // For single delivery locations, use the delivery's order number
+        orderNumberToDisplay = delivery.orderNumber || index + 1;
+      }
       
       // Create the marker
       const marker = createDeliveryMarker(
-        orderNumber,
+        orderNumberToDisplay,
         delivery.lat,
         delivery.lng,
         markerStatus,
@@ -367,8 +411,10 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       // Add to map
       marker.addTo(mapboxMapRef.current);
       
-      // Store in refs
-      markersRef.current[delivery.id] = marker;
+      // Store in refs - store for all deliveries at this location
+      group.deliveryIds.forEach(id => {
+        markersRef.current[id] = marker;
+      });
       
       // Create record for this address group
       addressMarkers[coordKey] = {
@@ -424,40 +470,136 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           </button>
         </div>
       `);
-    
+      
+      // Add the marker to the popup
       marker.setPopup(popup);
       
-      // Add click handler to marker
+      // Add click handler
       marker.getElement().addEventListener('click', () => {
-        // If multiple deliveries at this location, select the first pending one
-        const deliveryToSelect = deliveryIds.length > 1 
-          ? deliveryIds.find(id => deliveries.find(d => d.id === id)?.status === 'pendente') || deliveryIds[0]
-          : deliveryIds[0];
-        
-        onSelectDelivery(deliveryToSelect);
-      });
-      
-      // Add event handler for navigation button in popup
-      marker.getPopup().on('open', () => {
-        setTimeout(() => {
-          const navBtn = document.querySelector('.nav-button');
-          if (navBtn) {
-            navBtn.addEventListener('click', (e) => {
-              e.stopPropagation();
-              
-              const target = e.currentTarget as HTMLElement;
-              const lat = target.getAttribute('data-lat');
-              const lng = target.getAttribute('data-lng');
-              
-              if (lat && lng) {
-                openExternalNavigation(parseFloat(lat), parseFloat(lng));
-              }
-            });
-          }
-        }, 10);
+        // Then select the first delivery in this group to trigger list view updates
+        const groupDeliveries = Object.values(addressMarkersRef.current)
+          .find(markerData => markerData.marker === marker)?.deliveryIds || [];
+          
+        if (groupDeliveries.length > 0) {
+          onSelectDelivery(groupDeliveries[0]);
+        }
       });
     });
   }, [deliveries, selectedDeliveryId, mapLoaded, onSelectDelivery, currentLocation, geocodedCoordinates]);
+  
+  // useEffect separado para processar os cliques nos marcadores após o mapa ser renderizado
+  useEffect(() => {
+    if (!mapLoaded) return;
+    
+    // Função para processar os cliques nos botões de navegação
+    const handleNavButtonClick = (e: Event) => {
+      e.stopPropagation();
+      const target = e.currentTarget as HTMLElement;
+      const lat = target.getAttribute('data-lat');
+      const lng = target.getAttribute('data-lng');
+      
+      if (lat && lng) {
+        openExternalNavigation(parseFloat(lat), parseFloat(lng));
+      }
+    };
+    
+    // Adicionar os event listeners com um pequeno delay para garantir que os elementos existam
+    const timerId = setTimeout(() => {
+      const navButtons = document.querySelectorAll('.nav-button');
+      navButtons.forEach(btn => {
+        btn.addEventListener('click', handleNavButtonClick);
+      });
+    }, 100);
+    
+    // Função de limpeza quando o componente for desmontado ou as dependências mudarem
+    return () => {
+      clearTimeout(timerId);
+      
+      // Remover os event listeners
+      document.querySelectorAll('.nav-button').forEach(btn => {
+        btn.removeEventListener('click', handleNavButtonClick);
+      });
+    };
+  }, [mapLoaded]);
+  
+  // Draw navigation route
+  useEffect(() => {
+    if (!mapLoaded || !mapboxMapRef.current) return;
+    
+    try {
+      // Setup source for navigation route if it doesn't exist
+      if (!mapboxMapRef.current.getSource('navigation-route')) {
+        mapboxMapRef.current.addSource('navigation-route', {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: []
+            }
+          }
+        });
+        
+        mapboxMapRef.current.addLayer({
+        id: 'navigation-route',
+        type: 'line',
+        source: 'navigation-route',
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': '#10b981', // Verde
+          'line-width': 6,
+          'line-opacity': 0.8,
+          'line-dasharray': [0.5, 1.5] // Linha tracejada
+        }
+      });
+    }
+    } catch (error) {
+      console.error('Erro ao configurar rota de navegação:', error);
+      toast({
+        title: 'Erro ao configurar rota',
+        description: 'Não foi possível configurar a rota de navegação.',
+        variant: 'destructive'
+      });
+    }
+  }, [mapLoaded, mapboxMapRef]);
+  
+  // Função para processar os cliques nos botões de navegação
+  useEffect(() => {
+    if (!mapLoaded) return;
+    
+    const handleNavButtonClick = (e: Event) => {
+      e.stopPropagation();
+      const target = e.currentTarget as HTMLElement;
+      const lat = target.getAttribute('data-lat');
+      const lng = target.getAttribute('data-lng');
+      
+      if (lat && lng) {
+        openExternalNavigation(parseFloat(lat), parseFloat(lng));
+      }
+    };
+    
+    // Adicionar os event listeners com um pequeno delay para garantir que os elementos existam
+    const timerId = setTimeout(() => {
+      const navButtons = document.querySelectorAll('.nav-button');
+      navButtons.forEach(btn => {
+        btn.addEventListener('click', handleNavButtonClick);
+      });
+    }, 100);
+    
+    // Função de limpeza quando o componente for desmontado ou as dependências mudarem
+    return () => {
+      clearTimeout(timerId);
+      
+      // Remover os event listeners
+      document.querySelectorAll('.nav-button').forEach(btn => {
+        btn.removeEventListener('click', handleNavButtonClick);
+      });
+    };
+  }, [mapLoaded]);
 
   // Referência para controlar notificações de rota calculada
   const lastRouteNotificationRef = useRef<number>(0);
@@ -483,17 +625,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         maxZoom: 15
       });
       
-      // Mostrar notificação apenas se for um destino diferente ou se passaram mais de 30 segundos
-      if (destinationKey !== lastRouteDestinationRef.current || (now - lastRouteNotificationRef.current > 30000)) {
-        lastRouteNotificationRef.current = now;
-        lastRouteDestinationRef.current = destinationKey;
-        
-        toast({
-          title: 'Rota calculada',
-          description: `Navegando para: ${address}`,
-          duration: 5000,
-        });
-      }
+      // Notificação removida para reduzir o número de toasts
     } else if (!currentLocation) {
       toast({
         title: 'Localização não disponível',
@@ -502,7 +634,31 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       });
     }
   };
-  
+
+  // Navegar para a entrega selecionada
+  const handleNavigateToDelivery = () => {
+    const selectedDelivery = deliveries.find(d => d.id === selectedDeliveryId);
+    
+    if (selectedDelivery && selectedDelivery.lat && selectedDelivery.lng && currentLocation) {
+      const destination = { lat: selectedDelivery.lat, lng: selectedDelivery.lng };
+      
+      // Desenhar rota no mapa
+      drawNavigationRoute(currentLocation, destination);
+      
+      // Abrir no Google Maps
+      const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${currentLocation.lat},${currentLocation.lng}&destination=${destination.lat},${destination.lng}&travelmode=driving`;
+      window.open(googleMapsUrl, '_blank');
+      
+      // Notificação removida para reduzir o número de toasts
+    } else if (!currentLocation) {
+      toast({
+        title: 'Localização não disponível',
+        description: 'Sua localização atual é necessária para navegação.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   // Desenhar rota de navegação no mapa
   const drawNavigationRoute = async (origin: MapPosition, destination: MapPosition) => {
     if (!mapboxMapRef.current) return;
@@ -546,14 +702,17 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       }
     } catch (error) {
       console.error('Erro ao desenhar rota de navegação:', error);
-      toast({
-        title: 'Erro de navegação',
-        description: 'Não foi possível calcular a rota para o destino.',
-        variant: 'destructive',
-      });
+      // Mostrar notificação apenas para erros críticos
+      if (error instanceof Error && error.message.includes('network')) {
+        toast({
+          title: 'Erro de conexão',
+          description: 'Verifique sua conexão com a internet.',
+          variant: 'destructive',
+        });
+      }
     }
   };
-  
+
   // Referência para controlar notificações de localização
   const lastLocationNotificationRef = useRef<number>(0);
 
@@ -562,26 +721,46 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     if (!mapLoaded || !mapboxMapRef.current) return;
     
     // Remover marcador de localização atual existente
-    if (currentLocationMarkerRef.current) {
+    if (currentLocationMarkerRef && currentLocationMarkerRef.current) {
       currentLocationMarkerRef.current.remove();
       currentLocationMarkerRef.current = null;
     }
     
     // Adicionar novo marcador de localização atual
     if (currentLocation) {
+      console.log('Atualizando marcador de localização atual:', currentLocation);
       const marker = createCurrentLocationMarker(currentLocation.lat, currentLocation.lng);
       marker.addTo(mapboxMapRef.current);
       currentLocationMarkerRef.current = marker;
       
-      // Exibir mensagem de localização atual apenas quando o rastreamento é ativado
-      // e no máximo uma vez a cada 30 segundos
+      // Centralizar o mapa na localização atual se o rastreamento estiver ativo
+      if (isTrackingActive) {
+        mapboxMapRef.current.flyTo({
+          center: [currentLocation.lng, currentLocation.lat],
+          zoom: 15,
+          essential: true
+        });
+      }
+      
+      // Exibir mensagem de localização atual apenas na primeira vez que o rastreamento é ativado
       const now = Date.now();
-      if (isTrackingActive && (now - lastLocationNotificationRef.current > 30000)) {
+      if (isTrackingActive && lastLocationNotificationRef.current === 0) {
         lastLocationNotificationRef.current = now;
         toast({
-          title: 'Localização atualizada',
+          title: 'Localização ativada',
           description: 'Sua localização atual está sendo rastreada.',
           duration: 3000,
+        });
+      }
+    } else {
+      console.warn('Localização atual não disponível');
+      if (isTrackingActive) {
+        // Notificação removida para reduzir o número de toasts
+        toast({
+          title: 'Localização indisponível',
+          description: 'Não foi possível obter sua localização atual. Verifique as permissões do navegador.',
+          variant: 'destructive',
+          duration: 5000,
         });
       }
     }
@@ -591,31 +770,57 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
   useEffect(() => {
     if (!mapLoaded || !mapboxMapRef.current) return;
     
+    console.log('Atualizando marcadores do mapa com novos status');
+    
+    // Find deliveries with changed status
+    const changedDeliveries = deliveries.filter(d => d.statusChanged === true);
+    
+    if (changedDeliveries.length > 0) {
+      console.log('Entregas com status alterado:', changedDeliveries.map(d => d.id));
+    }
+    
+    // Update all markers to reflect current status
     Object.entries(addressMarkersRef.current).forEach(([coordKey, markerInfo]) => {
       const { deliveryIds, marker, miniMarker } = markerInfo;
       
-      const hasOcorrencia = deliveryIds.some(id => 
-        deliveries.find(d => d.id === id)?.status === 'ocorrencia'
-      );
-      const hasPendente = deliveryIds.some(id => 
-        deliveries.find(d => d.id === id)?.status === 'pendente'
-      );
-      
+      // Check if any of the deliveries at this location had their status changed
       const hasStatusChanged = deliveryIds.some(id => 
         deliveries.find(d => d.id === id)?.statusChanged === true
       );
       
+      // Get all deliveries at this location
+      const deliveriesAtLocation = deliveryIds
+        .map(id => deliveries.find(d => d.id === id))
+        .filter(d => d !== undefined) as DeliveryItem[];
+      
+      // Verificar status de todas as entregas neste endereço
+      const hasOcorrencia = deliveriesAtLocation.some(d => d.status === 'ocorrencia');
+      const hasPendente = deliveriesAtLocation.some(d => d.status === 'pendente');
+      
+      // Determinar o status do marcador (prioridade: ocorrência > pendente > entregue)
       const markerStatus = hasOcorrencia ? 'ocorrencia' : (hasPendente ? 'pendente' : 'entregue');
       
+      // Log which deliveries are affecting this marker
+      if (hasStatusChanged) {
+        console.log(`Marcador ${coordKey} afetado por entregas:`, 
+          deliveriesAtLocation.map(d => `${d.id} (${d.orderNumber || '?'}) - ${d.status}`).join(', ')
+        );
+      }
+      
+      // Atualizar o marcador principal
       const markerEl = marker.getElement().querySelector('.delivery-marker');
       if (markerEl) {
+        // Remover todas as classes de status anteriores
         markerEl.classList.remove('status-ocorrencia', 'status-pendente', 'status-entregue');
         
+        // Adicionar a classe de status atual
         if (hasOcorrencia) {
           markerEl.classList.add('status-ocorrencia');
+          console.log('Marcador atualizado para ocorrência:', coordKey);
           if (hasStatusChanged) {
+            // Animação de flash para destacar a mudança
             markerEl.classList.remove('animate-marker-flash');
-            // Cast the Element to HTMLElement before accessing offsetWidth
+            // Trick para reiniciar a animação
             if (markerEl instanceof HTMLElement) {
               void markerEl.offsetWidth;
             }
@@ -629,11 +834,14 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           }
         } else if (hasPendente) {
           markerEl.classList.add('status-pendente');
+          console.log('Marcador atualizado para pendente:', coordKey);
         } else {
           markerEl.classList.add('status-entregue');
+          console.log('Marcador atualizado para entregue:', coordKey);
         }
       }
       
+      // Atualizar mini-marcadores (para múltiplas entregas)
       if (miniMarker) {
         const miniMarkerEl = miniMarker.getElement();
         miniMarkerEl.classList.remove('mini-marker-occurrence', 'mini-marker-pending', 'mini-marker-delivered');
@@ -642,7 +850,6 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           miniMarkerEl.classList.add('mini-marker-occurrence');
           if (hasStatusChanged && markerStatus === 'ocorrencia') {
             miniMarkerEl.classList.remove('animate-marker-flash');
-            // Cast the Element to HTMLElement before accessing offsetWidth
             if (miniMarkerEl instanceof HTMLElement) {
               void miniMarkerEl.offsetWidth;
             }
@@ -659,6 +866,13 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         } else {
           miniMarkerEl.classList.add('mini-marker-delivered');
         }
+      }
+      
+      // Atualizar o popup se estiver aberto
+      const popup = marker.getPopup();
+      if (popup.isOpen()) {
+        popup.remove();
+        marker.togglePopup();
       }
     });
   }, [deliveries, mapLoaded]);
@@ -816,7 +1030,67 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     }
   }, [selectedDeliveryId, pendingDeliveries, isMobile]);
   
-  // Renderiza o componente principal mesmo quando precisar do token
+  // Handle status change in mobile view
+  const handleMobileStatusChange = (status: 'pendente' | 'entregue' | 'ocorrencia') => {
+    if (pendingDeliveries.length === 0 || currentMobileDeliveryIndex >= pendingDeliveries.length) return;
+    
+    const delivery = pendingDeliveries[currentMobileDeliveryIndex];
+    
+    // Check if there are multiple deliveries at this location
+    if (delivery.lat && delivery.lng) {
+      const coordKey = `${delivery.lat.toFixed(6)},${delivery.lng.toFixed(6)}`;
+      const group = addressMarkersRef.current[coordKey];
+      
+      if (group && group.deliveryIds.length > 1) {
+        // For multiple deliveries, we need to check if we should notify
+        const now = Date.now();
+        const lastNotified = lastStatusNotificationRef.current[coordKey] || 0;
+        
+        if (now - lastNotified > 20000) {
+          toast({
+            title: 'Atualizando múltiplas entregas',
+            description: `Atualizando status da entrega ${delivery.orderNumber || ''}`,
+            duration: 3000,
+          });
+          lastStatusNotificationRef.current[coordKey] = now;
+        }
+      }
+    }
+    
+    // Update the status
+    onStatusChange?.(delivery.id, status);
+    
+    // Move to next pending delivery if there are more
+    if (currentMobileDeliveryIndex < pendingDeliveries.length - 1) {
+      setCurrentMobileDeliveryIndex(currentMobileDeliveryIndex + 1);
+    }
+  };
+
+  const handleStatusChange = (status: 'pendente' | 'entregue' | 'ocorrencia') => {
+    if (onStatusChange && selectedDeliveryId) {
+      console.log('Changing status for delivery:', selectedDeliveryId, 'to', status);
+      onStatusChange(selectedDeliveryId, status);
+      
+      // Force marker update for immediate visual feedback
+      // This ensures the map marker changes color immediately when status changes
+      const delivery = deliveries.find(d => d.id === selectedDeliveryId);
+      if (delivery && delivery.lat && delivery.lng) {
+        const coordKey = `${delivery.lat.toFixed(6)},${delivery.lng.toFixed(6)}`;
+        const markerInfo = addressMarkersRef.current[coordKey];
+        
+        if (markerInfo) {
+          // Update marker appearance based on new status
+          const markerElement = markerInfo.marker.getElement();
+          
+          // Remove old status classes
+          markerElement.classList.remove('status-pendente', 'status-entregue', 'status-ocorrencia');
+          
+          // Add new status class
+          markerElement.classList.add(`status-${status}`);
+        }
+      }
+    }
+  };
 
   return (
     <div className="relative h-full">
@@ -917,20 +1191,20 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         {`
         /* Estilos modernos para marcadores de entrega */
         .delivery-marker {
-          width: 30px;
-          height: 30px;
+          width: 22px;
+          height: 22px;
           background-color: #3b82f6; /* Azul para pendente */
           color: white;
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
           cursor: pointer;
-          border: 2px solid white;
+          border: 1.5px solid white;
           font-weight: 600;
-          font-size: 13px;
+          font-size: 11px;
           /* Formato quadrado com cantos levemente arredondados */
-          border-radius: 6px;
+          border-radius: 4px;
           /* Rotação para parecer com pino de mapa */
           transform: rotate(45deg);
           transition: transform 0.2s ease-out;
@@ -967,58 +1241,62 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         
         .status-pendente {
           background-color: #3b82f6; /* Azul para pendente */
-        }
         
         .status-ocorrencia {
           background-color: #EF4444; /* Vermelho para ocorrência */
         }
-        
-        /* Marcador de localização atual */
+        /* Animação de pulso para marcador de localização atual */
         .current-location-marker {
-          width: 24px;
-          height: 24px;
-          border-radius: 50%;
           position: relative;
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          z-index: 10;
         }
         
         /* Círculo de pulso */
         .pulse-circle {
-          width: 36px;
-          height: 36px;
-          border-radius: 50%;
-          background-color: rgba(15, 160, 206, 0.3);
           position: absolute;
+          width: 100%;
+          height: 100%;
+          background-color: rgba(15, 160, 206, 0.6);
+          border-radius: 50%;
+          opacity: 0;
           animation: pulse 2s infinite;
+          z-index: 5;
         }
         
         /* Círculo interno */
         .inner-circle {
-          width: 16px;
-          height: 16px;
+          width: 20px;
+          height: 20px;
           position: absolute;
           top: 50%;
           left: 50%;
           transform: translate(-50%, -50%);
           background-color: rgb(15, 160, 206);
           border-radius: 50%;
-          border: 3px solid white;
-          box-shadow: 0 0 0 2px rgba(15, 160, 206, 0.6);
+          border: 4px solid white;
+          box-shadow: 0 0 0 2px rgba(15, 160, 206, 0.8);
+          z-index: 15;
         }
         
         /* Texto "Você está aqui" */
         .location-label {
           position: absolute;
-          top: -25px;
+          top: -30px;
           left: 50%;
           transform: translateX(-50%);
-          background-color: rgba(0, 0, 0, 0.7);
+          background-color: rgba(0, 0, 0, 0.8);
           color: white;
-          font-size: 10px;
-          padding: 2px 6px;
+          font-size: 12px;
+          padding: 3px 8px;
           border-radius: 4px;
           white-space: nowrap;
-          font-weight: 500;
+          font-weight: 600;
           pointer-events: none;
+          z-index: 20;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         }
         
         @keyframes pulse {
@@ -1144,7 +1422,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         /* Mobile delivery card container */
         .mobile-delivery-card {
           position: absolute;
-          bottom: 80px;
+          bottom: 20px;
           left: 10px;
           right: 10px;
           background: white;
@@ -1243,13 +1521,79 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           {/* Informações da entrega selecionada */}
           {deliveries.find(d => d.id === selectedDeliveryId) && (
             <div className="p-3 pb-safe">
+              {/* Navegação lateral */}
+              <div className="flex justify-between items-center mb-3">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 w-8 p-0"
+                  onClick={() => {
+                    // Navigate to previous pending delivery
+                    const currentIndex = pendingDeliveries.findIndex(d => d.id === selectedDeliveryId);
+                    if (currentIndex > 0) {
+                      const prevDelivery = pendingDeliveries[currentIndex - 1];
+                      onSelectDelivery(prevDelivery.id);
+                      
+                      // Center map on previous delivery
+                      if (prevDelivery.lat && prevDelivery.lng && mapboxMapRef.current) {
+                        mapboxMapRef.current.flyTo({
+                          center: [prevDelivery.lng, prevDelivery.lat],
+                          zoom: 15,
+                          essential: true,
+                          duration: 500
+                        });
+                      }
+                    }
+                  }}
+                  disabled={pendingDeliveries.findIndex(d => d.id === selectedDeliveryId) <= 0}
+                >
+                  <ChevronLeft size={20} />
+                </Button>
+                
+                <div className="text-center">
+                  <div className="text-xs text-gray-500">
+                    {pendingDeliveries.findIndex(d => d.id === selectedDeliveryId) + 1} de {pendingDeliveries.length}
+                  </div>
+                </div>
+                
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 w-8 p-0"
+                  onClick={() => {
+                    // Navigate to next pending delivery
+                    const currentIndex = pendingDeliveries.findIndex(d => d.id === selectedDeliveryId);
+                    if (currentIndex < pendingDeliveries.length - 1) {
+                      const nextDelivery = pendingDeliveries[currentIndex + 1];
+                      onSelectDelivery(nextDelivery.id);
+                      
+                      // Center map on next delivery
+                      if (nextDelivery.lat && nextDelivery.lng && mapboxMapRef.current) {
+                        mapboxMapRef.current.flyTo({
+                          center: [nextDelivery.lng, nextDelivery.lat],
+                          zoom: 15,
+                          essential: true,
+                          duration: 500
+                        });
+                      }
+                    }
+                  }}
+                  disabled={pendingDeliveries.findIndex(d => d.id === selectedDeliveryId) >= pendingDeliveries.length - 1}
+                >
+                  <ChevronRight size={20} />
+                </Button>
+              </div>
+              
               <div className="flex justify-between items-start mb-2">
                 <div>
                   <h3 className="font-semibold text-base">
-                    {deliveries.find(d => d.id === selectedDeliveryId)?.cliente}
+                    Ordem {deliveries.find(d => d.id === selectedDeliveryId)?.orderNumber || '1'}
                   </h3>
                   <p className="text-xs text-gray-600">
                     {deliveries.find(d => d.id === selectedDeliveryId)?.endereco}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {deliveries.find(d => d.id === selectedDeliveryId)?.cidade}
                   </p>
                 </div>
                 <div className="flex gap-1">
@@ -1264,36 +1608,136 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
                 </div>
               </div>
               
-              {/* Botões de ação unificados */}
-              <div className="flex justify-between gap-1 mt-2">
+              {/* Campo de endereço da casa para otimização */}
+              <div className="flex gap-1 mb-2">
+                <Input
+                  type="text"
+                  placeholder="Endereço da casa para otimizar rota"
+                  className="text-xs h-8"
+                  value={customHouseAddress}
+                  onChange={(e) => setCustomHouseAddress(e.target.value)}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 whitespace-nowrap"
+                  onClick={() => {
+                    if (customHouseAddress.trim()) {
+                      // Show loading toast
+                      toast({
+                        title: "Otimizando rota",
+                        description: "Buscando endereço e calculando melhor rota..."
+                      });
+                      
+                      // Use the existing address search functionality
+                      setShowGpsSearch(true);
+                    }
+                  }}
+                >
+                  Otimizar
+                </Button>
+              </div>
+              
+              {/* Botões de ação no estilo do print */}
+              <div className="flex gap-1 mt-2">
                 <Button 
                   size="sm" 
-                  variant={deliveries.find(d => d.id === selectedDeliveryId)?.status === 'entregue' ? 'default' : 'outline'}
-                  className={`flex-1 h-9 ${deliveries.find(d => d.id === selectedDeliveryId)?.status === 'entregue' ? 'bg-green-500 hover:bg-green-600' : ''}`}
-                  onClick={() => onStatusChange && onStatusChange(selectedDeliveryId, 'entregue')}
+                  variant="outline"
+                  className="flex items-center gap-1 h-9 px-3"
+                  onClick={() => {
+                    const delivery = deliveries.find(d => d.id === selectedDeliveryId);
+                    if (delivery && delivery.lat && delivery.lng) {
+                      openExternalNavigation(delivery.lat, delivery.lng);
+                    }
+                  }}
                 >
-                  <Check size={14} className="mr-1" />
+                  <Navigation size={14} />
+                  Navegar
+                </Button>
+                
+                <Button 
+                  size="sm" 
+                  variant={pendingDeliveries[currentMobileDeliveryIndex].status === 'entregue' ? 'default' : 'outline'}
+                  className={`flex items-center gap-1 h-9 px-3 ${pendingDeliveries[currentMobileDeliveryIndex].status === 'entregue' ? 'bg-green-500 hover:bg-green-600' : ''}`}
+                  onClick={() => {
+                    if (onStatusChange && selectedDeliveryId) {
+                      // Atualizar o status
+                      onStatusChange(selectedDeliveryId, 'entregue');
+                      
+                      // Forçar a atualização do marcador no mapa
+                      const marker = markersRef.current[selectedDeliveryId];
+                      if (marker) {
+                        const markerEl = marker.getElement().querySelector('.delivery-marker');
+                        if (markerEl) {
+                          // Remover classes de status anteriores
+                          markerEl.classList.remove('status-ocorrencia', 'status-pendente', 'status-entregue');
+                          // Adicionar nova classe de status
+                          markerEl.classList.add('status-entregue');
+                          // Adicionar animação
+                          markerEl.classList.add('animate-marker-flash');
+                          
+                          // Remover animação após um tempo
+                          setTimeout(() => {
+                            if (markerEl) {
+                              markerEl.classList.remove('animate-marker-flash');
+                            }
+                          }, 1500);
+                        }
+                      }
+                    }
+                  }}
+                >
+                  <Check size={14} />
                   Entregue
                 </Button>
                 
                 <Button 
                   size="sm" 
-                  variant={deliveries.find(d => d.id === selectedDeliveryId)?.status === 'ocorrencia' ? 'default' : 'outline'}
-                  className={`flex-1 h-9 ${deliveries.find(d => d.id === selectedDeliveryId)?.status === 'ocorrencia' ? 'bg-red-500 hover:bg-red-600' : ''}`}
-                  onClick={() => onStatusChange && onStatusChange(selectedDeliveryId, 'ocorrencia')}
+                  variant="outline"
+                  className="flex items-center gap-1 h-9 px-3"
+                  onClick={() => {
+                    if (onStatusChange && selectedDeliveryId) {
+                      // Atualizar o status
+                      onStatusChange(selectedDeliveryId, 'ocorrencia');
+                      
+                      // Forçar a atualização do marcador no mapa
+                      const marker = markersRef.current[selectedDeliveryId];
+                      if (marker) {
+                        const markerEl = marker.getElement().querySelector('.delivery-marker');
+                        if (markerEl) {
+                          // Remover classes de status anteriores
+                          markerEl.classList.remove('status-ocorrencia', 'status-pendente', 'status-entregue');
+                          // Adicionar nova classe de status
+                          markerEl.classList.add('status-ocorrencia');
+                          // Adicionar animação
+                          markerEl.classList.add('animate-marker-flash');
+                          
+                          // Remover animação após um tempo
+                          setTimeout(() => {
+                            if (markerEl) {
+                              markerEl.classList.remove('animate-marker-flash');
+                            }
+                          }, 1500);
+                        }
+                      }
+                    }
+                  }}
                 >
-                  <AlertTriangle size={14} className="mr-1" />
+                  <AlertTriangle size={14} />
                   Ocorrência
                 </Button>
                 
                 <Button 
                   size="sm" 
-                  variant={deliveries.find(d => d.id === selectedDeliveryId)?.status === 'pendente' ? 'default' : 'outline'}
-                  className={`flex-1 h-9 ${deliveries.find(d => d.id === selectedDeliveryId)?.status === 'pendente' ? 'bg-blue-500 hover:bg-blue-600' : ''}`}
-                  onClick={() => onStatusChange && onStatusChange(selectedDeliveryId, 'pendente')}
+                  variant="default"
+                  className="flex items-center gap-1 h-9 px-3 bg-blue-500 hover:bg-blue-600 ml-auto"
+                  onClick={() => {
+                    // Voltar para a lista
+                    onSelectDelivery('');
+                  }}
                 >
-                  <RotateCcw size={14} className="mr-1" />
-                  Pendente
+                  <ChevronLeft size={14} />
+                  Voltar
                 </Button>
               </div>
             </div>
@@ -1304,37 +1748,119 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       {/* Navegação entre entregas pendentes (apenas para mobile quando não há entrega selecionada) */}
       {isMobileView && !selectedDeliveryId && pendingDeliveries.length > 0 && (
         <div className="mobile-delivery-card">
-          <div className="delivery-counter">
-            {currentMobileDeliveryIndex + 1} de {pendingDeliveries.length} pendentes
+          <div className="p-3 border-b border-gray-100">
+            <h3 className="text-amber-600 font-medium text-sm">Múltiplas entregas (Ordens: {pendingDeliveries.map(d => d.orderNumber || '').join(', ')})</h3>
           </div>
           
-          <div className="p-2">
+          <div className="p-3">
             {pendingDeliveries[currentMobileDeliveryIndex] && (
-              <DeliveryCard
-                delivery={pendingDeliveries[currentMobileDeliveryIndex]}
-                onStatusChange={onStatusChange || (() => {})}
-                onSelect={onSelectDelivery}
-                isSelected={pendingDeliveries[currentMobileDeliveryIndex].id === selectedDeliveryId}
-              />
+              <div>
+                <h3 className="font-medium text-base">Ordem {pendingDeliveries[currentMobileDeliveryIndex].orderNumber || currentMobileDeliveryIndex + 1}</h3>
+                <p className="text-sm text-gray-700 mt-1">{pendingDeliveries[currentMobileDeliveryIndex].endereco}</p>
+                <p className="text-sm text-gray-500">{pendingDeliveries[currentMobileDeliveryIndex].cidade}</p>
+                
+                <div className="flex gap-2 mt-3">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="flex items-center gap-1 h-9 px-3"
+                    onClick={() => {
+                      const delivery = pendingDeliveries[currentMobileDeliveryIndex];
+                      if (delivery && delivery.lat && delivery.lng) {
+                        openExternalNavigation(delivery.lat, delivery.lng);
+                      }
+                    }}
+                  >
+                    <Navigation size={14} />
+                    Navegar
+                  </Button>
+                  
+                  <Button 
+                    size="sm" 
+                    variant={pendingDeliveries[currentMobileDeliveryIndex].status === 'entregue' ? 'default' : 'outline'}
+                    className={`flex items-center gap-1 h-9 px-3 ${pendingDeliveries[currentMobileDeliveryIndex].status === 'entregue' ? 'bg-green-500 hover:bg-green-600' : ''}`}
+                    onClick={() => {
+                      if (onStatusChange && pendingDeliveries[currentMobileDeliveryIndex]) {
+                        // Atualizar o status
+                        onStatusChange(pendingDeliveries[currentMobileDeliveryIndex].id, 'entregue');
+                        
+                        // Forçar a atualização do marcador no mapa
+                        const marker = markersRef.current[pendingDeliveries[currentMobileDeliveryIndex].id];
+                        if (marker) {
+                          const markerEl = marker.getElement().querySelector('.delivery-marker');
+                          if (markerEl) {
+                            // Remover classes de status anteriores
+                            markerEl.classList.remove('status-ocorrencia', 'status-pendente', 'status-entregue');
+                            // Adicionar nova classe de status
+                            markerEl.classList.add('status-entregue');
+                            // Adicionar animação
+                            markerEl.classList.add('animate-marker-flash');
+                            
+                            // Remover animação após um tempo
+                            setTimeout(() => {
+                              if (markerEl) {
+                                markerEl.classList.remove('animate-marker-flash');
+                              }
+                            }, 1500);
+                          }
+                        }
+                      }
+                    }}
+                  >
+                    <Check size={16} />
+                    Entregue
+                  </Button>
+                  
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="flex items-center gap-1 h-9 px-3"
+                    onClick={() => {
+                      if (onStatusChange && pendingDeliveries[currentMobileDeliveryIndex]) {
+                        // Atualizar o status
+                        onStatusChange(pendingDeliveries[currentMobileDeliveryIndex].id, 'ocorrencia');
+                        
+                        // Forçar a atualização do marcador no mapa
+                        const marker = markersRef.current[pendingDeliveries[currentMobileDeliveryIndex].id];
+                        if (marker) {
+                          const markerEl = marker.getElement().querySelector('.delivery-marker');
+                          if (markerEl) {
+                            // Remover classes de status anteriores
+                            markerEl.classList.remove('status-ocorrencia', 'status-pendente', 'status-entregue');
+                            // Adicionar nova classe de status
+                            markerEl.classList.add('status-ocorrencia');
+                            // Adicionar animação
+                            markerEl.classList.add('animate-marker-flash');
+                            
+                            // Remover animação após um tempo
+                            setTimeout(() => {
+                              if (markerEl) {
+                                markerEl.classList.remove('animate-marker-flash');
+                              }
+                            }, 1500);
+                          }
+                        }
+                      }
+                    }}
+                  >
+                    <AlertTriangle size={14} />
+                    Ocorrência
+                  </Button>
+                  
+                  <Button 
+                    size="sm" 
+                    variant="default"
+                    className="flex items-center gap-1 h-9 px-3 bg-blue-500 hover:bg-blue-600 ml-auto"
+                    onClick={() => {
+                      onSelectDelivery(pendingDeliveries[currentMobileDeliveryIndex].id);
+                    }}
+                  >
+                    <ChevronLeft size={14} />
+                    Voltar
+                  </Button>
+                </div>
+              </div>
             )}
-          </div>
-          
-          <div className="swipe-controls pb-2">
-            <button 
-              className="swipe-button" 
-              onClick={handlePrevDelivery}
-              disabled={pendingDeliveries.length <= 1}
-            >
-              <ChevronLeft size={20} />
-            </button>
-            
-            <button 
-              className="swipe-button" 
-              onClick={handleNextDelivery}
-              disabled={pendingDeliveries.length <= 1}
-            >
-              <ChevronRight size={20} />
-            </button>
           </div>
         </div>
       )}

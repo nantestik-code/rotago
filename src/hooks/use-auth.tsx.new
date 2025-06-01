@@ -95,9 +95,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       
       // Em desenvolvimento, criar perfil se não existir
-      // Nota: Desativado temporariamente devido a problemas de permissão
-      // As políticas RLS do Supabase precisam ser configuradas corretamente
-      if (false && isDevelopment) {
+      if (isDevelopment) {
         try {
           const { data: existingProfile, error: checkError } = await supabase
             .from('profiles')
@@ -128,44 +126,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       // Buscar perfil do usuário
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('id, full_name, avatar_url, created_at, updated_at')
-          .eq('id', userId)
-          .maybeSingle();
-        
-        if (error) {
-          // Marcar para não tentar novamente
-          attemptedProfileFetch.current.add(userId);
-          
-          if (error.code !== 'PGRST116') {
-            console.warn('Aviso ao buscar perfil (continuando com perfil mínimo):', error);
-          }
-          
-          setProfile({ id: userId });
-          return;
-        }
-        
-        if (data) {
-          setProfile({
-            id: userId,
-            full_name: data.full_name,
-            avatar_url: data.avatar_url,
-            created_at: data.created_at,
-            updated_at: data.updated_at
-          });
-          return;
-        }
-      } catch (e) {
-        console.warn('Erro ao buscar perfil, usando perfil mínimo:', e);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url, created_at, updated_at')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      if (error) {
+        // Marcar para não tentar novamente
         attemptedProfileFetch.current.add(userId);
+        
+        if (error.code !== 'PGRST116') {
+          console.error('Erro ao buscar perfil:', error);
+        }
+        
         setProfile({ id: userId });
         return;
       }
       
-      // Se chegou aqui, não encontrou perfil
-      setProfile({ id: userId });
+      // Definir perfil
+      setProfile({
+        id: userId,
+        full_name: data?.full_name,
+        avatar_url: data?.avatar_url,
+        created_at: data?.created_at,
+        updated_at: data?.updated_at
+      });
     } catch (error) {
       console.error('Erro em fetchProfile:', error);
       setProfile({ id: userId });
