@@ -2,9 +2,10 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-// Usar as credenciais corretas do projeto do .env.production
-const SUPABASE_URL = "https://hsubouwujfcdyuyikvbi.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhzdWJvdXd1amZjZHl1eWlrdmJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM3MzE2NjAsImV4cCI6MjA1OTMwNzY2MH0.wtDdFchXnutYMu2zTQeNIPbrw7jQqHNspUc37f7W-AI";
+// Usar as credenciais do projeto do .env ou .env.production
+// Você deve atualizar estas credenciais com as do seu novo projeto Supabase
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://seu-novo-projeto.supabase.co";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "sua-nova-chave-anon";
 
 // Função segura para acessar localStorage com fallback para ambientes sem localStorage
 const safeLocalStorage = {
