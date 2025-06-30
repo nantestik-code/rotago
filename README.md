@@ -50,7 +50,45 @@ npm run dev
 - Click on "New codespace" to launch a new Codespace environment.
 - Edit files directly within the Codespace and commit and push your changes once you're done.
 
-## What technologies are used for this project?
+## Histórico de Mudanças e Decisões Técnicas
+
+### 1. Migração e Correção do Fluxo de Autenticação (React + Supabase)
+- Refatorado o hook `useAuth` para garantir autenticação centralizada e segura, seguindo o padrão:
+  - O contexto fornece `user`, `session`, `profile`, `isLoading`, `signOut`, entre outros.
+  - Todos os componentes e serviços devem consumir o usuário autenticado via `useAuth()`.
+  - Serviços não acessam mais `auth.currentUser` diretamente, mas recebem o usuário como parâmetro.
+- Corrigido o fluxo de logout:
+  - O botão "Sair" agora chama `signOut` do contexto, que executa o logout no Supabase, limpa estados locais e redireciona para `/login`.
+  - Removido redirecionamento duplicado no listener de autenticação para evitar conflitos.
+  - Adicionado timeout de segurança para nunca travar o loading.
+- Adicionados logs no fluxo de autenticação para facilitar debug.
+
+### 2. Integração e Políticas Supabase
+- Implementado schema SQL para tabela `profiles` com políticas RLS:
+  - Usuários só podem ler/atualizar/inserir seus próprios perfis.
+  - Trigger automática para criar perfil ao registrar novo usuário.
+- Corrigidas queries de acesso para sempre filtrar por `contaId` e tipo de usuário.
+
+### 3. Módulo de Relatórios para Departamento Pessoal
+- Criado o componente `RelatoriosDP` com:
+  - Seleção de tipo de relatório, período, filtros e exportação PDF/Excel.
+  - Integração com `relatoriosDPService` e dados de vales, despesas e comissões.
+  - Layout responsivo, feedback via notificações e uso de inputs nativos de data.
+- Corrigido uso de props e estados para melhor compatibilidade com o padrão do projeto.
+- Ajustada busca de funcionários para usar apenas a coleção `usuarios` com filtro `tipo='funcionario'`.
+
+### 4. Tratamento de Erros de Autenticação
+- Mensagens amigáveis para erros comuns:
+  - "E-mail já cadastrado" ao tentar criar usuário existente.
+  - "E-mail ou senha inválidos" no login.
+- No ambiente de desenvolvimento, verificação prévia antes de tentar criar usuário.
+
+### 5. Recomendações de Uso
+- Sempre utilize o hook `useAuth()` para acessar o usuário e perfil.
+- Para novos relatórios ou integrações, siga o padrão de passar o objeto `user` para os serviços.
+- Consulte os logs do navegador para mensagens detalhadas em caso de erro.
+
+---
 
 This project is built with:
 
