@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
+import PricingSection from '@/components/subscription/PricingSection';
 
 const LandingPage = () => {
   const navigate = useNavigate();
@@ -389,14 +390,17 @@ const LandingPage = () => {
         </div>
       </section>
 
+      {/* Pricing Section */}
+      <PricingSection />
+
       {/* CTA Section */}
-      <section className="py-20 bg-primary text-white">
-        <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-6xl">
-          <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-3xl md:text-4xl font-bold">
-              Pronto para transformar suas entregas?
+      <section className="py-20 bg-gradient-to-r from-primary to-primary/90 text-white">
+        <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-6xl text-center">
+          <div className="max-w-3xl mx-auto">
+            <h2 className="text-3xl md:text-4xl font-bold mb-6">
+              Pronto para revolucionar suas entregas?
             </h2>
-            <p className="mt-4 text-xl opacity-90">
+            <p className="text-xl mb-8 opacity-90">
               Junte-se aos primeiros usuários e ajude a moldar o futuro da plataforma.
               Acesso gratuito durante todo o período de desenvolvimento.
             </p>

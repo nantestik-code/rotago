@@ -88,6 +88,53 @@ npm run dev
 - Para novos relatórios ou integrações, siga o padrão de passar o objeto `user` para os serviços.
 - Consulte os logs do navegador para mensagens detalhadas em caso de erro.
 
+### 6. Correções na Página de Assinatura (SubscriptionPage)
+**Data**: Janeiro 2025
+
+#### Problemas Identificados e Soluções:
+
+**6.1. Erro "error is not defined"**
+- **Problema**: Variável `error` não estava sendo desestruturada do hook `useSubscription`
+- **Solução**: Adicionado `error` na desestruturação do hook na SubscriptionPage.tsx
+- **Arquivo**: `src/pages/SubscriptionPage.tsx` (linha 33)
+
+**6.2. Loading Dependente de Autenticação**
+- **Problema**: Planos de assinatura só eram carregados quando usuário estava autenticado
+- **Solução**: Modificado `useSubscription` para buscar planos independentemente da autenticação:
+  - Adicionado useEffect separado para buscar planos na inicialização
+  - Planos são buscados sempre (dados públicos)
+  - Assinatura do usuário apenas se logado
+  - Loading definido como false após carregar planos
+- **Arquivo**: `src/hooks/useSubscription.ts` (linhas 46-60)
+
+**6.3. Tratamento de authLoading**
+- **Problema**: Página renderizava antes da autenticação estar completa
+- **Solução**: 
+  - Adicionado `isLoading: authLoading` do useAuth
+  - Incluído nas condições de loading da página
+  - Renderização condicional considerando ambos os loadings
+- **Arquivo**: `src/pages/SubscriptionPage.tsx` (linhas 28, 193, 209)
+
+**6.4. Melhor Tratamento de Erros RLS**
+- **Problema**: Erros 401 causavam falha total no carregamento
+- **Solução**: Implementado fallback para planos mock quando há problemas de RLS
+- **Benefício**: Página funciona mesmo com configurações de RLS pendentes
+- **Arquivo**: `src/hooks/useSubscription.ts` (linhas 95-111)
+
+#### Resultado Final:
+- ✅ Página carrega corretamente com planos de assinatura
+- ✅ Estados de loading funcionam adequadamente
+- ✅ Tratamento de erros robusto com fallbacks
+- ✅ Autenticação e timeout resolvidos
+- ✅ Interface responsiva e moderna mantida
+- ✅ Integração com Mercado Pago preservada
+
+#### Logs de Debug:
+- Sistema detecta corretamente sessões válidas do Supabase
+- Timeout de autenticação tratado com redirecionamento para login
+- Planos mock utilizados quando RLS não configurado
+- Erro 404 na tabela `profiles` indica necessidade de configuração RLS
+
 ---
 
 This project is built with:

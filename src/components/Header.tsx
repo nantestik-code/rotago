@@ -11,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Loader2, User, Settings, LogOut, Shield, History } from "lucide-react";
+import { Loader2, User, Settings, LogOut, Shield, History, Crown } from "lucide-react";
 import SyncStatusButton from "./SyncStatusButton";
 import { useDeliveries } from "@/hooks/use-deliveries";
 
@@ -77,6 +77,13 @@ export function Header({ onNewRouteClick, onExportClick }: {
                   <DropdownMenuItem>
                     <History className="mr-2 h-4 w-4" />
                     <span>Histórico de Rotas</span>
+                  </DropdownMenuItem>
+                </Link>
+                
+                <Link to="/subscription">
+                  <DropdownMenuItem>
+                    <Crown className="mr-2 h-4 w-4" />
+                    <span>Minha Assinatura</span>
                   </DropdownMenuItem>
                 </Link>
                 

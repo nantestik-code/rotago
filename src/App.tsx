@@ -16,6 +16,7 @@ import { RouteHistoryProvider } from "@/hooks/use-route-history-provider";
 import PrivateRoute from "./components/PrivateRoute";
 import AdminPanel from "./pages/admin/AdminPanel";
 import RouteHistoryPage from "./pages/RouteHistoryPage";
+import SubscriptionPage from "./pages/SubscriptionPage";
 
 const queryClient = new QueryClient();
 
@@ -62,6 +63,16 @@ const App = () => (
               element={
                 <PrivateRoute>
                   <RouteHistoryPage />
+                </PrivateRoute>
+              } 
+            />
+            
+            {/* Assinatura */}
+            <Route 
+              path="/subscription" 
+              element={
+                <PrivateRoute>
+                  <SubscriptionPage />
                 </PrivateRoute>
               } 
             />

@@ -9,6 +9,7 @@ import { useRouteActions } from '@/components/RouteActions';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useActivityTracker } from '@/hooks/use-activity-tracker';
 import { useRouteHistory } from '@/hooks/use-route-history';
+import SubscriptionBanner from '@/components/subscription/SubscriptionBanner';
 
 const Index = () => {
   const isMobile = useIsMobile();
@@ -83,6 +84,9 @@ const Index = () => {
       />
       
       <div className="flex-1 p-4 bg-gray-50 overflow-y-auto">
+        {/* Banner de Status da Assinatura */}
+        <SubscriptionBanner />
+        
         {showFileImport && (
           <ImportSection 
             onImportComplete={handleImport}
