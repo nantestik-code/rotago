@@ -256,7 +256,7 @@ const SubscriptionBanner = () => {
   }
 
   // Banner para pagamento pendente
-  if (subscription.status === 'pending_payment') {
+  if (subscription && subscription.status === 'pending_payment') {
     return (
       <Alert className="border-yellow-200 bg-yellow-50 mb-4">
         <Clock className="h-4 w-4 text-yellow-600" />

@@ -54,7 +54,13 @@ const PaymentDebug: React.FC = () => {
       setLogs(prev => [...prev.slice(-49), logEntry]); // Manter apenas os últimos 50 logs
       
       // Chamar o console original
-      original[level === 'success' ? 'log' : level](message, ...args);
+      if (level === 'success' || level === 'info') {
+        original.log(message, ...args);
+      } else if (level === 'warn') {
+        original.warn(message, ...args);
+      } else if (level === 'error') {
+        original.error(message, ...args);
+      }
     };
 
     console.log = (...args) => addLog('info', args.join(' '), ...args);
@@ -66,11 +72,9 @@ const PaymentDebug: React.FC = () => {
 
     return () => {
       // Restaurar console original
-      if (original) {
-        console.log = original.log;
-        console.warn = original.warn;
-        console.error = original.error;
-      }
+      console.log = original.log;
+      console.warn = original.warn;
+      console.error = original.error;
     };
   }, []);
 
