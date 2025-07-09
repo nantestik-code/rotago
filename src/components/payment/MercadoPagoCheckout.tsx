@@ -38,7 +38,12 @@ const MercadoPagoCheckout: React.FC<MercadoPagoCheckoutProps> = ({
   const [step, setStep] = useState<'review' | 'processing' | 'redirect'>('review');
 
   const handlePayment = async () => {
+    console.log('🚀 Iniciando processo de pagamento...');
+    console.log('👤 Usuário:', user ? { id: user.id, email: user.email } : 'Não autenticado');
+    console.log('📦 Plano selecionado:', { id: plan.id, name: plan.name, price: plan.total });
+    
     if (!user) {
+      console.error('❌ Usuário não autenticado');
       onError?.('Usuário não autenticado');
       return;
     }
@@ -47,19 +52,35 @@ const MercadoPagoCheckout: React.FC<MercadoPagoCheckoutProps> = ({
     setStep('processing');
 
     try {
-      const paymentResult = await mercadoPagoService.createPreference(plan, {
+      console.log('🔄 Criando preferência de pagamento...');
+      
+      const paymentData = {
         planId: plan.id,
         userEmail: user.email || '',
         userName: user.user_metadata?.full_name || 'Usuário',
         userId: user.id,
-      });
-
+      };
+      
+      console.log('📋 Dados do pagamento:', paymentData);
+      
+      const paymentResult = await mercadoPagoService.createPreference(plan, paymentData);
+      
+      console.log('✅ Preferência criada:', paymentResult);
+      
       setPaymentUrl(paymentResult.init_point);
       setStep('redirect');
 
       // Aguarda um momento antes de redirecionar
       setTimeout(() => {
-        window.open(paymentResult.init_point, '_blank');
+        console.log('🔗 Redirecionando para:', paymentResult.init_point);
+        
+        // Tentar abrir em nova aba
+        const newWindow = window.open(paymentResult.init_point, '_blank');
+        
+        if (!newWindow) {
+          console.warn('⚠️ Pop-up bloqueado, tentando redirecionamento direto...');
+          window.location.href = paymentResult.init_point;
+        }
         
         toast({
           title: "Redirecionando para pagamento",
@@ -70,17 +91,22 @@ const MercadoPagoCheckout: React.FC<MercadoPagoCheckoutProps> = ({
       }, 1500);
 
     } catch (error) {
-      console.error('Erro no checkout:', error);
+      console.error('❌ Erro no checkout:', error);
+      console.error('📊 Stack trace:', error instanceof Error ? error.stack : 'N/A');
+      
       setStep('review');
-      onError?.('Erro ao processar pagamento');
+      
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      onError?.(errorMessage);
       
       toast({
         title: "Erro no pagamento",
-        description: "Não foi possível processar o pagamento. Tente novamente.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
       setLoading(false);
+      console.log('🏁 Processo de pagamento finalizado');
     }
   };
 

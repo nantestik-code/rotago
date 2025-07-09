@@ -55,7 +55,12 @@ export class MercadoPagoService {
   }
 
   public async createPreference(plan: SubscriptionPlan, paymentData: PaymentData): Promise<PaymentResult> {
+    console.log('🔄 Iniciando criação de preferência:', { plan: plan.id, user: paymentData.userEmail });
+    
     try {
+      // Log da chave configurada
+      console.log('🔑 Chave MP configurada:', MERCADOPAGO_PUBLIC_KEY.slice(0, 20) + '...');
+
       const preference = {
         items: [
           {
@@ -90,30 +95,42 @@ export class MercadoPagoService {
         notification_url: `${window.location.origin}/api/webhooks/mercadopago`,
       };
 
-      // Simula a criação da preferência (em produção, isso seria feito no backend)
-      const response = await this.mockCreatePreference(preference);
+      console.log('📋 Preferência criada:', preference);
+
+      // Criar preferência real no Mercado Pago
+      const response = await this.createPreferenceReal(preference);
+      console.log('✅ Resposta do MP:', response);
       return response;
     } catch (error) {
-      console.error('Erro ao criar preferência:', error);
-      throw new Error('Erro ao processar pagamento');
+      console.error('❌ Erro ao criar preferência:', error);
+      throw error;
     }
   }
 
-  private async mockCreatePreference(preference: any): Promise<PaymentResult> {
-    // Em produção, isso seria uma chamada para seu backend
-    // que criaria a preferência usando o SDK do Mercado Pago server-side
+  private async createPreferenceReal(preference: any): Promise<PaymentResult> {
+    console.log('🚀 Criando preferência real no Mercado Pago...');
     
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const mockId = `PREF-${Date.now()}`;
-        resolve({
-          id: mockId,
-          status: 'pending',
-          init_point: `https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=${mockId}`,
-          sandbox_init_point: `https://sandbox.mercadopago.com.br/checkout/v1/redirect?pref_id=${mockId}`,
-        });
-      }, 1000);
+    // Fazer chamada real para a API do Mercado Pago
+    const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer APP_USR-1748918577010643-062410-bba75831bc3f3a963aaef908c6daab40-501330484`,
+      },
+      body: JSON.stringify(preference),
     });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('❌ Erro na API do Mercado Pago:', errorData);
+      throw new Error(`Erro na API do Mercado Pago: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    console.log('✅ Preferência criada com sucesso:', result.id);
+    console.log('🔗 URL de pagamento:', result.init_point);
+    
+    return result;
   }
 
   public async createSubscriptionPreference(plan: SubscriptionPlan, paymentData: PaymentData): Promise<PaymentResult> {

@@ -23,6 +23,7 @@ import { mercadoPagoService } from '@/services/mercadopago';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from '@/hooks/use-toast';
 import { motion } from 'framer-motion';
+import PaymentDebug from '@/components/debug/PaymentDebug';
 
 const SubscriptionPage = () => {
   const { user, isLoading: authLoading } = useAuth();
@@ -42,6 +43,22 @@ const SubscriptionPage = () => {
   const [processingPayment, setProcessingPayment] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
 
+  // Logs detalhados para debug
+  console.log('📊 SubscriptionPage - Estado atual:', {
+    user: user ? { id: user.id, email: user.email } : null,
+    authLoading,
+    subscription,
+    plansCount: plans.length,
+    loading,
+    error,
+    isTrialActive,
+    trialDaysRemaining,
+    isSubscriptionActive,
+    currentPlan,
+    processingPayment,
+    selectedPlanId
+  });
+
   const handleUpgradePlan = async (planId: string) => {
     if (!user) return;
 
@@ -59,7 +76,14 @@ const SubscriptionPage = () => {
         userId: user.id,
       });
 
-      // Redireciona para o checkout do Mercado Pago
+      // Marcar pagamento como pendente no localStorage
+      localStorage.setItem('pending_payment', 'true');
+      localStorage.setItem('pending_plan_id', planId);
+      localStorage.setItem('pending_payment_time', new Date().toISOString());
+      
+      console.log('💳 Pagamento marcado como pendente:', { planId, time: new Date().toISOString() });
+
+      // Abrir o link de pagamento em nova aba
       window.open(paymentResult.init_point, '_blank');
 
       toast({
@@ -146,7 +170,8 @@ const SubscriptionPage = () => {
     return ((totalDays - remainingDays) / totalDays) * 100;
   };
 
-  if (loading) {
+  if (loading || authLoading) {
+    console.log('⏳ SubscriptionPage: Carregando...', { loading, authLoading });
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
@@ -429,6 +454,9 @@ const SubscriptionPage = () => {
           )}
         </div>
       </div>
+      
+      {/* Componente de Debug - apenas em desenvolvimento */}
+      {import.meta.env.DEV && <PaymentDebug />}
     </div>
   );
 };

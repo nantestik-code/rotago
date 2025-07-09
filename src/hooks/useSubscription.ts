@@ -43,6 +43,14 @@ export const useSubscription = () => {
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
 
+  console.log('🔄 useSubscription - Estado atual:', {
+    user: user ? { id: user.id, email: user.email } : null,
+    subscription,
+    plansCount: plans.length,
+    loading,
+    error
+  });
+
   useEffect(() => {
     // Buscar planos sempre (dados públicos)
     fetchPlans();
@@ -53,13 +61,48 @@ export const useSubscription = () => {
     }
   }, [user]);
 
-  // Buscar planos na inicialização
+  // Timeout para forçar fim do loading se necessário
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.log('⏰ Timeout: forçando loading = false e usando dados mock');
+        setLoading(false);
+        setError('Timeout - usando dados de exemplo');
+        const mockPlans = getMockPlans();
+        setPlans(mockPlans);
+      }
+    }, 5000); // 5 segundos
+
+    return () => clearTimeout(timeout);
+  }, [loading]);
+
+  // Fallback rápido para dados mock
+  useEffect(() => {
+    const fallbackTimeout = setTimeout(() => {
+      if (loading && plans.length === 0) {
+        console.log('🔄 Ativando modo mock por timeout rápido');
+        const mockPlans = getMockPlans();
+        setPlans(mockPlans);
+        setLoading(false);
+        setError('Usando dados de exemplo - problemas de conectividade');
+      }
+    }, 3000); // 3 segundos
+
+    return () => clearTimeout(fallbackTimeout);
+  }, [loading, plans.length]);
+
+  // Buscar planos na inicialização (independente de autenticação)
   useEffect(() => {
     fetchPlans();
   }, []);
 
   const fetchUserSubscription = async () => {
-    if (!user) return;
+    if (!user) {
+      console.log('🚫 fetchUserSubscription: Usuário não logado');
+      return;
+    }
+
+    console.log('🔍 fetchUserSubscription: Buscando assinatura para usuário:', user.id);
 
     try {
       const { data, error } = await supabase
@@ -72,18 +115,29 @@ export const useSubscription = () => {
         .eq('is_active', true)
         .single();
 
+      console.log('📊 fetchUserSubscription - Resposta:', { data, error });
+
       if (error && error.code !== 'PGRST116') {
+        console.error('❌ fetchUserSubscription - Erro:', error);
         throw error;
+      }
+
+      if (data) {
+        console.log('✅ fetchUserSubscription: Assinatura encontrada:', data);
+      } else {
+        console.log('🆕 fetchUserSubscription: Nenhuma assinatura encontrada');
       }
 
       setSubscription(data);
     } catch (err) {
-      console.error('Erro ao buscar assinatura:', err);
+      console.error('❌ Erro ao buscar assinatura:', err);
       setError('Erro ao carregar assinatura');
     }
   };
 
   const fetchPlans = async () => {
+    console.log('📋 fetchPlans: Iniciando busca de planos...');
+    
     try {
       // Buscar planos sem autenticação (dados públicos)
       const { data, error } = await supabase
@@ -92,25 +146,33 @@ export const useSubscription = () => {
         .eq('is_active', true)
         .order('price', { ascending: true });
 
+      console.log('📊 fetchPlans - Resposta do Supabase:', { data, error });
+
       if (error) {
-        console.error('Erro ao buscar planos:', error);
+        console.error('❌ Erro ao buscar planos:', error);
         // Se der erro 401, criar planos mock para desenvolvimento
         if (error.code === '401' || error.message?.includes('401')) {
-          console.log('Usando planos mock devido ao erro de autenticação');
-          setPlans(getMockPlans());
+          console.log('🔄 Usando planos mock devido ao erro de autenticação');
+          const mockPlans = getMockPlans();
+          console.log('📦 Planos mock criados:', mockPlans);
+          setPlans(mockPlans);
         } else {
           throw error;
         }
       } else {
+        console.log('✅ Planos carregados do Supabase:', data?.length || 0, 'planos');
         setPlans(data || []);
       }
     } catch (err) {
-      console.error('Erro ao buscar planos:', err);
+      console.error('❌ Erro crítico ao buscar planos:', err);
       // Fallback para planos mock
-      setPlans(getMockPlans());
+      const mockPlans = getMockPlans();
+      console.log('🔄 Fallback: usando planos mock:', mockPlans);
+      setPlans(mockPlans);
       setError('Usando dados de exemplo - configure o Supabase RLS');
     } finally {
       // Sempre definir loading como false após carregar planos
+      console.log('⏹️ fetchPlans: Finalizando (loading = false)');
       setLoading(false);
     }
   };
@@ -141,6 +203,47 @@ export const useSubscription = () => {
 
   const getCurrentPlan = () => {
     return subscription?.plan || null;
+  };
+
+  const createTrialSubscription = async () => {
+    if (!user) {
+      console.log('❌ createTrialSubscription: Usuário não autenticado');
+      throw new Error('Usuário não autenticado');
+    }
+
+    console.log('🎁 createTrialSubscription: Criando trial para usuário:', user.id);
+
+    try {
+      // Usar o primeiro plano disponível para o trial
+      const trialPlanId = plans.length > 0 ? plans[0].id : 'monthly';
+      
+      const { data, error } = await supabase
+        .from('user_subscriptions')
+        .insert({
+          user_id: user.id,
+          plan_id: trialPlanId,
+          status: 'trial',
+          is_active: true,
+          is_trial: true,
+          trial_ends_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          current_period_start: new Date().toISOString(),
+          current_period_end: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Erro ao criar trial:', error);
+        throw error;
+      }
+
+      console.log('✅ Trial criado com sucesso:', data);
+      await fetchUserSubscription();
+      return data;
+    } catch (err) {
+      console.error('❌ Erro ao criar trial:', err);
+      throw err;
+    }
   };
 
   const createSubscription = async (planId: string) => {
@@ -281,6 +384,7 @@ export const useSubscription = () => {
     canAccessFeatures: canAccessFeatures(),
     currentPlan: getCurrentPlan(),
     createSubscription,
+    createTrialSubscription,
     updateSubscriptionStatus,
     cancelSubscription,
     refetch: fetchUserSubscription,
