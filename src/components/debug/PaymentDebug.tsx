@@ -33,6 +33,18 @@ const PaymentDebug: React.FC = () => {
     error: typeof console.error;
   }>();
 
+  const addLogCallback = React.useCallback((level: LogEntry['level'], message: string, ...args: any[]) => {
+    const logEntry: LogEntry = {
+      id: Date.now().toString(),
+      timestamp: new Date().toLocaleTimeString('pt-BR'),
+      level,
+      message,
+      data: args.length > 0 ? args : undefined,
+    };
+
+    setLogs(prev => [...prev.slice(-49), logEntry]); // Manter apenas os últimos 50 logs
+  }, []);
+
   useEffect(() => {
     // Interceptar console.log, console.warn, console.error
     const original = {
@@ -43,15 +55,10 @@ const PaymentDebug: React.FC = () => {
     setOriginalConsole(original);
 
     const addLog = (level: LogEntry['level'], message: string, ...args: any[]) => {
-      const logEntry: LogEntry = {
-        id: Date.now().toString(),
-        timestamp: new Date().toLocaleTimeString('pt-BR'),
-        level,
-        message,
-        data: args.length > 0 ? args : undefined,
-      };
-
-      setLogs(prev => [...prev.slice(-49), logEntry]); // Manter apenas os últimos 50 logs
+      // Usar setTimeout para evitar setState durante render
+      setTimeout(() => {
+        addLogCallback(level, message, ...args);
+      }, 0);
       
       // Chamar o console original
       if (level === 'success' || level === 'info') {
@@ -68,7 +75,9 @@ const PaymentDebug: React.FC = () => {
     console.error = (...args) => addLog('error', args.join(' '), ...args);
 
     // Adicionar log inicial
-    addLog('info', '🐛 Debug do sistema de pagamento iniciado');
+    setTimeout(() => {
+      addLogCallback('info', '🐛 Debug do sistema de pagamento iniciado');
+    }, 0);
 
     return () => {
       // Restaurar console original
@@ -76,7 +85,7 @@ const PaymentDebug: React.FC = () => {
       console.warn = original.warn;
       console.error = original.error;
     };
-  }, []);
+  }, [addLogCallback]);
 
   const clearLogs = () => {
     setLogs([]);

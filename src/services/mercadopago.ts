@@ -2,6 +2,7 @@ import { SubscriptionPlan } from '@/hooks/useSubscription';
 
 // Configuração do Mercado Pago
 const MERCADOPAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY || 'TEST-your-public-key';
+const MERCADOPAGO_ACCESS_TOKEN = import.meta.env.VITE_MERCADOPAGO_ACCESS_TOKEN || 'TEST-your-access-token';
 
 export interface PaymentData {
   planId: string;
@@ -81,9 +82,9 @@ export class MercadoPagoService {
           installments: plan.frequency > 1 ? plan.frequency : 1,
         },
         back_urls: {
-          success: `${window.location.origin}/subscription/success`,
-          failure: `${window.location.origin}/subscription/failure`,
-          pending: `${window.location.origin}/subscription/pending`,
+          success: `${window.location.origin}/app?payment=success`,
+          failure: `${window.location.origin}/app?payment=failure`,
+          pending: `${window.location.origin}/app?payment=pending`,
         },
         auto_return: 'approved',
         external_reference: paymentData.userId,
@@ -109,20 +110,25 @@ export class MercadoPagoService {
 
   private async createPreferenceReal(preference: any): Promise<PaymentResult> {
     console.log('🚀 Criando preferência real no Mercado Pago...');
+    console.log('🔑 Token usado:', MERCADOPAGO_ACCESS_TOKEN.slice(0, 20) + '...');
+    console.log('📋 Dados da preferência:', JSON.stringify(preference, null, 2));
     
     // Fazer chamada real para a API do Mercado Pago
     const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer APP_USR-1748918577010643-062410-bba75831bc3f3a963aaef908c6daab40-501330484`,
+        'Authorization': `Bearer ${MERCADOPAGO_ACCESS_TOKEN}`,
       },
       body: JSON.stringify(preference),
     });
     
+    console.log('📡 Status da resposta:', response.status);
+    
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       console.error('❌ Erro na API do Mercado Pago:', errorData);
+      console.error('📋 Preferência que causou erro:', JSON.stringify(preference, null, 2));
       throw new Error(`Erro na API do Mercado Pago: ${response.status}`);
     }
     
