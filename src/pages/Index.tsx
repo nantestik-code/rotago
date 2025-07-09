@@ -44,21 +44,25 @@ const Index = () => {
 
   // Handle deliveries import with UI update
   const handleImport = async (importedDeliveries, routeName = 'Nova Rota') => {
-    // Registrar a criação da rota no histórico antes de processar a importação
-    const result = await handleImportComplete(importedDeliveries, routeName);
-    setShowFileImport(false);
-    
-    // Registrar a ação no histórico de rotas se a importação foi bem-sucedida
-    if (result?.routeId) {
-      logRouteAction('create', result.routeId, {
-        message: `Rota "${routeName}" criada com ${importedDeliveries.length} entregas`,
-        delivery_count: importedDeliveries.length
-      });
-    }
-    
-    // On mobile, automatically show map view after import
-    if (isMobile) {
-      setShowFileImport(false);
+    try {
+      // Registrar a criação da rota no histórico antes de processar a importação
+      const result = await handleImportComplete(importedDeliveries, routeName);
+      
+      // Só redirecionar após a geocodificação terminar com sucesso
+      if (result?.success) {
+        setShowFileImport(false);
+        
+        // Registrar a ação no histórico de rotas se a importação foi bem-sucedida
+        if (result?.routeId) {
+          logRouteAction('create', result.routeId, {
+            message: `Rota "${routeName}" criada com ${importedDeliveries.length} entregas`,
+            delivery_count: importedDeliveries.length
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Erro durante importação:', error);
+      // Manter na tela de importação se houver erro
     }
   };
 

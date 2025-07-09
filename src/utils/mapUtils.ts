@@ -312,6 +312,8 @@ export const geocodeAddresses = async (
 ): Promise<DeliveryItem[]> => {
   const updatedDeliveries = [...deliveries];
   let processed = 0;
+  let geocodingCount = 0;
+  const MAX_GEOCODING = 50; // Limite máximo de geocodificações
 
   // To ensure deliveries at the same address get exactly the same coordinates
   const addressCoordinates: Record<string, MapPosition> = {};
@@ -325,8 +327,11 @@ export const geocodeAddresses = async (
       delivery.lat = addressCoordinates[addressKey].lat;
       delivery.lng = addressCoordinates[addressKey].lng;
     } 
-    // Otherwise, geocode it and store
-    else if (!delivery.lat || !delivery.lng) {
+    // Otherwise, geocode it and store (com limite)
+    else if ((!delivery.lat || !delivery.lng) && geocodingCount < MAX_GEOCODING) {
+      geocodingCount++;
+      console.log(`🗺️ Geocodificando ${geocodingCount}/${MAX_GEOCODING}: ${delivery.endereco}`);
+      
       const fullAddress = `${delivery.endereco}, ${delivery.cidade}, ${delivery.estado}, ${delivery.cep}, Brasil`;
       const location = await geocodeAddress(fullAddress);
 
@@ -339,10 +344,16 @@ export const geocodeAddresses = async (
           lat: location.lat,
           lng: location.lng
         };
+      } else {
+        console.warn(`Não foi possível geocodificar: ${delivery.endereco}`);
       }
       
       // Wait a bit to avoid overloading the Mapbox API
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    // Se atingiu o limite, avisar
+    else if (geocodingCount >= MAX_GEOCODING && (!delivery.lat || !delivery.lng)) {
+      console.warn(`⚠️ Limite de geocodificação atingido (${MAX_GEOCODING}). Endereço não processado: ${delivery.endereco}`);
     }
 
     processed++;

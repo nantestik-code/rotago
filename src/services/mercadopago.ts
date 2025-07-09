@@ -81,10 +81,17 @@ export class MercadoPagoService {
           excluded_payment_types: [],
           installments: plan.frequency > 1 ? plan.frequency : 1,
         },
+        // URLs de retorno - usar URLs de teste válidas para desenvolvimento
         back_urls: {
-          success: `${window.location.origin}/app?payment=success`,
-          failure: `${window.location.origin}/app?payment=failure`,
-          pending: `${window.location.origin}/app?payment=pending`,
+          success: window.location.hostname === 'localhost' 
+            ? 'https://httpbin.org/status/200' 
+            : `${window.location.origin}/app?payment=success`,
+          failure: window.location.hostname === 'localhost' 
+            ? 'https://httpbin.org/status/400' 
+            : `${window.location.origin}/app?payment=failure`,
+          pending: window.location.hostname === 'localhost' 
+            ? 'https://httpbin.org/status/202' 
+            : `${window.location.origin}/app?payment=pending`,
         },
         auto_return: 'approved',
         external_reference: paymentData.userId,

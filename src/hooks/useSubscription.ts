@@ -80,13 +80,17 @@ export const useSubscription = () => {
   useEffect(() => {
     const fallbackTimeout = setTimeout(() => {
       if (loading && plans.length === 0) {
-        console.log('🔄 Ativando modo mock por timeout rápido');
-        const mockPlans = getMockPlans();
-        setPlans(mockPlans);
-        setLoading(false);
-        setError('Usando dados de exemplo - problemas de conectividade');
+        console.log('🔄 Ativando modo mock por timeout - tentando novamente...');
+        // Tentar buscar novamente antes de usar mock
+        fetchPlans().catch(() => {
+          console.log('🔄 Usando dados mock após falha na segunda tentativa');
+          const mockPlans = getMockPlans();
+          setPlans(mockPlans);
+          setLoading(false);
+          setError('Usando dados de exemplo - problemas de conectividade');
+        });
       }
-    }, 3000); // 3 segundos
+    }, 8000); // 8 segundos - mais tempo para conectar
 
     return () => clearTimeout(fallbackTimeout);
   }, [loading, plans.length]);
