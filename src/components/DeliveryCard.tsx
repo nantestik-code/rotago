@@ -81,59 +81,59 @@ const DeliveryCard = forwardRef<HTMLDivElement, DeliveryCardProps>(({ delivery, 
       `}
       onClick={() => onSelect(delivery.id)}
     >
-      <CardContent className="p-3">
-        <div className="flex justify-between">
-          <h3 className="font-semibold text-lg">{delivery.cliente}</h3>
-          <div className={`w-3 h-3 rounded-full ${getStatusBadgeClasses()}`}></div>
+      <CardContent className="p-2 sm:p-3">
+        <div className="flex justify-between items-start">
+          <h3 className="font-semibold text-sm sm:text-base line-clamp-1">{delivery.cliente}</h3>
+          <div className={`w-3 h-3 rounded-full ${getStatusBadgeClasses()} flex-shrink-0 mt-1`}></div>
         </div>
         
-        <div className="text-sm text-gray-600 mt-1">
-          <p className="font-medium">{delivery.endereco}</p>
-          <p>{delivery.cidade}, {delivery.estado}</p>
+        <div className="text-xs sm:text-sm text-gray-600 mt-1">
+          <p className="font-medium line-clamp-1">{delivery.endereco}</p>
+          <p className="line-clamp-1">{delivery.cidade}, {delivery.estado}</p>
           {delivery.observacoes && (
-            <p className="mt-1 italic text-xs">{delivery.observacoes}</p>
+            <p className="mt-1 italic text-xs line-clamp-1">{delivery.observacoes}</p>
           )}
         </div>
         
-        <div className="mt-3 flex flex-wrap gap-1">
+        <div className="mt-2 flex flex-wrap gap-1">
           <Button 
             size="sm" 
             variant="outline"
-            className="flex items-center gap-1 h-8 px-2 text-xs"
+            className="flex items-center gap-1 h-7 px-1.5 text-xs"
             onClick={openNavigation}
           >
-            <Navigation size={14} />
-            Navegar
+            <Navigation size={12} />
+            <span className="hidden xs:inline">Navegar</span>
           </Button>
           
           <Button 
             size="sm" 
             variant={delivery.status === 'entregue' ? 'default' : 'outline'}
-            className={`flex items-center gap-1 h-8 px-2 text-xs ${delivery.status === 'entregue' ? 'bg-green-500 hover:bg-green-600' : ''}`}
+            className={`flex items-center gap-1 h-7 px-1.5 text-xs ${delivery.status === 'entregue' ? 'bg-green-500 hover:bg-green-600' : ''}`}
             onClick={(e) => handleStatusChange(e, 'entregue')}
           >
-            <Check size={14} />
-            Entregue
+            <Check size={12} />
+            <span className="hidden xs:inline">Entregue</span>
           </Button>
           
           <Button 
             size="sm" 
             variant={delivery.status === 'ocorrencia' ? 'default' : 'outline'}
-            className={`flex items-center gap-1 h-8 px-2 text-xs ${delivery.status === 'ocorrencia' ? 'bg-red-500 hover:bg-red-600' : ''}`}
+            className={`flex items-center gap-1 h-7 px-1.5 text-xs ${delivery.status === 'ocorrencia' ? 'bg-red-500 hover:bg-red-600' : ''}`}
             onClick={(e) => handleStatusChange(e, 'ocorrencia')}
           >
-            <AlertTriangle size={14} />
-            Ocorrência
+            <AlertTriangle size={12} />
+            <span className="hidden xs:inline">Ocorrência</span>
           </Button>
           
           <Button 
             size="sm" 
             variant={delivery.status === 'pendente' ? 'default' : 'outline'}
-            className={`flex items-center gap-1 h-8 px-2 text-xs ${delivery.status === 'pendente' ? 'bg-blue-500 hover:bg-blue-600' : ''}`}
+            className={`flex items-center gap-1 h-7 px-1.5 text-xs ${delivery.status === 'pendente' ? 'bg-blue-500 hover:bg-blue-600' : ''}`}
             onClick={(e) => handleStatusChange(e, 'pendente')}
           >
-            <RotateCcw size={14} />
-            Voltar
+            <RotateCcw size={12} />
+            <span className="hidden xs:inline">Voltar</span>
           </Button>
         </div>
       </CardContent>

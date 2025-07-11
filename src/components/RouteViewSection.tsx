@@ -7,7 +7,7 @@ import DeliveryMap from '@/components/DeliveryMap';
 import StatusCounter from '@/components/StatusCounter';
 import { DeliveryItem } from '@/utils/deliveryUtils';
 import { MapPosition } from '@/utils/mapUtils';
-import { List, X, LayoutList, ArrowLeft, FileUp, Check, AlertTriangle, Eye, Clock, MessageSquare, MapPin, Navigation } from 'lucide-react';
+import { List, X, LayoutList, ArrowLeft, FileUp, Check, AlertTriangle, Eye, Clock, MessageSquare, MapPin, Navigation, RotateCcw } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -59,7 +59,11 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
   isMobile,
   onBackToImport
 }) => {
+  // Estado compartilhado para controlar a aba ativa em ambos os layouts (mobile e desktop)
   const [activeTab, setActiveTab] = useState<'pendente' | 'entregue' | 'ocorrencia'>('pendente');
+  
+  // Log para depuração das entregas recebidas
+  console.log('RouteViewSection - Entregas recebidas:', deliveries.length, deliveries);
   const [showBottomSheet, setShowBottomSheet] = useState(false);
   const [showOcorrenciaDialog, setShowOcorrenciaDialog] = useState(false);
   const [ocorrenciaText, setOcorrenciaText] = useState('');
@@ -91,6 +95,12 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
     setFeedbackMessage(message);
     setShowFeedback(true);
     setTimeout(() => setShowFeedback(false), 2000);
+  };
+  
+  // Função para abrir o diálogo de ocorrência
+  const handleOcorrenciaClick = (id: string) => {
+    setCurrentDeliveryId(id);
+    setShowOcorrenciaDialog(true);
   };
 
   const handleOcorrenciaSubmit = () => {
@@ -135,7 +145,9 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
         </div>
       )}
 
+      {/* Renderizar apenas um layout baseado no tamanho da tela */}
       {isMobile ? (
+        /* Layout Mobile */
         <div className="mobile-route-view">
           {/* Header Mobile */}
           <div className="mobile-header">
@@ -186,44 +198,47 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
               isMobileView={true}
             />
           </div>
+          
+          {/* Feedback visual quando uma lista está aberta */}
+          {showBottomSheet && <div className="fixed inset-0 bg-black bg-opacity-10 z-10"></div>}
 
           {/* Botão para mostrar próxima entrega */}
           {nextDelivery && (
-            <div className="next-delivery-fab" onClick={() => setShowBottomSheet(true)}>
-              <div className="fab-content">
+            <div className="next-delivery-fab fixed bottom-4 left-4 bg-green-600 text-white px-4 py-2 rounded-full flex items-center shadow-lg z-20" onClick={() => setShowBottomSheet(true)}>
+              <div className="fab-content flex items-center gap-1">
                 <MapPin size={16} />
-                <span>Próxima</span>
+                <span className="text-sm font-medium">Próxima</span>
               </div>
             </div>
           )}
 
           {/* Botão das listas */}
-          <div className="delivery-lists-fab" onClick={() => setShowBottomSheet(true)}>
-            <List size={20} />
-            <span className="fab-badge">{deliveries.length}</span>
+          <div className="delivery-lists-fab fixed bottom-4 right-4 w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center shadow-lg z-20" onClick={() => setShowBottomSheet(true)}>
+            <List size={20} className="text-white" />
+            <span className="fab-badge absolute -top-2 -right-2 bg-red-500 text-white text-xs w-6 h-6 rounded-full flex items-center justify-center">{deliveries.length}</span>
           </div>
 
           {/* Bottom Sheet com listas */}
           {showBottomSheet && (
-            <div className="bottom-sheet-overlay" onClick={() => setShowBottomSheet(false)}>
-              <div className="bottom-sheet" onClick={(e) => e.stopPropagation()}>
-                <div className="bottom-sheet-header">
-                  <div className="bottom-sheet-handle"></div>
-                  <div className="sheet-tabs">
+            <div className="bottom-sheet-overlay fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => setShowBottomSheet(false)}>
+              <div className="bottom-sheet z-50 bg-white rounded-t-xl shadow-xl" onClick={(e) => e.stopPropagation()}>
+                <div className="bottom-sheet-header sticky top-0 bg-white border-b border-gray-200 p-3">
+                  <div className="bottom-sheet-handle w-16 h-1 bg-gray-300 rounded-full mx-auto mb-3"></div>
+                  <div className="sheet-tabs flex space-x-2 overflow-x-auto pb-1">
                     <button 
-                      className={`tab-btn ${activeTab === 'pendente' ? 'active' : ''}`}
+                      className={`tab-btn px-3 py-1 rounded-md text-sm font-medium ${activeTab === 'pendente' ? 'bg-blue-100 text-blue-700' : 'text-gray-600'}`}
                       onClick={() => setActiveTab('pendente')}
                     >
                       Pendentes ({statusCounts.pendente})
                     </button>
                     <button 
-                      className={`tab-btn ${activeTab === 'entregue' ? 'active' : ''}`}
+                      className={`tab-btn px-3 py-1 rounded-md text-sm font-medium ${activeTab === 'entregue' ? 'bg-green-100 text-green-700' : 'text-gray-600'}`}
                       onClick={() => setActiveTab('entregue')}
                     >
                       Entregues ({statusCounts.entregue})
                     </button>
                     <button 
-                      className={`tab-btn ${activeTab === 'ocorrencia' ? 'active' : ''}`}
+                      className={`tab-btn px-3 py-1 rounded-md text-sm font-medium ${activeTab === 'ocorrencia' ? 'bg-red-100 text-red-700' : 'text-gray-600'}`}
                       onClick={() => setActiveTab('ocorrencia')}
                     >
                       Ocorrências ({statusCounts.ocorrencia})
@@ -233,64 +248,69 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowBottomSheet(false)}
-                    className="close-btn"
+                    className="close-btn absolute right-2 top-2 p-1 rounded-full hover:bg-gray-100"
                   >
                     <X size={20} />
                   </Button>
                 </div>
 
-                <div className="sheet-content">
+                <div className="sheet-content p-2 max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300">
+                  {/* Renderizar apenas a lista ativa selecionada */}
                   {activeTab === 'pendente' && (
-                    <div className="delivery-cards">
-                      {pendingDeliveries.map((delivery, index) => (
-                        <div key={delivery.id} className="mobile-delivery-card">
+                    <div className="delivery-cards space-y-3">
+                      {pendingDeliveries.length > 0 ? pendingDeliveries.map((delivery, index) => (
+                        <div key={delivery.id} className="mobile-delivery-card bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                           <div className="card-header">
-                            <div className="delivery-number">{index + 1}</div>
+                            <div className="delivery-number w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-medium mr-2">{index + 1}</div>
                             <div className="delivery-info">
-                              <h3>{delivery.endereco.split(',')[0]}</h3>
-                              <p>{delivery.cidade}</p>
+                              <h3 className="truncate">{delivery.endereco.split(',')[0]}</h3>
+                              <p className="truncate">{delivery.cidade}</p>
+                              <span className="status-label">Pendente</span>
                             </div>
                           </div>
                           <div className="card-actions">
                             <Button
-                              className="action-btn nav-btn"
+                              className="action-btn nav-btn flex-1 flex items-center justify-center gap-1"
                               onClick={() => openNavigation(delivery)}
                               size="sm"
+                              disabled={!delivery.lat || !delivery.lng}
                             >
-                              <Navigation size={14} />
-                              Navegar
+                              <MapPin size={16} />
+                              <span className="hidden sm:inline">Navegar</span>
                             </Button>
                             <Button
-                              className="action-btn deliver-btn"
+                              className="action-btn done-btn flex-1 flex items-center justify-center gap-1 bg-green-600 hover:bg-green-700 text-white"
                               onClick={() => handleStatusChange(delivery.id, 'entregue')}
                               size="sm"
                             >
-                              <Check size={14} />
-                              Entregar
+                              <Check size={16} />
+                              <span className="hidden sm:inline">Entregue</span>
                             </Button>
                             <Button
-                              className="action-btn occurrence-btn"
-                              onClick={() => handleStatusChange(delivery.id, 'ocorrencia')}
+                              className="action-btn issue-btn flex-1 flex items-center justify-center gap-1 bg-red-600 hover:bg-red-700 text-white"
+                              onClick={() => handleOcorrenciaClick(delivery.id)}
                               size="sm"
                             >
-                              <AlertTriangle size={14} />
-                              Ocorrência
+                              <AlertTriangle size={16} />
+                              <span className="hidden sm:inline">Ocorrência</span>
                             </Button>
                           </div>
                         </div>
-                      ))}
+                      )) : (
+                        <div className="empty-list-message p-4 text-center text-gray-500 italic">Nenhuma entrega pendente</div>
+                      )}
                     </div>
                   )}
 
                   {activeTab === 'entregue' && (
-                    <div className="delivery-cards">
-                      {deliveredDeliveries.map((delivery, index) => (
-                        <div key={delivery.id} className="mobile-delivery-card delivered">
+                    <div className="delivery-cards space-y-3">
+                      {deliveredDeliveries.length > 0 ? deliveredDeliveries.map((delivery, index) => (
+                        <div key={delivery.id} className="mobile-delivery-card delivered bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                           <div className="card-header">
-                            <div className="delivery-number delivered">{index + 1}</div>
+                            <div className="delivery-number delivered w-6 h-6 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-sm font-medium mr-2">{index + 1}</div>
                             <div className="delivery-info">
-                              <h3>{delivery.endereco.split(',')[0]}</h3>
-                              <p>{delivery.cidade}</p>
+                              <h3 className="truncate">{delivery.endereco.split(',')[0]}</h3>
+                              <p className="truncate">{delivery.cidade}</p>
                               <span className="status-label">Entregue</span>
                             </div>
                           </div>
@@ -300,23 +320,26 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                               onClick={() => handleStatusChange(delivery.id, 'pendente')}
                               size="sm"
                             >
-                              Desfazer
+                              <RotateCcw size={16} />
+                              <span className="hidden sm:inline">Desfazer</span>
                             </Button>
                           </div>
                         </div>
-                      ))}
+                      )) : (
+                        <div className="empty-list-message p-4 text-center text-gray-500 italic">Nenhuma entrega concluída</div>
+                      )}
                     </div>
                   )}
 
                   {activeTab === 'ocorrencia' && (
-                    <div className="delivery-cards">
-                      {occurrenceDeliveries.map((delivery, index) => (
-                        <div key={delivery.id} className="mobile-delivery-card occurrence">
+                    <div className="delivery-cards space-y-3">
+                      {occurrenceDeliveries.length > 0 ? occurrenceDeliveries.map((delivery, index) => (
+                        <div key={delivery.id} className="mobile-delivery-card occurrence bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                           <div className="card-header">
-                            <div className="delivery-number occurrence">{index + 1}</div>
+                            <div className="delivery-number occurrence w-6 h-6 rounded-full bg-red-100 text-red-700 flex items-center justify-center text-sm font-medium mr-2">{index + 1}</div>
                             <div className="delivery-info">
-                              <h3>{delivery.endereco.split(',')[0]}</h3>
-                              <p>{delivery.cidade}</p>
+                              <h3 className="truncate">{delivery.endereco.split(',')[0]}</h3>
+                              <p className="truncate">{delivery.cidade}</p>
                               <span className="status-label">Ocorrência</span>
                             </div>
                           </div>
@@ -326,11 +349,14 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                               onClick={() => handleStatusChange(delivery.id, 'pendente')}
                               size="sm"
                             >
-                              Desfazer
+                              <RotateCcw size={16} />
+                              <span className="hidden sm:inline">Desfazer</span>
                             </Button>
                           </div>
                         </div>
-                      ))}
+                      )) : (
+                        <div className="empty-list-message p-4 text-center text-gray-500 italic">Nenhuma ocorrência registrada</div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -365,59 +391,108 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-4 h-[calc(100vh-230px)]">
-            <div className="col-span-1 overflow-hidden flex flex-col border-r border-gray-200 pr-2">
-              <h3 className="font-medium text-sm mb-2 flex items-center">
-                <AlertTriangle size={14} className="text-red-500 mr-1" />
-                Ocorrências ({deliveries.filter(d => d.status === 'ocorrencia').length})
-              </h3>
-              <DeliveryList
-                deliveries={deliveries.filter(d => d.status === 'ocorrencia')}
-                onStatusChange={onStatusChange}
-                onSelectDelivery={onSelectDelivery}
-                selectedDeliveryId={selectedDeliveryId}
-              />
-            </div>
-            
-            <div className="col-span-1 overflow-hidden flex flex-col">
-              <h3 className="font-medium text-sm mb-2 flex items-center">
-                <Clock size={14} className="text-blue-500 mr-1" />
-                Pendentes ({deliveries.filter(d => d.status === 'pendente').length})
-              </h3>
-              <DeliveryList
-                deliveries={deliveries.filter(d => d.status === 'pendente')}
-                onStatusChange={onStatusChange}
-                onSelectDelivery={onSelectDelivery}
-                selectedDeliveryId={selectedDeliveryId}
-              />
-            </div>
-            
-            <div className="col-span-1 overflow-hidden flex flex-col border-l border-gray-200 pl-2">
-              <h3 className="font-medium text-sm mb-2 flex items-center">
-                <Check size={14} className="text-green-500 mr-1" />
-                Entregues ({deliveries.filter(d => d.status === 'entregue').length})
-              </h3>
-              <DeliveryList
-                deliveries={deliveries.filter(d => d.status === 'entregue')}
-                onStatusChange={onStatusChange}
-                onSelectDelivery={onSelectDelivery}
-                selectedDeliveryId={selectedDeliveryId}
-              />
-            </div>
-            
-            <div className="col-span-3 rounded-md overflow-hidden mt-4 h-[calc(100vh-400px)]">
-              <DeliveryMap
-                deliveries={deliveries}
-                selectedDeliveryId={selectedDeliveryId}
-                onSelectDelivery={onSelectDelivery}
-                currentLocation={currentLocation}
-                isTrackingActive={isTrackingActive}
-                onStartTracking={onStartTracking}
-                onStopTracking={onStopTracking}
-                onOptimizeRoute={onOptimizeRoute}
-                onStatusChange={onStatusChange}
-                isMobileView={false}
-              />
+          <div className="h-[calc(100vh-230px)] overflow-hidden">
+            {/* Layout em grid para desktop - mapa à esquerda (60%), lista à direita (40%) */}
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 lg:gap-6 h-full">
+              {/* Mapa à esquerda - ocupa 60% do espaço em desktop */}
+              <div className="h-full rounded-md overflow-hidden col-span-3">
+                <DeliveryMap
+                  deliveries={deliveries}
+                  selectedDeliveryId={selectedDeliveryId}
+                  onSelectDelivery={onSelectDelivery}
+                  currentLocation={currentLocation}
+                  isTrackingActive={isTrackingActive}
+                  onStartTracking={onStartTracking}
+                  onStopTracking={onStopTracking}
+                  onOptimizeRoute={onOptimizeRoute}
+                  onStatusChange={onStatusChange}
+                  isMobileView={false}
+                />
+              </div>
+              
+              {/* Lista de entregas à direita - ocupa 40% do espaço em desktop */}
+              <div className="h-full flex flex-col border-l border-gray-200 pl-2 lg:pl-4 col-span-2 bg-white rounded-lg shadow-sm overflow-hidden">
+                {/* Abas de navegação */}
+                <div className="flex flex-wrap gap-1 lg:space-x-2 mb-4 border-b border-gray-200 pb-2 overflow-x-auto">
+                  <button 
+                    className={`px-2 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium flex items-center whitespace-nowrap ${activeTab === 'pendente' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
+                    onClick={() => setActiveTab('pendente')}
+                  >
+                    <Clock size={16} className="mr-1 lg:mr-2 text-blue-500" />
+                    <span className="hidden sm:inline">Pendentes</span>
+                    <span className="sm:hidden">Pend.</span>
+                    <span className="ml-1">({pendingDeliveries.length || deliveries.length})</span>
+                  </button>
+                  <button 
+                    className={`px-2 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium flex items-center whitespace-nowrap ${activeTab === 'entregue' ? 'bg-green-100 text-green-700' : 'text-gray-600 hover:bg-gray-100'}`}
+                    onClick={() => setActiveTab('entregue')}
+                  >
+                    <Check size={16} className="mr-1 lg:mr-2 text-green-500" />
+                    <span className="hidden sm:inline">Entregues</span>
+                    <span className="sm:hidden">Entr.</span>
+                    <span className="ml-1">({deliveredDeliveries.length})</span>
+                  </button>
+                  <button 
+                    className={`px-2 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium flex items-center whitespace-nowrap ${activeTab === 'ocorrencia' ? 'bg-red-100 text-red-700' : 'text-gray-600 hover:bg-gray-100'}`}
+                    onClick={() => setActiveTab('ocorrencia')}
+                  >
+                    <AlertTriangle size={16} className="mr-1 lg:mr-2 text-red-500" />
+                    <span className="hidden sm:inline">Ocorrências</span>
+                    <span className="sm:hidden">Ocor.</span>
+                    <span className="ml-1">({occurrenceDeliveries.length})</span>
+                  </button>
+                </div>
+                
+                {/* Conteúdo da aba ativa */}
+                <div className="flex-1 overflow-hidden">
+                  {/* Debug para verificar as entregas */}
+                  {false && (
+                    <div className="hidden">
+                      {'RouteViewSection - deliveries: ' + deliveries.length}
+                      {'RouteViewSection - pendingDeliveries: ' + pendingDeliveries.length}
+                      {'RouteViewSection - deliveredDeliveries: ' + deliveredDeliveries.length}
+                      {'RouteViewSection - occurrenceDeliveries: ' + occurrenceDeliveries.length}
+                      {'RouteViewSection - activeTab: ' + activeTab}
+                    </div>
+                  )}
+                  
+                  {activeTab === 'pendente' && (
+                    <div className="h-full">
+                      <DeliveryList
+                        deliveries={deliveries} /* Sempre passamos todas as entregas */
+                        onStatusChange={onStatusChange}
+                        onSelectDelivery={onSelectDelivery}
+                        selectedDeliveryId={selectedDeliveryId}
+                        status="pendente"
+                      />
+                    </div>
+                  )}
+                  
+                  {activeTab === 'entregue' && (
+                    <div className="h-full">
+                      <DeliveryList
+                        deliveries={deliveries} /* Sempre passamos todas as entregas */
+                        onStatusChange={onStatusChange}
+                        onSelectDelivery={onSelectDelivery}
+                        selectedDeliveryId={selectedDeliveryId}
+                        status="entregue"
+                      />
+                    </div>
+                  )}
+                  
+                  {activeTab === 'ocorrencia' && (
+                    <div className="h-full">
+                      <DeliveryList
+                        deliveries={deliveries} /* Sempre passamos todas as entregas */
+                        onStatusChange={onStatusChange}
+                        onSelectDelivery={onSelectDelivery}
+                        selectedDeliveryId={selectedDeliveryId}
+                        status="ocorrencia"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>

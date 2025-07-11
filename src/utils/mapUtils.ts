@@ -48,22 +48,37 @@ export const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2
 export const getCurrentPosition = (): Promise<MapPosition> => {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
-      reject(new Error('Geolocalização não é suportada pelo seu navegador'));
+      console.warn('Geolocalização não é suportada pelo seu navegador');
+      // Usar posição padrão como fallback
+      resolve(defaultMapCenter);
       return;
     }
 
+    const timeoutId = setTimeout(() => {
+      console.warn('Timeout ao obter localização, usando posição padrão');
+      resolve(defaultMapCenter);
+    }, 10000); // 10 segundos de timeout
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        clearTimeout(timeoutId);
         resolve({
           lat: position.coords.latitude,
           lng: position.coords.longitude,
         });
       },
       (error) => {
-        console.error('Erro ao obter posição atual:', error);
-        reject(error);
+        clearTimeout(timeoutId);
+        console.warn(`Erro ao obter posição atual (${error.code}): ${error.message}`);
+        
+        // Usar posição padrão como fallback em caso de erro
+        resolve(defaultMapCenter);
       },
-      { enableHighAccuracy: true }
+      { 
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000 // Aceita posições de até 1 minuto atrás
+      }
     );
   });
 };
@@ -73,6 +88,9 @@ export const watchPosition = (
   onError?: (error: GeolocationPositionError) => void
 ) => {
   if (!navigator.geolocation) {
+    console.warn('Geolocalização não suportada pelo navegador');
+    // Notificar com a posição padrão
+    onPositionChange(defaultMapCenter);
     if (onError) onError({ code: 0, message: 'Geolocalização não suportada', PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 } as GeolocationPositionError);
     return null;
   }
@@ -86,9 +104,15 @@ export const watchPosition = (
       });
     },
     (error) => {
-      console.error('Erro ao obter posição inicial:', error);
+      console.warn(`Erro ao obter posição inicial (${error.code}): ${error.message}`);
+      // Usar posição padrão como fallback
+      onPositionChange(defaultMapCenter);
     },
-    { enableHighAccuracy: true }
+    { 
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 60000 // Aceita posições de até 1 minuto atrás
+    }
   );
 
   // Configurar o monitoramento contínuo com maior precisão
@@ -98,16 +122,16 @@ export const watchPosition = (
         lat: position.coords.latitude,
         lng: position.coords.longitude,
       });
-      console.log('Posição atualizada:', position.coords.latitude, position.coords.longitude);
     },
     (error) => {
-      console.error('Erro ao monitorar posição:', error);
+      console.warn(`Erro ao monitorar posição (${error.code}): ${error.message}`);
+      // Não notificar com posição padrão aqui para evitar loops
       if (onError) onError(error);
     },
     { 
-      enableHighAccuracy: true, 
-      maximumAge: 5000,  // Reduzido para 5 segundos para maior precisão
-      timeout: 10000     // Aumentado para 10 segundos para dar mais tempo para obter a posição
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 60000 // Aceita posições de até 1 minuto atrás
     }
   );
 

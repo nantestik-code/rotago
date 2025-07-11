@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Progress } from '@/components/ui/progress';
 import FileImport from '@/components/FileImport';
 import { DeliveryItem } from '@/utils/deliveryUtils';
@@ -69,30 +69,48 @@ const ImportSection: React.FC<ImportSectionProps> = ({
     onImportComplete(deliveries, routeName);
   };
   
-  // Função para salvar a rota no histórico
+  // Função para salvar a rota no histórico - otimizada para evitar duplicações
   const saveRouteToHistory = (name: string, date: string) => {
     try {
       // Obter histórico existente ou iniciar um novo
       const existingHistory = localStorage.getItem('route-history');
-      const routeHistory = existingHistory ? JSON.parse(existingHistory) : [];
+      let routeHistory = existingHistory ? JSON.parse(existingHistory) : [];
       
-      // Adicionar nova rota ao histórico
-      routeHistory.push({
-        id: `route-${Date.now()}`,
+      // Verificar se já existe uma rota com o mesmo nome
+      const existingRouteIndex = routeHistory.findIndex((route: any) => route.name === name);
+      
+      // Criar o objeto da nova rota
+      const newRoute = {
+        id: Date.now().toString(),
         name,
         date,
-        createdAt: new Date().toISOString()
-      });
+        createdAt: new Date().toISOString(),
+        lastAccessed: new Date().toISOString()
+      };
       
-      // Limitar a 20 rotas no histórico (opcional)
+      // Se a rota já existe, atualizá-la
+      if (existingRouteIndex >= 0) {
+        routeHistory[existingRouteIndex] = {
+          ...routeHistory[existingRouteIndex],
+          lastAccessed: new Date().toISOString()
+        };
+      } else {
+        // Adicionar nova rota ao histórico
+        routeHistory.push(newRoute);
+      }
+      
+      // Ordenar por último acesso
+      routeHistory.sort((a: any, b: any) => 
+        new Date(b.lastAccessed).getTime() - new Date(a.lastAccessed).getTime()
+      );
+      
+      // Limitar o histórico a 20 itens
       if (routeHistory.length > 20) {
-        routeHistory.shift(); // Remove a rota mais antiga
+        routeHistory = routeHistory.slice(0, 20);
       }
       
       // Salvar histórico atualizado
       localStorage.setItem('route-history', JSON.stringify(routeHistory));
-      
-      console.log('Rota salva no histórico:', name);
     } catch (error) {
       console.error('Erro ao salvar rota no histórico:', error);
     }

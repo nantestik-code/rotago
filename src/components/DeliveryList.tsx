@@ -12,6 +12,7 @@ interface DeliveryListProps {
   onSelectDelivery: (id: string) => void;
   selectedDeliveryId: string | null;
   compactMode?: boolean;
+  status?: 'pendente' | 'entregue' | 'ocorrencia';
 }
 
 const DeliveryList: React.FC<DeliveryListProps> = ({
@@ -20,6 +21,7 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
   onSelectDelivery,
   selectedDeliveryId,
   compactMode = false,
+  status,
 }) => {
   const listContainerRef = useRef<HTMLDivElement>(null);
   const deliveryItemRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -52,29 +54,63 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
   
   // Filter deliveries and sort by sequence_number
   const filteredDeliveries = useMemo(() => {
+    // Adicionar log para debug
+    console.log(`DeliveryList - status: ${status}, filter: ${filter}, deliveries recebidas: ${deliveries.length}`);
+    
+    // Se não houver entregas, retornar array vazio
+    if (!deliveries || deliveries.length === 0) {
+      console.log('DeliveryList - Nenhuma entrega recebida');
+      return [];
+    }
+    
     const filtered = deliveries.filter(delivery => {
-      if (filter !== 'todos' && delivery.status !== filter) {
-        return false;
+      // Se status for definido nas props, verificamos se há entregas com esse status
+      // Se não houver nenhuma entrega com esse status, mostramos todas as entregas
+      if (status) {
+        // Verificar se há alguma entrega com o status definido
+        const hasDeliveriesWithStatus = deliveries.some(d => d.status === status);
+        console.log(`DeliveryList - hasDeliveriesWithStatus: ${hasDeliveriesWithStatus}, status: ${status}`);
+        
+        // Se não houver entregas com o status definido, mostramos todas as entregas
+        // Isso é importante para exibir ordens recém-importadas
+        if (!hasDeliveriesWithStatus) {
+          // Não filtramos, mostramos todas as entregas
+          console.log('DeliveryList - Mostrando todas as entregas pois não há com o status específico');
+        } else {
+          // Se houver entregas com o status definido, filtramos por esse status
+          if (delivery.status !== status) return false;
+        }
+      } else {
+        // Quando status não está definido, aplicamos o filtro local
+        if (filter !== 'todos') {
+          if (filter === 'pendente' && delivery.status !== 'pendente') return false;
+          if (filter === 'entregue' && delivery.status !== 'entregue') return false;
+          if (filter === 'ocorrencia' && delivery.status !== 'ocorrencia') return false;
+        }
       }
       
+      // Filtro de busca sempre é aplicado
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         return (
-          delivery.cliente.toLowerCase().includes(query) ||
-          delivery.endereco.toLowerCase().includes(query) ||
-          delivery.cidade.toLowerCase().includes(query)
+          (delivery.cliente?.toLowerCase() || '').includes(query) ||
+          (delivery.endereco?.toLowerCase() || '').includes(query) ||
+          (delivery.cidade?.toLowerCase() || '').includes(query)
         );
       }
       
       return true;
     });
     
+    // Adicionar log para debug
+    console.log(`DeliveryList - entregas filtradas: ${filtered.length}`);
+    
     return [...filtered].sort((a, b) => {
       const seqA = a.sequence_number || 999999;
       const seqB = b.sequence_number || 999999;
       return seqA - seqB;
     });
-  }, [deliveries, filter, searchQuery]);
+  }, [deliveries, filter, searchQuery, status]);
 
   // Function to check if a delivery has multiple deliveries at the same location
   const hasMultipleDeliveries = (delivery: DeliveryItem): {isMultiple: boolean, indices: number[]} => {
@@ -119,23 +155,32 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
   return (
     <div className="flex flex-col h-full">
       {!compactMode && (
-        <div className="mb-4 space-y-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-            <Input
-              placeholder="Buscar por endereço..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
+        <div className="flex flex-col space-y-2 mb-2 sm:mb-3 px-2">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+            <div className="text-sm font-medium text-gray-700 flex items-center">
+              <span className="bg-gray-100 px-2 py-1 rounded-md">
+                {filteredDeliveries.length} {filteredDeliveries.length === 1 ? 'entrega' : 'entregas'}
+              </span>
+            </div>
+            <div className="flex items-center w-full sm:w-auto">
+              <div className="relative w-full sm:w-48 md:w-56">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                <Input
+                  placeholder="Buscar por endereço..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 w-full text-sm h-9"
+                />
+              </div>
+            </div>
           </div>
           
-          <div className="flex gap-1 overflow-x-auto pb-1">
+          <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-gray-300 -mx-2 px-2">
             <Button
               size="sm"
               variant={filter === 'todos' ? 'default' : 'outline'}
               onClick={() => setFilter('todos')}
-              className="whitespace-nowrap"
+              className="whitespace-nowrap text-xs min-w-[60px] h-8"
             >
               Todos
             </Button>
@@ -143,7 +188,7 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
               size="sm"
               variant={filter === 'pendente' ? 'default' : 'outline'}
               onClick={() => setFilter('pendente')}
-              className="whitespace-nowrap"
+              className="whitespace-nowrap text-xs min-w-[60px] h-8"
             >
               Pendentes
             </Button>
@@ -151,7 +196,7 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
               size="sm"
               variant={filter === 'entregue' ? 'default' : 'outline'}
               onClick={() => setFilter('entregue')}
-              className="whitespace-nowrap"
+              className="whitespace-nowrap text-xs min-w-[60px] h-8"
             >
               Entregues
             </Button>
@@ -159,7 +204,7 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
               size="sm"
               variant={filter === 'ocorrencia' ? 'default' : 'outline'}
               onClick={() => setFilter('ocorrencia')}
-              className="whitespace-nowrap"
+              className="whitespace-nowrap text-xs min-w-[60px] h-8"
             >
               Ocorrências
             </Button>
@@ -167,40 +212,110 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
         </div>
       )}
       
-      <div ref={listContainerRef} className={`flex-1 overflow-y-auto ${compactMode ? 'pr-0' : 'pr-1'}`}>
+      <div ref={listContainerRef} className={`flex-1 overflow-y-auto overflow-x-hidden ${compactMode ? 'pr-0' : 'pr-1'} relative`}>
+        {/* Debug para verificar as entregas filtradas */}
+        {/* Debug para verificar as entregas filtradas */}
+        {filteredDeliveries.length > 0 && (
+          <div className="hidden">
+            {`DeliveryList - filteredDeliveries: ${filteredDeliveries.length}`}
+          </div>
+        )}
+        
         {filteredDeliveries.length > 0 ? (
-          filteredDeliveries.map((delivery, index) => {
-            const realIndex = deliveries.findIndex(d => d.id === delivery.id);
-            const orderNumber = realIndex + 1;
-            const { isMultiple, indices } = hasMultipleDeliveries(delivery);
-            const isFirstInGroup = isMultiple && indices.includes(orderNumber) && indices[0] === orderNumber;
-            
-            return (
-              <div key={delivery.id} className="mb-3 relative">
-                {isMultiple && (
-                  <div className="text-xs font-semibold py-1 px-2 bg-orange-100 text-orange-800 rounded mb-1">
-                    {isFirstInGroup ? 
-                      `Múltiplas entregas (Ordens: ${indices.join(', ')})` : 
-                      `Parte de múltiplas entregas (Ordens: ${indices.join(', ')})`
-                    }
-                  </div>
-                )}
-                <DeliveryCard
+          <div className="py-2 px-1 lg:px-2">
+            {filteredDeliveries.map((delivery, index) => {
+              const realIndex = deliveries.findIndex(d => d.id === delivery.id);
+              const orderNumber = realIndex + 1;
+              const { isMultiple, indices } = hasMultipleDeliveries(delivery);
+              
+              return (
+                <div 
+                  key={delivery.id} 
                   ref={el => deliveryItemRefs.current[delivery.id] = el}
-                  delivery={{
-                    ...delivery,
-                    cliente: `Ordem ${orderNumber}`
+                  className={`mb-2 border-l-4 ${delivery.status === 'pendente' ? 'border-l-blue-500' : delivery.status === 'entregue' ? 'border-l-green-500' : 'border-l-red-500'} ${selectedDeliveryId === delivery.id ? 'bg-gray-50 ring-2 ring-blue-200' : 'bg-white'} rounded shadow-sm hover:shadow-md active:scale-[0.99] transition-all cursor-pointer`}
+                  onClick={() => onSelectDelivery(delivery.id)}
+                  role="button"
+                  tabIndex={0}
+                  aria-selected={selectedDeliveryId === delivery.id}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onSelectDelivery(delivery.id);
+                    }
                   }}
-                  isSelected={selectedDeliveryId === delivery.id}
-                  onStatusChange={handleStatusChange}
-                  onSelect={onSelectDelivery}
-                />
-              </div>
-            );
-          })
+                >
+                  <div className="p-2 sm:p-3 flex items-center justify-between">
+                    <div className="flex-1 min-w-0 mr-2">
+                      <div className="flex items-center mb-1">
+                        <span className="font-medium text-sm mr-2">#{orderNumber}</span>
+                        {isMultiple && (
+                          <span className="text-xs bg-orange-100 text-orange-800 px-1 rounded">
+                            Múltipla
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm truncate font-medium">
+                        {delivery.endereco || 'Sem endereço'}
+                      </div>
+                      <div className="text-xs text-gray-500 truncate">
+                        {delivery.cidade || 'Sem cidade'}
+                      </div>
+                    </div>
+                    
+                    <div className="flex space-x-1 sm:space-x-2">
+                      {delivery.status !== 'pendente' && (
+                        <button 
+                          className="p-2 sm:p-1.5 rounded-full text-blue-600 hover:bg-blue-50 active:bg-blue-100 border border-blue-100 touch-manipulation"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            handleStatusChange(delivery.id, 'pendente');
+                          }}
+                          title="Marcar como pendente"
+                          aria-label="Marcar como pendente"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        </button>
+                      )}
+                      
+                      {delivery.status !== 'entregue' && (
+                        <button 
+                          className="p-2 sm:p-1.5 rounded-full text-green-600 hover:bg-green-50 active:bg-green-100 border border-green-100 touch-manipulation"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            handleStatusChange(delivery.id, 'entregue');
+                          }}
+                          title="Marcar como entregue"
+                          aria-label="Marcar como entregue"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        </button>
+                      )}
+                      
+                      {delivery.status !== 'ocorrencia' && (
+                        <button 
+                          className="p-2 sm:p-1.5 rounded-full text-red-600 hover:bg-red-50 active:bg-red-100 border border-red-100 touch-manipulation"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            handleStatusChange(delivery.id, 'ocorrencia');
+                          }}
+                          title="Marcar como ocorrência"
+                          aria-label="Marcar como ocorrência"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : (
-          <div className="text-center py-8 text-gray-500">
-            Nenhuma entrega encontrada com os filtros atuais.
+          <div className="text-center py-16 text-gray-500 text-sm">
+            Nenhuma entrega encontrada.
           </div>
         )}
       </div>

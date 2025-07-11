@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import ImportSection from '@/components/ImportSection';
 import RouteViewSection from '@/components/RouteViewSection';
@@ -10,6 +10,9 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useActivityTracker } from '@/hooks/use-activity-tracker';
 import { useRouteHistory } from '@/hooks/use-route-history';
 import SubscriptionBanner from '@/components/subscription/SubscriptionBanner';
+import { toast } from '@/components/ui/use-toast';
+
+const STORAGE_KEY = 'rota-facil-turbo-state';
 
 const Index = () => {
   const isMobile = useIsMobile();
@@ -32,6 +35,46 @@ const Index = () => {
     optimizeDeliveryRoute,
     statusCounts
   } = useDeliveries();
+  
+  // Carregar estado salvo quando o componente é montado
+  useEffect(() => {
+    try {
+      const savedState = localStorage.getItem(STORAGE_KEY);
+      if (savedState) {
+        const parsedState = JSON.parse(savedState);
+        
+        // Verificar se os dados salvos são válidos
+        if (parsedState.deliveries && Array.isArray(parsedState.deliveries) && parsedState.deliveries.length > 0) {
+          setDeliveries(parsedState.deliveries);
+          setSelectedDeliveryId(parsedState.selectedDeliveryId || null);
+          setShowFileImport(false);
+          
+          toast({
+            title: 'Rota restaurada',
+            description: `${parsedState.deliveries.length} entregas foram restauradas da sessão anterior.`,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar estado salvo:', error);
+    }
+  }, []);
+  
+  // Salvar estado quando deliveries ou selectedDeliveryId mudam
+  useEffect(() => {
+    if (deliveries.length > 0) {
+      try {
+        const stateToSave = {
+          deliveries,
+          selectedDeliveryId,
+          timestamp: new Date().toISOString()
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+      } catch (error) {
+        console.error('Erro ao salvar estado:', error);
+      }
+    }
+  }, [deliveries, selectedDeliveryId]);
 
   const {
     currentLocation,
@@ -72,6 +115,13 @@ const Index = () => {
     setDeliveries([]);
     setSelectedDeliveryId(null);
     stopTracking();
+    
+    // Limpar dados salvos no localStorage
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (error) {
+      console.error('Erro ao limpar estado salvo:', error);
+    }
   }
 
   // Handle route optimization with current location
@@ -100,29 +150,31 @@ const Index = () => {
         )}
 
         {!showFileImport && (
-          <RouteViewSection 
-            deliveries={deliveries}
-            selectedDeliveryId={selectedDeliveryId}
-            onSelectDelivery={setSelectedDeliveryId}
-            onStatusChange={handleStatusChange}
-            currentLocation={currentLocation}
-            isTrackingActive={isTrackingActive}
-            onStartTracking={startTracking}
-            onStopTracking={stopTracking}
-            onOptimizeRoute={handleOptimizeRoute}
-            statusCounts={statusCounts}
-            processingGeocode={processingGeocode}
-            geocodeProgress={geocodeProgress}
-            processingOptimization={processingOptimization}
-            isMobile={isMobile}
-            onBackToImport={() => {
-              // Parar o rastreamento e voltar para a tela de importação
-              stopTracking();
-              setShowFileImport(true);
-              setDeliveries([]);
-              setSelectedDeliveryId(null);
-            }}
-          />
+          <div className="route-view-container">
+            <RouteViewSection 
+              deliveries={deliveries}
+              selectedDeliveryId={selectedDeliveryId}
+              onSelectDelivery={setSelectedDeliveryId}
+              onStatusChange={handleStatusChange}
+              currentLocation={currentLocation}
+              isTrackingActive={isTrackingActive}
+              onStartTracking={startTracking}
+              onStopTracking={stopTracking}
+              onOptimizeRoute={handleOptimizeRoute}
+              statusCounts={statusCounts}
+              processingGeocode={processingGeocode}
+              geocodeProgress={geocodeProgress}
+              processingOptimization={processingOptimization}
+              isMobile={isMobile}
+              onBackToImport={() => {
+                // Parar o rastreamento e voltar para a tela de importação
+                stopTracking();
+                setShowFileImport(true);
+                setDeliveries([]);
+                setSelectedDeliveryId(null);
+              }}
+            />
+          </div>
         )}
       </div>
     </div>
