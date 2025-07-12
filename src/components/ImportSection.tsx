@@ -8,8 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileUp, Plus, Route, Calendar, MapPin } from 'lucide-react';
+import { FileUp, Plus, Route, Calendar, MapPin, Lock, Crown } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
+import { useSubscription } from '@/hooks/useSubscription';
+import { useNavigate } from 'react-router-dom';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 
 interface ImportSectionProps {
   onImportComplete: (deliveries: DeliveryItem[], routeName: string) => void;
@@ -25,6 +29,16 @@ const ImportSection: React.FC<ImportSectionProps> = ({
   const [routeName, setRouteName] = useState('');
   const [routeDate, setRouteDate] = useState(new Date().toISOString().split('T')[0]);
   const [activeTab, setActiveTab] = useState('import');
+  const navigate = useNavigate();
+  
+  // Usar o hook de assinatura para verificar o status
+  const { 
+    subscription, 
+    isSubscriptionActive, 
+    isTrialActive, 
+    trialDaysRemaining,
+    loading: subscriptionLoading
+  } = useSubscription();
   
   const handleCreateEmptyRoute = () => {
     if (!routeName.trim()) {
@@ -116,8 +130,41 @@ const ImportSection: React.FC<ImportSectionProps> = ({
     }
   };
   
+  // Verificar se o usuário pode acessar as funcionalidades de importação
+  const canAccessImport = isSubscriptionActive || isTrialActive;
+  
+  // Função para navegar para a página de assinatura
+  const goToSubscription = () => {
+    navigate('/subscription');
+  };
+  
   return (
     <div className="max-w-2xl mx-auto py-4 pb-20">
+      {/* Mostrar alerta quando o período de trial expirou */}
+      {!subscriptionLoading && !canAccessImport && subscription && (
+        <Alert className="border-amber-200 bg-amber-50 mb-4">
+          <Lock className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-amber-800">
+                <strong>Período gratuito expirado!</strong> Assine um plano para continuar importando planilhas.
+              </span>
+              <Badge className="bg-amber-100 text-amber-800 ml-2">
+                <Crown className="w-3 h-3 mr-1" />
+                Premium
+              </Badge>
+            </div>
+            <Button 
+              size="sm" 
+              onClick={goToSubscription}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              Assinar Agora
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+      
       <Card className="w-full mb-6">
         <CardHeader className="pb-3">
           <CardTitle className="text-xl font-bold">Criar Nova Rota</CardTitle>
@@ -169,10 +216,37 @@ const ImportSection: React.FC<ImportSectionProps> = ({
         <TabsContent value="import" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Importar Planilha</CardTitle>
+              <CardTitle className="text-lg flex items-center gap-2">
+                Importar Planilha
+                {!canAccessImport && (
+                  <Badge variant="outline" className="border-amber-500 text-amber-600 flex items-center gap-1">
+                    <Lock className="w-3 h-3" />
+                    Premium
+                  </Badge>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <FileImport onImportComplete={handleImportComplete} routeName={routeName} />
+              {canAccessImport ? (
+                <FileImport onImportComplete={handleImportComplete} routeName={routeName} />
+              ) : (
+                <div className="p-4 border border-dashed border-gray-300 rounded-md bg-gray-50">
+                  <div className="text-center">
+                    <Lock className="w-8 h-8 mx-auto text-amber-500 mb-2" />
+                    <p className="text-sm text-gray-600 mb-3">
+                      A importação de planilhas é uma funcionalidade premium.
+                      Assine um plano para continuar utilizando.
+                    </p>
+                    <Button 
+                      onClick={goToSubscription}
+                      className="bg-amber-600 hover:bg-amber-700 text-white"
+                    >
+                      <Crown className="w-4 h-4 mr-2" />
+                      Ver Planos
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -180,19 +254,46 @@ const ImportSection: React.FC<ImportSectionProps> = ({
         <TabsContent value="create" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Adicionar Entregas Manualmente</CardTitle>
+              <CardTitle className="text-lg flex items-center gap-2">
+                Adicionar Entregas Manualmente
+                {!canAccessImport && (
+                  <Badge variant="outline" className="border-amber-500 text-amber-600 flex items-center gap-1">
+                    <Lock className="w-3 h-3" />
+                    Premium
+                  </Badge>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-gray-500 mb-4">
                 Crie uma rota adicionando endereços manualmente um a um.
               </p>
-              <Button 
-                className="w-full" 
-                onClick={handleCreateEmptyRoute}
-              >
-                <Plus size={16} className="mr-2" />
-                Criar e Adicionar Entregas
-              </Button>
+              {canAccessImport ? (
+                <Button 
+                  className="w-full" 
+                  onClick={handleCreateEmptyRoute}
+                >
+                  <Plus size={16} className="mr-2" />
+                  Criar e Adicionar Entregas
+                </Button>
+              ) : (
+                <div className="p-4 border border-dashed border-gray-300 rounded-md bg-gray-50 mt-4">
+                  <div className="text-center">
+                    <Lock className="w-8 h-8 mx-auto text-amber-500 mb-2" />
+                    <p className="text-sm text-gray-600 mb-3">
+                      A criação de rotas é uma funcionalidade premium.
+                      Assine um plano para continuar utilizando.
+                    </p>
+                    <Button 
+                      onClick={goToSubscription}
+                      className="bg-amber-600 hover:bg-amber-700 text-white"
+                    >
+                      <Crown className="w-4 h-4 mr-2" />
+                      Ver Planos
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -200,19 +301,46 @@ const ImportSection: React.FC<ImportSectionProps> = ({
         <TabsContent value="empty" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Iniciar Rota Vazia</CardTitle>
+              <CardTitle className="text-lg flex items-center gap-2">
+                Iniciar Rota Vazia
+                {!canAccessImport && (
+                  <Badge variant="outline" className="border-amber-500 text-amber-600 flex items-center gap-1">
+                    <Lock className="w-3 h-3" />
+                    Premium
+                  </Badge>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-gray-500 mb-4">
                 Crie uma rota vazia para usar apenas o GPS e navegação.
               </p>
-              <Button 
-                className="w-full" 
-                onClick={handleCreateEmptyRoute}
-              >
-                <MapPin size={16} className="mr-2" />
-                Iniciar Rota
-              </Button>
+              {canAccessImport ? (
+                <Button 
+                  className="w-full" 
+                  onClick={handleCreateEmptyRoute}
+                >
+                  <MapPin size={16} className="mr-2" />
+                  Iniciar Rota
+                </Button>
+              ) : (
+                <div className="p-4 border border-dashed border-gray-300 rounded-md bg-gray-50 mt-4">
+                  <div className="text-center">
+                    <Lock className="w-8 h-8 mx-auto text-amber-500 mb-2" />
+                    <p className="text-sm text-gray-600 mb-3">
+                      A criação de rotas vazias é uma funcionalidade premium.
+                      Assine um plano para continuar utilizando.
+                    </p>
+                    <Button 
+                      onClick={goToSubscription}
+                      className="bg-amber-600 hover:bg-amber-700 text-white"
+                    >
+                      <Crown className="w-4 h-4 mr-2" />
+                      Ver Planos
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
