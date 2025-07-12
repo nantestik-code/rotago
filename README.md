@@ -52,6 +52,58 @@ npm run dev
 
 ## Histórico de Mudanças e Decisões Técnicas
 
+### 2025-07 — Refatoração Completa de Login, Logout e Perfis (RotaFacil Turbo)
+
+#### 1. **Logout e Limpeza de Sessão**
+- Refatorado o hook `useAuth` e utilitários para garantir que o logout:
+  - Limpa todos os tokens, cookies e localStorage relacionados à autenticação (inclusive Supabase e resíduos).
+  - Remove headers de autorização do cliente Supabase.
+  - Limpa o estado React (user, session, profile) e timers.
+  - Redireciona o usuário para `/login` com parâmetro de cache busting e reload forçado.
+  - Adicionada UX com toasts e alertas para feedback do usuário.
+- Criado utilitário centralizado em `src/utils/authUtils.ts` para limpeza de cookies, localStorage, sessionStorage e detecção de resíduos.
+- O botão "Sair" no Header agora chama esse fluxo robusto, com logs detalhados para debug.
+
+#### 2. **Login Seguro e Criação de Perfil**
+- **Removido** fluxo que criava usuários automaticamente no login (mesmo em dev).
+- Agora, ao tentar login:
+  - Apenas autentica usuários já existentes no Supabase Auth.
+  - Se as credenciais estiverem erradas, mostra mensagem amigável.
+  - Após login bem-sucedido, verifica se existe um perfil na tabela `profiles`.
+    - Se não existir, cria automaticamente o perfil com dados do Auth (email, nome, avatar).
+    - Se já existir, segue o fluxo normal.
+- Cadastro de usuário (signup) permanece como único local de criação de contas.
+- Nenhuma conta "Usuário de Teste" é criada automaticamente no painel Auth.
+
+#### 3. **Tratamento de Sessão Expirada e Redirecionamento**
+- Página de login agora trata parâmetros de URL (`logout=true`, `session_expired=true`, `error=true`, `source`) para:
+  - Limpar resíduos de sessão ao chegar na tela de login.
+  - Exibir mensagens de toast contextualizadas para o usuário.
+  - Logar a origem do redirecionamento para facilitar debug.
+
+#### 4. **Resumo do Fluxo Atual**
+- **Login**: Só autentica usuários já existentes. Após login, garante que o perfil existe no banco.
+- **Logout**: Remove completamente todos os dados de sessão, cookies, tokens e estado local, com UX aprimorada.
+- **Signup**: Cria usuário e perfil normalmente.
+- **Segurança**: Nenhum usuário de teste é criado automaticamente. Perfis são sempre consistentes.
+
+#### 5. **Como implementar esse padrão em outro projeto**
+1. Centralize toda autenticação e logout em um hook (ex: `useAuth`).
+2. Crie utilitários para limpeza profunda de tokens/cookies.
+3. No login, nunca crie usuário automaticamente. Apenas autentique.
+4. Após login, verifique/crie perfil na tabela de perfis.
+5. No logout, limpe tudo e redirecione para login com reload.
+6. Sempre forneça feedback visual ao usuário.
+
+#### 6. **Arquivos Alterados**
+- `src/hooks/use-auth.tsx`
+- `src/pages/auth/Login.tsx`
+- `src/components/Header.tsx`
+- `src/utils/authUtils.ts`
+- `src/integrations/supabase/client.ts`
+
+---
+
 ### 1. Migração e Correção do Fluxo de Autenticação (React + Supabase)
 - Refatorado o hook `useAuth` para garantir autenticação centralizada e segura, seguindo o padrão:
   - O contexto fornece `user`, `session`, `profile`, `isLoading`, `signOut`, entre outros.

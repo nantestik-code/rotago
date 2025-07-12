@@ -142,58 +142,12 @@ const Login = () => {
           
           // Tratar erro de credenciais inválidas
           if (error.code === 'invalid_credentials') {
-            // Em ambiente de desenvolvimento, tentar criar o usuário automaticamente
-            if (isDevEnv) {
-              console.log('Tentando criar usuário em ambiente de desenvolvimento');
-              
-              const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-                email: formData.email,
-                password: formData.password,
-                options: {
-                  data: {
-                    full_name: 'Usuário de Teste',
-                    created_at: new Date().toISOString()
-                  }
-                }
-              });
-              
-              if (signUpError) {
-                console.error('Erro ao criar usuário:', signUpError);
-                smartToast({
-                  title: "Erro ao criar usuário",
-                  description: signUpError.message,
-                  variant: "destructive"
-                });
-              } else if (signUpData.user) {
-                console.log('Usuário criado com sucesso, tentando login automático');
-                
-                // Tentar login novamente após criar o usuário
-                const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
-                  email: formData.email,
-                  password: formData.password,
-                });
-                
-                if (loginError) {
-                  console.error('Erro no login automático:', loginError);
-                  smartToast({
-                    title: "Erro no login automático",
-                    description: "Usuário criado, mas não foi possível fazer login automático.",
-                    variant: "destructive"
-                  });
-                } else {
-                  console.log('Login automático bem-sucedido após criar usuário');
-                  navigate('/app');
-                  return;
-                }
-              }
-            } else {
-              // Em produção, apenas mostrar mensagem de erro
-              smartToast({
-                title: "Credenciais inválidas",
-                description: "Email ou senha incorretos. Verifique suas credenciais e tente novamente.",
-                variant: "destructive"
-              });
-            }
+            // Nunca criar usuário automaticamente no login
+            smartToast({
+              title: "Credenciais inválidas",
+              description: "Email ou senha incorretos. Verifique suas credenciais e tente novamente.",
+              variant: "destructive"
+            });
           } else if (error.message && error.message.includes('Email not confirmed')) {
             // Tratar erro de email não confirmado
             if (isDevEnv) {
@@ -203,16 +157,17 @@ const Login = () => {
                 password: formData.password,
               });
               
-              if (!signInError && signInData.user) {
+              if (signInError) {
+                console.error('Erro no login:', signInError);
+                smartToast({
+                  title: "Erro ao entrar",
+                  description: signInError.message || "Ocorreu um erro durante o login. Tente novamente mais tarde.",
+                  variant: "destructive"
+                });
+              } else if (signInData.user) {
                 console.log('Login bem-sucedido em dev mesmo sem confirmação de email');
                 navigate('/app');
                 return;
-              } else {
-                smartToast({
-                  title: "Email não confirmado",
-                  description: "Não foi possível fazer login automático em ambiente de desenvolvimento.",
-                  variant: "destructive"
-                });
               }
             } else {
               // Em produção, mostrar diálogo para reenviar email
@@ -235,6 +190,30 @@ const Login = () => {
         } else if (data.user && data.session) {
           // Login bem-sucedido
           console.log('Login bem-sucedido:', { userId: data.user.id, email: data.user.email });
+
+          // Garantir que existe um perfil para o usuário
+          try {
+            const { data: profile, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', data.user.id)
+              .single();
+
+            if (!profile) {
+              // Cria o perfil se não existir
+              await supabase.from('profiles').insert({
+                id: data.user.id,
+                email: data.user.email,
+                full_name: data.user.user_metadata?.full_name || '',
+                avatar_url: data.user.user_metadata?.avatar_url || '',
+                created_at: new Date().toISOString()
+              });
+              console.log('Perfil criado automaticamente para o usuário:', data.user.email);
+            }
+          } catch (profileError) {
+            console.error('Erro ao garantir/criar perfil:', profileError);
+          }
+
           navigate('/app');
         } else {
           // Caso inesperado: sem erro, mas sem usuário ou sessão
