@@ -68,13 +68,46 @@ export const useSubscription = () => {
         console.log('⏰ Timeout: forçando loading = false e usando dados mock');
         setLoading(false);
         setError('Timeout - usando dados de exemplo');
+        
+        // Criar planos mock
         const mockPlans = getMockPlans();
         setPlans(mockPlans);
+        
+        // Criar assinatura mock com trial ativo se não houver assinatura
+        if (!subscription && user) {
+          console.log('⏰ Timeout: criando assinatura mock com trial ativo');
+          const trialEndDate = new Date();
+          trialEndDate.setDate(trialEndDate.getDate() + 7); // 7 dias de trial
+          
+          const mockSubscription: UserSubscription = {
+            id: 'mock-subscription',
+            user_id: user.id,
+            subscription_id: null,
+            external_id: null,
+            plan_id: mockPlans.length > 0 ? mockPlans[0].id : 'mock-plan',
+            status: 'trialing', // Usar 'trialing' para indicar que está em período de trial
+            is_active: true,
+            is_trial: true,
+            trial_ends_at: trialEndDate.toISOString(),
+            current_period_start: new Date().toISOString(),
+            current_period_end: trialEndDate.toISOString(),
+            cancel_at_period_end: false,
+            canceled_at: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            metadata: null,
+            email: user.email || null,
+            plan: mockPlans.length > 0 ? mockPlans[0] : null
+          };
+          
+          console.log('📌 Assinatura mock principal criada:', mockSubscription);
+          setSubscription(mockSubscription);
+        }
       }
     }, 5000); // 5 segundos
 
     return () => clearTimeout(timeout);
-  }, [loading]);
+  }, [loading, subscription, user]);
 
   // Fallback rápido para dados mock
   useEffect(() => {
@@ -88,12 +121,43 @@ export const useSubscription = () => {
           setPlans(mockPlans);
           setLoading(false);
           setError('Usando dados de exemplo - problemas de conectividade');
+          
+          // Criar assinatura mock com trial ativo se não houver assinatura
+          if (!subscription && user) {
+            console.log('✅ Timeout: criando assinatura mock com trial ativo');
+            const trialEndDate = new Date();
+            trialEndDate.setDate(trialEndDate.getDate() + 7); // 7 dias de trial
+            
+            const mockSubscription: UserSubscription = {
+              id: 'mock-subscription',
+              user_id: user.id,
+              subscription_id: null,
+              external_id: null,
+              plan_id: mockPlans.length > 0 ? mockPlans[0].id : 'mock-plan',
+              status: 'trialing', // Usar 'trialing' para indicar que está em período de trial
+              is_active: true,
+              is_trial: true,
+              trial_ends_at: trialEndDate.toISOString(),
+              current_period_start: new Date().toISOString(),
+              current_period_end: trialEndDate.toISOString(),
+              cancel_at_period_end: false,
+              canceled_at: null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              metadata: null,
+              email: user.email || null,
+              plan: mockPlans.length > 0 ? mockPlans[0] : null
+            };
+            
+            console.log('📌 Assinatura mock criada:', mockSubscription);
+            setSubscription(mockSubscription);
+          }
         });
       }
     }, 8000); // 8 segundos - mais tempo para conectar
 
     return () => clearTimeout(fallbackTimeout);
-  }, [loading, plans.length]);
+  }, [loading, plans.length, subscription, user]);
 
   // Buscar planos na inicialização (independente de autenticação)
   useEffect(() => {

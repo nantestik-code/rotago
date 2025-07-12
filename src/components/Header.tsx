@@ -98,7 +98,28 @@ export function Header({ onNewRouteClick, onExportClick }: {
                 
                 <DropdownMenuSeparator />
                 
-                <DropdownMenuItem onClick={() => signOut()}>
+                <DropdownMenuItem 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('🔐 Header: Botão Sair clicado - Executando logout forçado');
+                    
+                    // Notificar usuário
+                    alert('Saindo do sistema. Você será redirecionado para a tela de login.');
+                    
+                    // Executar logout
+                    signOut();
+                    
+                    // Backup: Forçar redirecionamento caso o signOut falhe
+                    setTimeout(() => {
+                      console.log('🔄 Header: Redirecionamento de segurança');
+                      localStorage.clear();
+                      window.location.replace('/login?source=header');
+                      window.location.reload(true);
+                    }, 500);
+                  }}
+                  className="text-red-500 hover:text-red-700 hover:bg-red-50 font-bold"
+                >
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Sair</span>
                 </DropdownMenuItem>

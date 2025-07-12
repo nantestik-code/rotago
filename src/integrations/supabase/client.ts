@@ -1,6 +1,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
+import { clearAllAuthData } from '@/utils/authUtils';
 
 // Usar as credenciais do projeto do .env ou .env.production
 // Você deve atualizar estas credenciais com as do seu novo projeto Supabase
@@ -33,6 +34,25 @@ const safeLocalStorage = {
   }
 };
 
+// Função para limpar todos os tokens do Supabase no localStorage
+export const clearSupabaseTokens = () => {
+  console.log('🧹 Limpando todos os tokens do Supabase...');
+  try {
+    // Usar a função de utilitário para limpar todos os dados de autenticação
+    clearAllAuthData();
+    
+    // Limpar tokens específicos do Supabase (garantia adicional)
+    safeLocalStorage.removeItem('supabase.auth.token');
+    safeLocalStorage.removeItem('sb-refresh-token');
+    safeLocalStorage.removeItem('sb-access-token');
+    safeLocalStorage.removeItem('supabase-auth-token');
+    
+    console.log('✅ Tokens e cookies do Supabase limpos com sucesso');
+  } catch (error) {
+    console.error('❌ Erro ao limpar tokens do Supabase:', error);
+  }
+};
+
 // Cliente Supabase com configurações otimizadas para autenticação
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -43,5 +63,14 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, 
     debug: true,                // Habilitar logs de debug para autenticação
     flowType: 'pkce',           // Usar PKCE flow para autenticação mais segura
     storageKey: 'supabase.auth.token', // Chave consistente para armazenamento
+    onAuthStateChange: (event, session) => {
+      console.log(`🔔 Supabase Auth Event: ${event}`, { hasSession: !!session });
+      
+      // Se o evento for SIGNED_OUT, garantir limpeza completa
+      if (event === 'SIGNED_OUT') {
+        console.log('🚪 Evento SIGNED_OUT detectado, limpando tokens...');
+        clearSupabaseTokens();
+      }
+    }
   }
 });

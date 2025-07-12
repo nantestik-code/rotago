@@ -35,6 +35,59 @@ const Login = () => {
     password: '',
   });
 
+  // Verificar parâmetros de URL relacionados ao logout
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const logoutParam = params.get('logout');
+    const sessionExpired = params.get('session_expired');
+    const errorParam = params.get('error');
+    const source = params.get('source');
+    
+    // Limpar localStorage e cookies ao carregar a página de login após logout
+    if (logoutParam === 'true') {
+      console.log('🔐 Login: Detectado parâmetro logout=true, limpando dados residuais...');
+      localStorage.clear();
+      
+      // Limpar cookies relacionados ao Supabase
+      document.cookie.split(';').forEach(cookie => {
+        const [name] = cookie.trim().split('=');
+        if (name && (name.includes('supabase') || name.includes('sb-'))) {
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+        }
+      });
+      
+      // Mostrar mensagem de logout bem-sucedido
+      smartToast({
+        title: "Logout realizado",
+        description: "Você saiu do sistema com sucesso.",
+        variant: "default"
+      });
+    }
+    
+    // Mensagem para sessão expirada
+    if (sessionExpired === 'true') {
+      smartToast({
+        title: "Sessão expirada",
+        description: "Sua sessão expirou. Por favor, faça login novamente.",
+        variant: "warning"
+      });
+    }
+    
+    // Mensagem para erro durante logout
+    if (errorParam === 'true') {
+      smartToast({
+        title: "Erro durante logout",
+        description: "Houve um problema ao sair do sistema, mas você foi redirecionado com sucesso.",
+        variant: "warning"
+      });
+    }
+    
+    // Log para debugging
+    if (source) {
+      console.log(`🔍 Login: Redirecionado da fonte: ${source}`);
+    }
+  }, [location.search]);
+  
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {

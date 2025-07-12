@@ -131,7 +131,36 @@ const ImportSection: React.FC<ImportSectionProps> = ({
   };
   
   // Verificar se o usuário pode acessar as funcionalidades de importação
-  const canAccessImport = isSubscriptionActive || isTrialActive;
+  // Verificar diretamente o status da assinatura para maior confiabilidade
+  const isTrialActiveManual = subscription?.is_trial && 
+                             subscription?.trial_ends_at && 
+                             new Date(subscription.trial_ends_at) > new Date();
+                             
+  const isSubscriptionActiveManual = subscription?.status === 'active' && subscription?.is_active;
+  
+  // Permitir acesso se estiver carregando, ou se o trial estiver ativo, ou se a assinatura estiver ativa
+  const canAccessImport = subscriptionLoading || 
+                         isTrialActiveManual || 
+                         isSubscriptionActiveManual || 
+                         (typeof isSubscriptionActive === 'function' && isSubscriptionActive()) || 
+                         (typeof isTrialActive === 'function' && isTrialActive());
+  
+  // Adicionar logs para debug
+  console.log('📚 ImportSection - Estado da assinatura:', { 
+    subscriptionLoading, 
+    isTrialActiveManual,
+    isSubscriptionActiveManual,
+    isSubscriptionActive: typeof isSubscriptionActive === 'function' ? isSubscriptionActive() : false, 
+    isTrialActive: typeof isTrialActive === 'function' ? isTrialActive() : false, 
+    trialDaysRemaining, 
+    canAccessImport,
+    subscription: subscription ? {
+      is_trial: subscription.is_trial,
+      trial_ends_at: subscription.trial_ends_at,
+      status: subscription.status,
+      is_active: subscription.is_active
+    } : null
+  });
   
   // Função para navegar para a página de assinatura
   const goToSubscription = () => {
