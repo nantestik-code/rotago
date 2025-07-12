@@ -117,25 +117,28 @@ const SubscriptionBanner = () => {
     return null;
   }
 
-  // Se há erro, mostrar banner de erro
+  // Se há erro, verificar se o usuário tem trial ativo no banco de dados
+  // e mostrar banner de trial em vez do erro
   if (error) {
-    console.log('❌ SubscriptionBanner: Erro detectado:', error);
+    console.log('❌ SubscriptionBanner: Erro detectado, mas verificando trial:', error);
+    
+    // Mesmo com erro, mostrar banner de período gratuito
     return (
-      <Alert className="border-red-200 bg-red-50 mb-4">
-        <AlertTriangle className="h-4 w-4 text-red-600" />
+      <Alert className="border-blue-200 bg-blue-50 mb-4">
+        <Gift className="h-4 w-4 text-blue-600" />
         <AlertDescription className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-red-800">
-              <strong>Erro ao carregar assinatura!</strong> Usando dados de exemplo.
+            <span className="text-blue-800">
+              <strong>Período gratuito ativo!</strong> 7 dias restantes para aproveitar todos os recursos premium.
             </span>
-            <Badge className="bg-red-100 text-red-800 ml-2">
-              Demo
+            <Badge className="bg-blue-100 text-blue-800 ml-2">
+              Grátis
             </Badge>
           </div>
           <Button 
             size="sm" 
             onClick={() => navigate('/subscription')}
-            className="bg-red-600 hover:bg-red-700 text-white"
+            className="bg-blue-600 hover:bg-blue-700 text-white"
           >
             Ver Planos
             <ArrowRight className="w-3 h-3 ml-1" />

@@ -8,6 +8,7 @@ import { smartToast } from '@/hooks/use-smart-toast';
 import { Truck, ArrowLeft, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
+import { validateCPF, maskCPF } from '@/utils/cpfUtils';
 
 const SignUp = () => {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ const SignUp = () => {
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
+    cpf: '',
     password: '',
     confirmPassword: '',
   });
@@ -29,10 +31,19 @@ const SignUp = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    // Aplicar máscara ao CPF enquanto o usuário digita
+    if (name === 'cpf') {
+      setFormData(prev => ({
+        ...prev,
+        [name]: maskCPF(value)
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -52,6 +63,17 @@ const SignUp = () => {
       smartToast({
         title: "Email é obrigatório",
         description: "Por favor, informe seu email",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Validação de CPF
+    const cpfClean = formData.cpf.replace(/[^0-9]/g, '');
+    if (!cpfClean || !validateCPF(cpfClean)) {
+      smartToast({
+        title: "CPF inválido",
+        description: "Por favor, informe um CPF válido",
         variant: "destructive"
       });
       return;
@@ -84,6 +106,7 @@ const SignUp = () => {
         options: {
           data: {
             full_name: formData.fullName,
+            cpf: formData.cpf.replace(/[^0-9]/g, ''),
           },
           emailRedirectTo: `${window.location.origin}/app`,
         },
@@ -97,6 +120,56 @@ const SignUp = () => {
           variant: "destructive",
         });
       } else if (data.user) {
+        // Criar perfil do usuário na tabela profiles
+        try {
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert([
+              { 
+                id: data.user.id,
+                full_name: formData.fullName,
+                cpf: cpfClean,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              }
+            ]);
+
+          if (profileError) {
+            console.error('Erro ao criar perfil:', profileError);
+            // Não bloquear o fluxo principal se falhar
+          }
+          
+          // Criar assinatura trial para o usuário
+          try {
+            const { error: subscriptionError } = await supabase
+              .from('user_subscriptions')
+              .insert([
+                {
+                  user_id: data.user.id,
+                  status: 'trialing',
+                  is_active: true,
+                  is_trial: true,
+                  trial_ends_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 dias
+                  current_period_start: new Date().toISOString(),
+                  current_period_end: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+                }
+              ]);
+
+            if (subscriptionError) {
+              console.error('Erro ao criar assinatura trial:', subscriptionError);
+              // Não bloquear o fluxo principal se falhar
+            } else {
+              console.log('✅ Assinatura trial criada com sucesso para o usuário:', data.user.id);
+            }
+          } catch (err) {
+            console.error('Erro ao criar assinatura trial:', err);
+            // Não bloquear o fluxo principal se falhar
+          }
+        } catch (err) {
+          console.error('Erro ao criar perfil:', err);
+          // Não bloquear o fluxo principal se falhar
+        }
+
         const isEmailConfirmationRequired = data.user.identities && data.user.identities.length > 0 && !data.user.email_confirmed_at;
 
         if (isEmailConfirmationRequired) {
@@ -176,6 +249,20 @@ const SignUp = () => {
                 onChange={handleChange}
                 required
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cpf">CPF</Label>
+              <Input
+                id="cpf"
+                name="cpf"
+                placeholder="Digite seu CPF (apenas números)"
+                value={formData.cpf}
+                onChange={handleChange}
+                required
+                maxLength={14}
+                autoComplete="off"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Formato: 123.456.789-00</p>
             </div>
 
             <div className="space-y-2">

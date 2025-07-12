@@ -8,6 +8,7 @@ import { smartToast } from '@/hooks/use-smart-toast';
 interface UserProfile {
   id: string;
   full_name?: string;
+  cpf?: string;
   avatar_url?: string;
   role?: string;
   is_early_adopter?: boolean;
