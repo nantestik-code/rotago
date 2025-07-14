@@ -120,25 +120,50 @@ const SubscriptionBanner = () => {
   // Se há erro, verificar se o usuário tem trial ativo no banco de dados
   // e mostrar banner de trial em vez do erro
   if (error) {
-    console.log('❌ SubscriptionBanner: Erro detectado, mas verificando trial:', error);
-    
-    // Mesmo com erro, mostrar banner de período gratuito
+    console.log('❌ SubscriptionBanner: Erro detectado, verificando trial:', error);
+    if (isTrialActive && trialDaysRemaining > 0) {
+      // Trial realmente ativo, mostrar banner de trial
+      return (
+        <Alert className="border-blue-200 bg-blue-50 mb-4">
+          <Gift className="h-4 w-4 text-blue-600" />
+          <AlertDescription className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-blue-800">
+                <strong>Período gratuito ativo!</strong> {trialDaysRemaining} dias restantes para aproveitar todos os recursos premium.
+              </span>
+              <Badge className="bg-blue-100 text-blue-800 ml-2">
+                Grátis
+              </Badge>
+            </div>
+            <Button 
+              size="sm" 
+              onClick={() => navigate('/subscription')}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Ver Planos
+              <ArrowRight className="w-3 h-3 ml-1" />
+            </Button>
+          </AlertDescription>
+        </Alert>
+      );
+    }
+    // Caso contrário, mostrar banner de bloqueio/acesso negado
     return (
-      <Alert className="border-blue-200 bg-blue-50 mb-4">
-        <Gift className="h-4 w-4 text-blue-600" />
+      <Alert className="border-red-200 bg-red-50 mb-4">
+        <AlertTriangle className="h-4 w-4 text-red-600" />
         <AlertDescription className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-blue-800">
-              <strong>Período gratuito ativo!</strong> 7 dias restantes para aproveitar todos os recursos premium.
+            <span className="text-red-800">
+              <strong>Acesso bloqueado!</strong> Sua assinatura expirou ou não foi encontrada. Assine um plano para continuar usando.
             </span>
-            <Badge className="bg-blue-100 text-blue-800 ml-2">
-              Grátis
+            <Badge className="bg-red-100 text-red-800 ml-2">
+              Bloqueado
             </Badge>
           </div>
           <Button 
             size="sm" 
             onClick={() => navigate('/subscription')}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-red-600 hover:bg-red-700 text-white"
           >
             Ver Planos
             <ArrowRight className="w-3 h-3 ml-1" />

@@ -136,7 +136,17 @@ const SignUp = () => {
 
           if (profileError) {
             console.error('Erro ao criar perfil:', profileError);
-            // Não bloquear o fluxo principal se falhar
+            // Mensagem amigável para CPF duplicado
+            if (profileError.code === '23505' || (profileError.message && profileError.message.includes('unique_cpf'))) {
+              smartToast({
+                title: "CPF já cadastrado",
+                description: "Já existe um usuário com este CPF. Se você já tem conta, faça login ou recupere sua senha.",
+                variant: "destructive"
+              });
+              setIsLoading(false);
+              return;
+            }
+            // Não bloquear o fluxo principal se falhar por outro motivo
           }
           
           // Criar assinatura trial para o usuário
