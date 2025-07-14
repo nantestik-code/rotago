@@ -175,10 +175,22 @@ const PricingSection = () => {
     return (
       <section className="py-20 bg-gradient-to-b from-gray-50 to-white">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <div className="h-8 bg-gray-200 rounded w-64 mx-auto mb-4 animate-pulse"></div>
-            <div className="h-4 bg-gray-200 rounded w-96 mx-auto animate-pulse"></div>
-          </div>
+        {/* Botão Voltar */}
+        <div className="flex justify-start mb-4">
+          <Button
+            variant="ghost"
+            className="flex items-center gap-2 text-gray-700 hover:text-primary"
+            onClick={() => navigate('/app')}
+            size="sm"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            Voltar para o app
+          </Button>
+        </div>
+        <div className="text-center mb-16">
+          <div className="h-8 bg-gray-200 rounded w-64 mx-auto mb-4 animate-pulse"></div>
+          <div className="h-4 bg-gray-200 rounded w-96 mx-auto animate-pulse"></div>
+        </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="h-96 bg-gray-200 rounded-lg animate-pulse"></div>
@@ -337,6 +349,15 @@ const PricingSection = () => {
             </div>
           </div>
         </motion.div>
+        {/* Botão para acessar o app */}
+        <div className="flex justify-center mt-10">
+          <Button
+            className="bg-blue-600 hover:bg-blue-700 text-white text-lg px-8 py-4 rounded-full shadow-lg transition-all duration-200"
+            onClick={() => navigate('/app')}
+          >
+            Ir para o Painel do App
+          </Button>
+        </div>
       </div>
     </section>
   );

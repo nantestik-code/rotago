@@ -189,6 +189,44 @@ npm run dev
 
 ---
 
+### 2025-07-14 — Melhorias no Sistema de Assinatura, Fallback e Navegação (RotaFacil Turbo)
+
+#### 1. **Fallback de Planos Mock e Robustez de Carregamento**
+- Implementado fallback automático para exibir planos mock quando a consulta ao Supabase falha por timeout, erro de RLS ou conectividade.
+- Garantido que a tela de planos nunca fique vazia, melhorando a experiência do usuário em ambientes de demo ou com Supabase restrito.
+- Logs detalhados no console informam quando o modo mock está ativo e facilitam o debug.
+
+#### 2. **Tratamento de Estados de Loading e Erro**
+- O carregamento de planos agora é independente da autenticação, pois são dados públicos.
+- O estado de loading considera tanto o carregamento dos planos quanto o loading do Auth (`authLoading`), evitando renderização prematura.
+- Banner de erro exibido corretamente quando há falha de assinatura, sem mostrar informações enganosas ao usuário.
+
+#### 3. **Bloqueio de Acesso e Status de Assinatura**
+- O sistema bloqueia acesso ao app para usuários sem assinatura ativa ou com trial expirado.
+- Não há fallback para "fingir" assinatura ativa — acesso só é liberado se realmente houver assinatura válida no banco.
+- O status de assinatura é calculado apenas pela tabela `user_subscriptions`.
+
+#### 4. **Correção de Key Duplicada no React**
+- Corrigido warning "Encountered two children with the same key" na renderização da lista de planos, usando `key={plan.id + '-' + idx}`.
+
+#### 5. **Navegação e UX Aprimorada**
+- Adicionados botões de navegação destacados para retornar ao painel principal do app (`/app`) na tela de planos.
+- Botão "Ir para o Painel do App" centralizado e estilizado para facilitar o fluxo do usuário.
+- Mensagens e banners claros sobre status de assinatura, trial e erros.
+
+#### 6. **Resumo Técnico**
+- Hooks afetados: `useSubscription.ts`, `useAuth.ts`.
+- Componentes afetados: `SubscriptionPage.tsx`, `PricingSection.tsx`, `SubscriptionBanner.tsx`.
+- Integração Mercado Pago e fallback de planos mock preservados.
+- RLS do Supabase permanece restritivo, mas o app é totalmente funcional em modo demo.
+
+#### 7. **Próximos Passos**
+- Ajustar políticas RLS no Supabase para liberar consulta pública de planos e leitura segura de assinaturas.
+- Revisar UX de banners e loading conforme feedback de usuários reais.
+- Testar todos os fluxos: assinatura ativa, trial, expirado e ambiente offline.
+
+---
+
 This project is built with:
 
 - Vite

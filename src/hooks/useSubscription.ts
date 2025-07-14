@@ -99,7 +99,10 @@ export const useSubscription = () => {
         setLoading(false);
         setError('Timeout ao carregar assinatura');
         setSubscription(null);
-        console.error('❌ [useSubscription] Timeout/erro: bloqueando acesso, sem fallback mock.');
+        if (plans.length === 0) {
+          setPlans(getMockPlans());
+          console.error('❌ [useSubscription] Timeout/erro: usando planos mock.');
+        }
       }
     }, 5000); // 5 segundos
 

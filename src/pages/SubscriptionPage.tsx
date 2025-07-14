@@ -398,9 +398,9 @@ const SubscriptionPage = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {plans.map((plan) => (
+                    {plans.map((plan, idx) => (
                       <div
-                        key={plan.id}
+                        key={plan.id + '-' + idx}
                         className={`border rounded-lg p-4 relative ${
                           plan.id === 'quarterly' 
                             ? 'border-primary bg-primary/5' 
