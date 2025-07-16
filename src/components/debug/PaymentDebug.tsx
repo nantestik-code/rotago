@@ -35,7 +35,7 @@ const PaymentDebug: React.FC = () => {
 
   const addLogCallback = React.useCallback((level: LogEntry['level'], message: string, ...args: any[]) => {
     const logEntry: LogEntry = {
-      id: Date.now().toString(),
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       timestamp: new Date().toLocaleTimeString('pt-BR'),
       level,
       message,

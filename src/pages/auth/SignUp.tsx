@@ -151,6 +151,16 @@ const SignUp = () => {
           
           // Criar assinatura trial para o usuário
           try {
+            const now = new Date();
+            const trialEndDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 dias
+            
+            console.log('🔄 Criando assinatura trial:', {
+              user_id: data.user.id,
+              trial_ends_at: trialEndDate.toISOString(),
+              current_period_start: now.toISOString(),
+              current_period_end: trialEndDate.toISOString()
+            });
+            
             const { error: subscriptionError } = await supabase
               .from('user_subscriptions')
               .insert([
@@ -159,9 +169,9 @@ const SignUp = () => {
                   status: 'trialing',
                   is_active: true,
                   is_trial: true,
-                  trial_ends_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 dias
-                  current_period_start: new Date().toISOString(),
-                  current_period_end: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+                  trial_ends_at: trialEndDate.toISOString(),
+                  current_period_start: now.toISOString(),
+                  current_period_end: trialEndDate.toISOString(),
                 }
               ]);
 

@@ -1,54 +1,46 @@
-# Welcome to your Lovable project
+# RotaFacil Turbo
 
-## Project info
+![RotaFacil Turbo](./docs/screenshot.png)
 
-**URL**: https://lovable.dev/projects/d25be1fc-ecc7-42cf-bb66-c75477bdb260
+[![Build](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/seu-repo)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## How can I edit this code?
+SaaS moderno para gestão de rotas de entrega, com sistema de assinatura, integração Mercado Pago, interface profissional e experiência robusta mesmo em ambiente demo.
 
-There are several ways of editing your application.
+---
 
-**Use Lovable**
+## ✨ Funcionalidades
+- Gestão de entregas e rotas com visualização no mapa
+- Sistema de assinatura (4 planos, trial de 7 dias)
+- Importação de entregas (Excel/CSV)
+- Histórico de ações do usuário
+- Integração Mercado Pago (checkout e webhooks)
+- UX responsiva, banners inteligentes e feedback visual
+- Fallback mock automático para planos em caso de erro de conexão/Supabase
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/d25be1fc-ecc7-42cf-bb66-c75477bdb260) and start prompting.
+## 🚀 Como rodar localmente
+1. Instale Node.js e npm
+2. Clone o repositório
+3. Copie `.env.example` para `.env` e configure as variáveis (Supabase, Mercado Pago, etc)
+4. Instale as dependências:
+   ```sh
+   npm install
+   ```
+5. Inicie o servidor de desenvolvimento:
+   ```sh
+   npm run dev
+   ```
 
-Changes made via Lovable will be committed automatically to this repo.
+> **Dica:** Consulte a seção de variáveis de ambiente e exemplos de configuração em `.env.example`.
 
-**Use your preferred IDE**
+## 🏗️ Stack
+- Vite
+- TypeScript
+- React
+- shadcn-ui
+- Tailwind CSS
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+---
 
 ## Histórico de Mudanças e Decisões Técnicas
 

@@ -24,8 +24,10 @@ import { useAuth } from '@/hooks/use-auth';
 import { toast } from '@/hooks/use-toast';
 import { motion } from 'framer-motion';
 import PaymentDebug from '@/components/debug/PaymentDebug';
+import { useNavigate } from 'react-router-dom';
 
 const SubscriptionPage = () => {
+  const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
   const {
     subscription,
@@ -197,23 +199,36 @@ const SubscriptionPage = () => {
     <div className="min-h-screen bg-gradient-to-br from-[#c2e4cb] via-white to-[#c2e4cb]/30">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
-          {/* Header */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-12"
-          >
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-[#176585] to-[#27b1bf] rounded-full mb-4">
-              <Crown className="w-8 h-8 text-white" />
-            </div>
-            <h1 className="text-4xl font-bold text-[#176585] mb-3">
-              Minha Assinatura
-            </h1>
-            <p className="text-[#176585]/70 text-lg max-w-2xl mx-auto">
-              Gerencie sua assinatura e acesse todos os recursos premium do RotaFácil
-            </p>
-          </motion.div>
+           {/* Botão Voltar */}
+           <div className="mb-6 flex justify-start">
+             <Button
+               variant="outline"
+               className="flex items-center gap-2"
+               onClick={() => navigate('/app')}
+             >
+               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+               </svg>
+               Voltar para o painel
+             </Button>
+           </div>
+           {/* Header */}
+           <motion.div
+             initial={{ opacity: 0, y: 20 }}
+             animate={{ opacity: 1, y: 0 }}
+             transition={{ duration: 0.6 }}
+             className="text-center mb-12"
+           >
+             <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-[#176585] to-[#27b1bf] rounded-full mb-4">
+               <Crown className="w-8 h-8 text-white" />
+             </div>
+             <h1 className="text-4xl font-bold text-[#176585] mb-3">
+               Minha Assinatura
+             </h1>
+             <p className="text-[#176585]/70 text-lg max-w-2xl mx-auto">
+               Gerencie sua assinatura e acesse todos os recursos premium do RotaFácil
+             </p>
+           </motion.div>
 
           {/* Loading State */}
           {(loading || authLoading) && (

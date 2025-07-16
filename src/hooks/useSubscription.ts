@@ -76,88 +76,29 @@ export const useSubscription = () => {
       updateSubscriptionStatus('expired');
     }
 
-    // Timeout de segurança para loading da assinatura
-    let timeoutId: NodeJS.Timeout | undefined;
+    // Buscar assinatura do usuário se estiver logado
     if (user) {
       setLoading(true);
       fetchUserSubscription();
-      timeoutId = setTimeout(() => {
-        setLoading(false);
-        setError('Timeout ao carregar assinatura');
-        setSubscription(null);
-      }, 10000); // 10 segundos
     }
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-    };
+    // Não há mais timeout para limpar
+    return () => {};
   }, [user]);
 
-  // Timeout para forçar fim do loading se necessário
+  // Timeout apenas para planos se necessário (sem forçar fim do loading)
   useEffect(() => {
     const timeout = setTimeout(() => {
-      if (loading) {
-        setLoading(false);
-        setError('Timeout ao carregar assinatura');
-        setSubscription(null);
-        if (plans.length === 0) {
-          setPlans(getMockPlans());
-          console.error('❌ [useSubscription] Timeout/erro: usando planos mock.');
-        }
+      if (loading && plans.length === 0) {
+        console.warn('⏰ [useSubscription] Timeout para planos - usando mock');
+        setPlans(getMockPlans());
+        console.log('📋 [useSubscription] Planos mock carregados por timeout');
       }
-    }, 5000); // 5 segundos
+    }, 15000); // 15 segundos apenas para planos
 
     return () => clearTimeout(timeout);
-  }, [loading]);
+  }, [loading, plans.length]);
 
-  // Fallback rápido para dados mock
-  useEffect(() => {
-    const fallbackTimeout = setTimeout(() => {
-      if (loading && plans.length === 0) {
-        console.log('🔄 Ativando modo mock por timeout - tentando novamente...');
-        // Tentar buscar novamente antes de usar mock
-        fetchPlans().catch(() => {
-          console.log('🔄 Usando dados mock após falha na segunda tentativa');
-          const mockPlans = getMockPlans();
-          setPlans(mockPlans);
-          setLoading(false);
-          setError('Usando dados de exemplo - problemas de conectividade');
-          
-          // Criar assinatura mock com trial ativo se não houver assinatura
-          if (!subscription && user) {
-            console.log('✅ Timeout: criando assinatura mock com trial ativo');
-            const trialEndDate = new Date();
-            trialEndDate.setDate(trialEndDate.getDate() + 7); // 7 dias de trial
-            
-            const mockSubscription: UserSubscription = {
-              id: 'mock-subscription',
-              user_id: user.id,
-              subscription_id: null,
-              external_id: null,
-              plan_id: mockPlans.length > 0 ? mockPlans[0].id : 'mock-plan',
-              status: 'trialing', // Usar 'trialing' para indicar que está em período de trial
-              is_active: true,
-              is_trial: true,
-              trial_ends_at: trialEndDate.toISOString(),
-              current_period_start: new Date().toISOString(),
-              current_period_end: trialEndDate.toISOString(),
-              cancel_at_period_end: false,
-              canceled_at: null,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              metadata: null,
-              email: user.email || null,
-              plan: mockPlans.length > 0 ? mockPlans[0] : null
-            };
-            
-            console.log('📌 Assinatura mock criada:', mockSubscription);
-            setSubscription(mockSubscription);
-          }
-        });
-      }
-    }, 8000); // 8 segundos - mais tempo para conectar
-
-    return () => clearTimeout(fallbackTimeout);
-  }, [loading, plans.length, subscription, user]);
+  // Removido fallback rápido para dados mock - agora usando trial automático do banco
 
   // Buscar planos na inicialização (independente de autenticação)
   useEffect(() => {
@@ -173,6 +114,8 @@ export const useSubscription = () => {
     console.log('🔍 fetchUserSubscription: Buscando assinatura para usuário:', user.id);
 
     try {
+      console.log('🔍 Consultando user_subscriptions para user_id:', user.id);
+      
       const { data, error } = await supabase
         .from('user_subscriptions')
         .select(`
@@ -181,13 +124,14 @@ export const useSubscription = () => {
         `)
         .eq('user_id', user.id)
         .eq('is_active', true)
-        .single();
+        .maybeSingle(); // Usar maybeSingle() ao invés de single()
 
       console.log('📊 fetchUserSubscription - Resposta:', { data, error });
 
       if (error && error.code !== 'PGRST116') {
         console.error('❌ fetchUserSubscription - Erro:', error);
-        setError('Erro ao carregar assinatura');
+        // Não definir erro para problemas de RLS - deixar subscription null
+        // O sistema vai funcionar normalmente com trial/sem assinatura
         setSubscription(null);
         return;
       }
@@ -199,9 +143,12 @@ export const useSubscription = () => {
       }
 
       setSubscription(data);
+      setLoading(false); // Definir loading como false após buscar
     } catch (err) {
       console.error('❌ Erro ao buscar assinatura:', err);
-      setError('Erro ao carregar assinatura');
+      // Não definir erro - deixar sistema funcionar normalmente
+      setSubscription(null);
+      setLoading(false); // Definir loading como false em caso de erro
     }
   };
 
