@@ -199,27 +199,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    // Timeout de segurança para nunca travar o loading
-    const timeoutId = setTimeout(() => {
-      if (isLoading) {
-        console.warn('Timeout de carregamento atingido pelo useAuth!');
-        setIsLoading(false);
-      }
-    }, 5000);
-
     const setupAuth = async () => {
-      const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) {
+      console.log('🔄 [useAuth] Iniciando configuração de autenticação...');
+      
+      try {
+        const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
+        
+        console.log('📊 [useAuth] Resposta getSession:', { 
+          session: initialSession ? 'presente' : 'null', 
+          error: sessionError 
+        });
+        
+        if (sessionError) {
+          console.error('❌ [useAuth] Erro ao obter sessão:', sessionError);
+          setIsLoading(false);
+          return;
+        }
+        
+        if (initialSession) {
+          console.log('✅ [useAuth] Sessão inicial encontrada para usuário:', initialSession.user.id);
+          setSession(initialSession);
+          setUser(initialSession.user);
+          await fetchProfile(initialSession.user.id);
+          setupTokenRefresh();
+        } else {
+          console.log('ℹ️ [useAuth] Nenhuma sessão inicial encontrada');
+        }
+        
+        console.log('✅ [useAuth] Configuração de autenticação concluída');
         setIsLoading(false);
-        return;
+      } catch (error) {
+        console.error('❌ [useAuth] Erro crítico na configuração:', error);
+        setIsLoading(false);
       }
-      if (initialSession) {
-        setSession(initialSession);
-        setUser(initialSession.user);
-        await fetchProfile(initialSession.user.id);
-        setupTokenRefresh();
-      }
-      setIsLoading(false);
     };
 
     setupAuth();
@@ -287,7 +299,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     );
 
     return () => {
-      clearTimeout(timeoutId);
       authListener?.subscription.unsubscribe();
       if (tokenRefreshTimerRef.current) {
         window.clearInterval(tokenRefreshTimerRef.current);

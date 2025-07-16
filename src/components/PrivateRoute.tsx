@@ -11,33 +11,6 @@ interface PrivateRouteProps {
 const PrivateRoute = ({ children }: PrivateRouteProps) => {
   const { isAuthenticated, isLoading, session } = useAuth();
   const location = useLocation();
-  const [showTimeout, setShowTimeout] = useState(false);
-  
-  // Adicionar um timeout para evitar loading infinito
-  useEffect(() => {
-    // Se estiver carregando por mais de 5 segundos, mostrar mensagem adicional
-    const timeoutId = setTimeout(() => {
-      if (isLoading) {
-        setShowTimeout(true);
-        console.log('Timeout de carregamento atingido');
-      }
-    }, 5000);
-    
-    return () => clearTimeout(timeoutId);
-  }, [isLoading]);
-
-  // Verificar se há uma sessão no localStorage como fallback
-  useEffect(() => {
-    if (isLoading && showTimeout) {
-      // Tentar verificar o localStorage como fallback
-      const localSession = localStorage.getItem('supabase.auth.token');
-      if (!localSession) {
-        console.log('Nenhuma sessão encontrada no localStorage, redirecionando para login');
-        window.location.href = '/auth/login';
-      }
-    }
-  }, [isLoading, showTimeout]);
-
   // Mostrar loading enquanto o auth está carregando
   if (isLoading) {
     return (
@@ -46,19 +19,6 @@ const PrivateRoute = ({ children }: PrivateRouteProps) => {
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <span className="ml-2 text-lg">Carregando...</span>
         </div>
-        
-        {showTimeout && (
-          <div className="mt-4 text-center max-w-md">
-            <p className="text-amber-600 font-medium">O carregamento está demorando mais que o esperado.</p>
-            <p className="text-sm text-gray-600 mt-1">Se o problema persistir, tente atualizar a página ou fazer login novamente.</p>
-            <button 
-              onClick={() => window.location.href = '/auth/login'}
-              className="mt-3 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
-            >
-              Ir para Login
-            </button>
-          </div>
-        )}
       </div>
     );
   }
