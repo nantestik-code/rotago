@@ -166,8 +166,8 @@ export const useRouteHistory = () => {
                 id,
                 name,
                 status,
-                total_distance,
-                estimated_duration
+                distance_meters,
+                duration_seconds
               )
             `)
             .eq('user_id', user.id)
@@ -253,8 +253,8 @@ export const useRouteHistory = () => {
             id,
             name,
             status,
-            total_distance,
-            estimated_duration
+            distance_meters,
+            duration_seconds
           ),
           profiles:user_id (
             id,
