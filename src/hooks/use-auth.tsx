@@ -68,26 +68,48 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [refreshToken]);
 
   const fetchProfile = useCallback(async (userId: string) => {
+    console.log('🔍 [fetchProfile] Iniciando para userId:', userId);
+    
+    // Timeout de 5 segundos para não travar o loading
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('fetchProfile_timeout')), 5000);
+    });
+    
     try {
       if (attemptedProfileFetch.current.has(userId)) {
+        console.log('🔄 [fetchProfile] Já tentado anteriormente, usando perfil básico');
         setProfile({ id: userId });
         return;
       }
-      const { data, error } = await supabase
+      
+      console.log('📊 [fetchProfile] Consultando Supabase com timeout...');
+      
+      const supabasePromise = supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
+      
+      const { data, error } = await Promise.race([supabasePromise, timeoutPromise]) as any;
 
       if (error || !data) {
+        console.log('⚠️ [fetchProfile] Erro ou sem dados:', error);
         attemptedProfileFetch.current.add(userId);
         setProfile({ id: userId, full_name: 'Usuário' });
         return;
       }
+      console.log('✅ [fetchProfile] Perfil carregado com sucesso:', data.full_name);
       setProfile(data);
-    } catch (error) {
-      setProfile({ id: userId });
+    } catch (error: any) {
+      if (error.message === 'fetchProfile_timeout') {
+        console.log('⏰ [fetchProfile] Timeout - usando perfil básico');
+      } else {
+        console.error('❌ [fetchProfile] Erro:', error);
+      }
+      attemptedProfileFetch.current.add(userId);
+      setProfile({ id: userId, full_name: 'Usuário' });
     }
+    console.log('✅ [fetchProfile] Finalizado');
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -220,13 +242,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           console.log('✅ [useAuth] Sessão inicial encontrada para usuário:', initialSession.user.id);
           setSession(initialSession);
           setUser(initialSession.user);
+          console.log('🔄 [useAuth] Iniciando fetchProfile...');
           await fetchProfile(initialSession.user.id);
+          console.log('✅ [useAuth] fetchProfile concluído');
           setupTokenRefresh();
         } else {
           console.log('ℹ️ [useAuth] Nenhuma sessão inicial encontrada');
         }
         
-        console.log('✅ [useAuth] Configuração de autenticação concluída');
+        console.log('✅ [useAuth] Configuração de autenticação concluída - definindo isLoading=false');
         setIsLoading(false);
       } catch (error) {
         console.error('❌ [useAuth] Erro crítico na configuração:', error);
@@ -327,5 +351,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
-export default useAuth;

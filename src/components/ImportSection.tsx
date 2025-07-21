@@ -145,22 +145,14 @@ const ImportSection: React.FC<ImportSectionProps> = ({
                          (typeof isSubscriptionActive === 'function' && isSubscriptionActive()) || 
                          (typeof isTrialActive === 'function' && isTrialActive());
   
-  // Adicionar logs para debug
-  console.log('📚 ImportSection - Estado da assinatura:', { 
-    subscriptionLoading, 
-    isTrialActiveManual,
-    isSubscriptionActiveManual,
-    isSubscriptionActive: typeof isSubscriptionActive === 'function' ? isSubscriptionActive() : false, 
-    isTrialActive: typeof isTrialActive === 'function' ? isTrialActive() : false, 
-    trialDaysRemaining, 
-    canAccessImport,
-    subscription: subscription ? {
-      is_trial: subscription.is_trial,
-      trial_ends_at: subscription.trial_ends_at,
-      status: subscription.status,
-      is_active: subscription.is_active
-    } : null
-  });
+  // Log apenas em desenvolvimento e com menos frequência
+  if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
+    console.log('📚 ImportSection:', { 
+      subscriptionLoading, 
+      canAccessImport,
+      hasSubscription: !!subscription
+    });
+  }
   
   // Função para navegar para a página de assinatura
   const goToSubscription = () => {

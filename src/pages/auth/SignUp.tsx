@@ -8,6 +8,7 @@ import { smartToast } from '@/hooks/use-smart-toast';
 import { Truck, ArrowLeft, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
+import { trackSubscriptionCreation } from '@/utils/subscription-tracker';
 import { validateCPF, maskCPF } from '@/utils/cpfUtils';
 
 const SignUp = () => {
@@ -154,32 +155,55 @@ const SignUp = () => {
             const now = new Date();
             const trialEndDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 dias
             
-            console.log('🔄 Criando assinatura trial:', {
+            // 🔍 LOGS DETALHADOS PARA RASTREAR DUPLICAÇÃO
+            const timestamp = new Date().toISOString();
+            const stackTrace = new Error().stack;
+            
+            console.log('🔥 =================================');
+            console.log('🔥 [SIGNUP.TSX] CRIANDO ASSINATURA TRIAL');
+            console.log('🔥 =================================');
+            console.log('🔄 [SignUp] Timestamp:', timestamp);
+            console.log('🔄 [SignUp] Usuário ID:', data.user.id);
+            console.log('🔄 [SignUp] Stack Trace:', stackTrace);
+            console.log('📊 [SignUp] Dados do trial:', {
               user_id: data.user.id,
+              status: 'trialing',
+              is_active: true,
+              is_trial: true,
               trial_ends_at: trialEndDate.toISOString(),
               current_period_start: now.toISOString(),
               current_period_end: trialEndDate.toISOString()
             });
+            console.log('🔥 =================================');
             
-            const { error: subscriptionError } = await supabase
+            // 🔍 RASTREAMENTO GLOBAL
+            const trialData = {
+              user_id: data.user.id,
+              status: 'trialing',
+              is_active: true,
+              is_trial: true,
+              trial_ends_at: trialEndDate.toISOString(),
+              current_period_start: now.toISOString(),
+              current_period_end: trialEndDate.toISOString(),
+            };
+            
+            trackSubscriptionCreation('SIGNUP.TSX', trialData);
+            
+            const { data: subscriptionData, error: subscriptionError } = await supabase
               .from('user_subscriptions')
-              .insert([
-                {
-                  user_id: data.user.id,
-                  status: 'trialing',
-                  is_active: true,
-                  is_trial: true,
-                  trial_ends_at: trialEndDate.toISOString(),
-                  current_period_start: now.toISOString(),
-                  current_period_end: trialEndDate.toISOString(),
-                }
-              ]);
+              .insert([trialData])
+              .select();
 
             if (subscriptionError) {
-              console.error('Erro ao criar assinatura trial:', subscriptionError);
-              // Não bloquear o fluxo principal se falhar
+              console.error('❌ [SignUp] Erro ao criar assinatura trial:', subscriptionError);
+              console.error('📊 [SignUp] Detalhes do erro:', {
+                code: subscriptionError.code,
+                message: subscriptionError.message,
+                details: subscriptionError.details
+              });
             } else {
-              console.log('✅ Assinatura trial criada com sucesso para o usuário:', data.user.id);
+              console.log('✅ [SignUp] Assinatura trial criada com sucesso!');
+              console.log('📊 [SignUp] Dados salvos no banco:', subscriptionData);
             }
           } catch (err) {
             console.error('Erro ao criar assinatura trial:', err);
@@ -197,13 +221,15 @@ const SignUp = () => {
             title: "Cadastro quase completo!",
             description: "Enviamos um link de confirmação para o seu email. Por favor, verifique sua caixa de entrada.",
           });
+          navigate('/login'); // Precisa confirmar email primeiro
         } else {
           smartToast({
             title: "Cadastro realizado com sucesso!",
-            description: "Sua conta foi criada. Você será redirecionado.",
+            description: "Bem-vindo ao RotaFacil! Você será redirecionado para o app.",
           });
+          console.log('🚀 [SignUp] Redirecionando usuário para /app');
+          navigate('/app'); // Redireciona direto para o app
         }
-        navigate('/login');
       } else {
         smartToast({
           title: "Erro inesperado",

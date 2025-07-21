@@ -24,7 +24,7 @@ const SubscriptionBanner = () => {
     isSubscriptionActive,
     currentPlan,
     error,
-    createTrialSubscription,
+
   } = useSubscription();
 
   const navigate = useNavigate();
@@ -40,16 +40,9 @@ const SubscriptionBanner = () => {
     }
   }, []);
 
-  const handleStartTrial = async () => {
-    try {
-      console.log('🎁 Iniciando trial...');
-      await createTrialSubscription();
-      console.log('✅ Trial iniciado com sucesso!');
-    } catch (error) {
-      console.error('❌ Erro ao iniciar trial:', error);
-      // Se der erro, redirecionar para página de assinatura
-      navigate('/subscription');
-    }
+  const handleStartTrial = () => {
+    console.log('🎁 Redirecionando para página de assinatura...');
+    navigate('/subscription');
   };
 
   // Logs detalhados para debug
