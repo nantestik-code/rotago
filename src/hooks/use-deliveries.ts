@@ -538,58 +538,116 @@ export function useDeliveries() {
 
   // Handle status change with animation flag and persistence
   const handleStatusChange = useCallback(async (id: string, status: 'pendente' | 'entregue' | 'ocorrencia') => {
-    // Encontrar a entrega atual para registrar o status anterior
-    const currentDelivery = deliveries.find(d => d.id === id);
-    if (!currentDelivery) return;
+    console.log(`useDeliveries: Iniciando atualização de status para entrega ${id} para ${status}`);
     
-    const previousStatus = currentDelivery.status;
-    const now = new Date();
-    const timestamp = now.toISOString();
-    
-    console.log(`Alterando status da entrega ${id} de ${previousStatus} para ${status}`);
-    
-    // Registrar a alteração de status em um log local para recuperação
-    try {
-      const statusChangesLog = JSON.parse(localStorage.getItem('statusChangesLog') || '[]');
-      statusChangesLog.push({
-        id,
-        previousStatus,
-        newStatus: status,
-        timestamp,
-        synced: false // Indica que ainda não foi sincronizado com o Supabase
-      });
-      // Limitar o tamanho do log para evitar problemas de armazenamento
-      if (statusChangesLog.length > 1000) {
-        statusChangesLog.splice(0, statusChangesLog.length - 1000);
+    // IMPORTANTE: Usar uma função de callback para acessar o estado mais recente
+    // Isso evita problemas de closure com valores desatualizados
+    setDeliveries(currentDeliveries => {
+      // Encontrar a entrega atual para registrar o status anterior
+      const currentDelivery = currentDeliveries.find(d => d.id === id);
+      if (!currentDelivery) {
+        console.error(`useDeliveries: Entrega com ID ${id} não encontrada no estado atual`);
+        return currentDeliveries; // Retornar o estado atual sem mudanças
       }
-      localStorage.setItem('statusChangesLog', JSON.stringify(statusChangesLog));
-    } catch (logError) {
-      console.error('Erro ao registrar log de alterações:', logError);
-      // Não interromper o fluxo principal se houver erro no log
-    }
-    
-    // Atualizar estado local imediatamente para feedback visual rápido
-    setDeliveries(prev => {
-      const updatedDeliveries = prev.map(delivery => 
-        delivery.id === id ? { 
-          ...delivery, 
-          status,
-          statusChanged: true, // Mark that status just changed to trigger animations
-          updated_at: timestamp, // Atualizar timestamp para controle de versão
-          delivered_at: status === 'entregue' ? timestamp : null
-        } : delivery
-      );
+      
+      const previousStatus = currentDelivery.status;
+      const now = new Date();
+      const timestamp = now.toISOString();
+      
+      console.log(`useDeliveries: Alterando status da entrega ${id} de ${previousStatus} para ${status}`);
+      
+      // Registrar a alteração de status em um log local para recuperação
+      try {
+        const statusChangesLog = JSON.parse(localStorage.getItem('statusChangesLog') || '[]');
+        statusChangesLog.push({
+          id,
+          previousStatus,
+          newStatus: status,
+          timestamp,
+          synced: false // Indica que ainda não foi sincronizado com o Supabase
+        });
+        // Limitar o tamanho do log para evitar problemas de armazenamento
+        if (statusChangesLog.length > 1000) {
+          statusChangesLog.splice(0, statusChangesLog.length - 1000);
+        }
+        localStorage.setItem('statusChangesLog', JSON.stringify(statusChangesLog));
+      } catch (logError) {
+        console.error('Erro ao registrar log de alterações:', logError);
+        // Não interromper o fluxo principal se houver erro no log
+      }
+      
+      // Atualizar estado local imediatamente para feedback visual rápido
+      console.log(`useDeliveries: Atualizando estado local para entrega ${id} com status ${status}`);
+      
+      // Criar uma cópia do array atual de entregas usando map para garantir nova referência
+      // Isso é mais seguro que deep clone com JSON.parse/stringify que pode causar problemas
+      const updatedDeliveries = currentDeliveries.map(delivery => {
+        if (delivery.id === id) {
+          // Atualizar apenas a entrega com o ID correspondente
+          return {
+            ...delivery,
+            status,
+            statusChanged: true,
+            updated_at: timestamp,
+            delivered_at: status === 'entregue' ? timestamp : null
+          };
+        }
+        return delivery; // Manter as outras entregas inalteradas
+      });
+      
+      // Verificar se a entrega foi realmente atualizada
+      const updatedDelivery = updatedDeliveries.find(d => d.id === id);
+      if (updatedDelivery) {
+        console.log(`useDeliveries: Entrega ${id} atualizada com sucesso para status ${updatedDelivery.status}`);
+      } else {
+        console.error(`useDeliveries: Falha ao atualizar entrega ${id} - não encontrada após atualização`);
+      }
       
       // Salvar imediatamente no localStorage para garantir persistência
       try {
         localStorage.setItem('currentRouteDeliveries', JSON.stringify(updatedDeliveries));
-        console.log('Entregas atualizadas salvas no localStorage após mudança de status');
+        console.log('useDeliveries: Entregas atualizadas salvas no localStorage após mudança de status');
       } catch (error) {
         console.error('Erro ao salvar entregas no localStorage após mudança de status:', error);
       }
       
+      // Retornar o novo array de entregas para atualizar o estado
       return updatedDeliveries;
     });
+    
+    // Verificar se a atualização foi aplicada corretamente e forçar nova atualização se necessário
+    setTimeout(() => {
+      // Usar uma função de callback para acessar o estado mais recente
+      setDeliveries(currentDeliveries => {
+        const checkDelivery = currentDeliveries.find(d => d.id === id);
+        if (checkDelivery && checkDelivery.status !== status) {
+          console.error(`useDeliveries: Erro de sincronização: Entrega ${id} deveria ter status ${status} mas tem ${checkDelivery.status}`);
+          // Forçar uma nova atualização
+          console.log('useDeliveries: Forçando nova atualização de estado');
+          
+          // Criar uma nova cópia com a entrega atualizada
+          const forcedUpdate = currentDeliveries.map(d => 
+            d.id === id ? { ...d, status, statusChanged: true } : d
+          );
+          
+          // Salvar no localStorage para garantir persistência
+          try {
+            localStorage.setItem('currentRouteDeliveries', JSON.stringify(forcedUpdate));
+            console.log('useDeliveries: Entregas atualizadas salvas no localStorage após correção de sincronização');
+          } catch (error) {
+            console.error('Erro ao salvar entregas no localStorage após correção:', error);
+          }
+          
+          return forcedUpdate;
+        } else if (checkDelivery) {
+          console.log(`useDeliveries: Verificação de sincronização: Entrega ${id} tem status ${checkDelivery.status} como esperado`);
+          return currentDeliveries; // Sem alterações
+        } else {
+          console.error(`useDeliveries: Entrega ${id} não encontrada durante verificação de sincronização`);
+          return currentDeliveries; // Sem alterações
+        }
+      });
+    }, 300);
     
     // Notificar sobre a mudança de status com smartToast
     smartToast({

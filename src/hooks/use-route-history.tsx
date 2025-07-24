@@ -41,6 +41,7 @@ export const useRouteHistory = () => {
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deletingRouteId, setDeletingRouteId] = useState<string | null>(null);
   
   // Carregar ações pendentes do localStorage
   useEffect(() => {
@@ -413,24 +414,189 @@ export const useRouteHistory = () => {
   
   // Tentar sincronizar ações pendentes quando o usuário estiver autenticado
   useEffect(() => {
+    // Definição da função assíncrona para sincronizar ações pendentes
+    const syncPendingActionsInEffect = async () => {
+      try {
+        const pendingActionsString = localStorage.getItem('pendingRouteActions');
+        if (!pendingActionsString) {
+          setIsLoading(false);
+          return;
+        }
+        
+        const pendingActions = JSON.parse(pendingActionsString);
+        if (!pendingActions || pendingActions.length === 0) {
+          setIsLoading(false);
+          return;
+        }
+    
+        console.log(`Tentando sincronizar ${pendingActions.length} ações pendentes`);
+        
+        // Filtrar apenas ações deste usuário
+        const userActions = pendingActions.filter(action => action.user_id === user.id);
+        if (userActions.length === 0) {
+          setIsLoading(false);
+          return;
+        }
+    
+        // Processar em lotes para evitar problemas
+        const batchSize = 5;
+        let syncedCount = 0;
+    
+        for (let i = 0; i < userActions.length; i += batchSize) {
+          const batch = userActions.slice(i, i + batchSize);
+          const actionsToInsert = batch.map(action => ({
+            user_id: action.user_id,
+            route_id: action.route_id,
+            action: action.action,
+            details: action.details,
+            created_at: action.created_at
+          }));
+          
+          const { error } = await supabase
+            .from('route_history')
+            .insert(actionsToInsert);
+            
+          if (error) {
+            console.error('Erro ao sincronizar lote de ações:', error);
+            continue;
+          }
+          
+          syncedCount += batch.length;
+        }
+        
+        if (syncedCount > 0) {
+          console.log(`${syncedCount} ações sincronizadas com sucesso`);
+          
+          // Remover ações sincronizadas
+          const remainingActions = pendingActions.filter(action => 
+            action.user_id !== user.id || action.synced
+          );
+          
+          localStorage.setItem('pendingRouteActions', JSON.stringify(remainingActions));
+          
+          // Atualizar estado
+          setPendingActions(prev => prev.filter(action => action.user_id !== user.id));
+          
+          smartToast({
+            title: 'Sincronização concluída',
+            description: `${syncedCount} ações de rota sincronizadas com sucesso`,
+            variant: 'default'
+          });
+        }
+        
+        setIsLoading(false);
+      } catch (error: any) {
+        console.error('Erro ao sincronizar ações pendentes:', error);
+        setIsLoading(false);
+        setError('Erro ao sincronizar ações pendentes.');
+      }
+    };
+    
     if (user) {
       // Pequeno atraso para garantir que a autenticação esteja completa
       const timer = setTimeout(() => {
         syncPendingActions();
       }, 5000);
       
+      // Iniciar a função assíncrona
+      syncPendingActionsInEffect();
+      
       return () => clearTimeout(timer);
     }
-  }, [user, syncPendingActions]);
+  }, [user, syncPendingActions, setIsLoading, setError]);
 
-  return {
-    logRouteAction,
-    getUserRouteHistory,
-    getAllRouteHistory,
-    getRouteHistory,
-    syncPendingActions,
-    pendingActions,
-    isLoading,
-    error
-  };
+/**
+ * Exclui uma rota e registra a ação no histórico
+ */
+/**
+ * Função para excluir uma rota e suas entregas associadas
+ */
+const deleteRoute = useCallback(async (routeId: string) => {
+  if (!user) {
+    console.warn('Tentativa de excluir rota sem usuário autenticado');
+    return { success: false, error: 'Usuário não autenticado' };
+  }
+
+  try {
+    setDeletingRouteId(routeId);
+    setIsLoading(true);
+    setError(null);
+    console.log(`Excluindo rota: ${routeId}`);
+    
+    // 1. Excluir as entregas associadas à rota
+    const { error: deliveriesError } = await supabase
+      .from('route_deliveries')
+      .delete()
+      .eq('route_id', routeId as any);
+    
+    if (deliveriesError) {
+      console.error('Erro ao excluir entregas da rota:', deliveriesError);
+      setError('Erro ao excluir entregas da rota');
+      setIsLoading(false);
+      setDeletingRouteId(null);
+      return { success: false, error: deliveriesError.message };
+    }
+    
+    // 2. Excluir a rota
+    const { error: routeError } = await supabase
+      .from('routes')
+      .delete()
+      .eq('id', routeId as any);
+    
+    if (routeError) {
+      console.error('Erro ao excluir rota:', routeError);
+      setError('Erro ao excluir rota');
+      setIsLoading(false);
+      setDeletingRouteId(null);
+      return { success: false, error: routeError.message };
+    }
+    
+    // 3. Registrar a ação no histórico
+    await logRouteAction('delete', routeId, {
+      message: `Rota ${routeId} excluída com sucesso`
+    });
+    
+    setIsLoading(false);
+    setDeletingRouteId(null);
+    
+    // Notificar o usuário
+    smartToast({
+      title: 'Rota excluída',
+      description: 'A rota foi excluída com sucesso',
+      variant: 'default'
+    });
+    
+    return { success: true };
+  } catch (error: any) {
+    console.error('Erro ao excluir rota:', error);
+    setError(error.message || 'Erro desconhecido ao excluir rota');
+    setIsLoading(false);
+    setDeletingRouteId(null);
+    return { success: false, error: error.message };
+  }
+}, [user, logRouteAction]);
+
+// Tentar sincronizar ações pendentes quando o usuário estiver autenticado
+useEffect(() => {
+  if (user) {
+    // Pequeno atraso para garantir que a autenticação esteja completa
+    const timer = setTimeout(() => {
+      syncPendingActions();
+    }, 5000);
+    return () => clearTimeout(timer);
+  }
+}, [user, syncPendingActions]);
+
+return {
+  logRouteAction,
+  getUserRouteHistory,
+  getAllRouteHistory,
+  getRouteHistory,
+  syncPendingActions,
+  deleteRoute,
+  pendingActions,
+  isLoading,
+  error,
+  deletingRouteId
 };
+}

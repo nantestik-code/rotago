@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { DeliveryItem } from '@/utils/deliveryUtils';
 import DeliveryCard from './DeliveryCard';
 import { Search, Filter, Check, AlertTriangle } from 'lucide-react';
+import './delivery-list.css'; // Will create this file next
 
 interface DeliveryListProps {
   deliveries: DeliveryItem[];
@@ -57,55 +58,55 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
     // Adicionar log para debug
     console.log(`DeliveryList - status: ${status}, filter: ${filter}, deliveries recebidas: ${deliveries.length}`);
     
+    // Log detalhado para depuração
+    console.log('DeliveryList - Status de todas as entregas:', 
+      deliveries.map(d => ({ id: d.id, cliente: d.cliente, status: d.status })));
+      
+    // DEBUG: Log para verificar se há entregas com status 'entregue'
+    const entregues = deliveries.filter(d => d.status === 'entregue');
+    console.log(`DeliveryList - Entregas com status 'entregue': ${entregues.length}`, 
+      entregues.map(d => ({ id: d.id, cliente: d.cliente })));
+    
     // Se não houver entregas, retornar array vazio
     if (!deliveries || deliveries.length === 0) {
       console.log('DeliveryList - Nenhuma entrega recebida');
       return [];
     }
     
-    const filtered = deliveries.filter(delivery => {
-      // Se status for definido nas props, verificamos se há entregas com esse status
-      // Se não houver nenhuma entrega com esse status, mostramos todas as entregas
-      if (status) {
-        // Verificar se há alguma entrega com o status definido
-        const hasDeliveriesWithStatus = deliveries.some(d => d.status === status);
-        console.log(`DeliveryList - hasDeliveriesWithStatus: ${hasDeliveriesWithStatus}, status: ${status}`);
-        
-        // Se não houver entregas com o status definido, mostramos todas as entregas
-        // Isso é importante para exibir ordens recém-importadas
-        if (!hasDeliveriesWithStatus) {
-          // Não filtramos, mostramos todas as entregas
-          console.log('DeliveryList - Mostrando todas as entregas pois não há com o status específico');
-        } else {
-          // Se houver entregas com o status definido, filtramos por esse status
-          if (delivery.status !== status) return false;
-        }
-      } else {
-        // Quando status não está definido, aplicamos o filtro local
-        if (filter !== 'todos') {
-          if (filter === 'pendente' && delivery.status !== 'pendente') return false;
-          if (filter === 'entregue' && delivery.status !== 'entregue') return false;
-          if (filter === 'ocorrencia' && delivery.status !== 'ocorrencia') return false;
-        }
-      }
-      
-      // Filtro de busca sempre é aplicado
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
+    let filtered = [...deliveries];
+    
+    // Aplicar filtro de status - SEMPRE filtrar pelo status definido nas props
+    if (status) {
+      // Filtrar estritamente por status quando definido nas props
+      filtered = filtered.filter(delivery => delivery.status === status);
+      console.log(`DeliveryList - Filtrado por status ${status}: ${filtered.length} entregas`);
+    } else if (filter !== 'todos') {
+      // Quando status não está definido, aplicar filtro local
+      filtered = filtered.filter(delivery => {
+        if (filter === 'pendente') return delivery.status === 'pendente';
+        if (filter === 'entregue') return delivery.status === 'entregue';
+        if (filter === 'ocorrencia') return delivery.status === 'ocorrencia';
+        return true;
+      });
+    }
+    
+    // Aplicar filtro de busca se houver um termo de pesquisa
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(delivery => {
         return (
           (delivery.cliente?.toLowerCase() || '').includes(query) ||
           (delivery.endereco?.toLowerCase() || '').includes(query) ||
           (delivery.cidade?.toLowerCase() || '').includes(query)
         );
-      }
-      
-      return true;
-    });
+      });
+    }
     
     // Adicionar log para debug
     console.log(`DeliveryList - entregas filtradas: ${filtered.length}`);
     
-    return [...filtered].sort((a, b) => {
+    // Ordenar por número de sequência
+    return filtered.sort((a, b) => {
       const seqA = a.sequence_number || 999999;
       const seqB = b.sequence_number || 999999;
       return seqA - seqB;
@@ -126,10 +127,84 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
     return {isMultiple: false, indices: []};
   };
 
-  // Enhanced status change handler with proper logging
+  // Enhanced status change handler with proper logging and UI feedback
   const handleStatusChange = (id: string, status: 'pendente' | 'entregue' | 'ocorrencia') => {
     console.log('DeliveryList: Status change requested for delivery:', id, 'to status:', status);
+    
+    // Adicionar feedback visual imediato para o clique do botão
+    const deliveryElement = deliveryItemRefs.current[id];
+    if (deliveryElement) {
+      // Adicionar efeito de destaque
+      deliveryElement.classList.add('status-change-highlight');
+      
+      // Adicionar classe específica para o tipo de status
+      if (status === 'entregue') {
+        deliveryElement.classList.add('status-entregue');
+      } else if (status === 'ocorrencia') {
+        deliveryElement.classList.add('status-ocorrencia');
+      }
+      
+      // Remover classes após a animação
+      setTimeout(() => {
+        deliveryElement.classList.remove('status-change-highlight');
+        deliveryElement.classList.remove('status-entregue');
+        deliveryElement.classList.remove('status-ocorrencia');
+      }, 800);
+    }
+    
+    // Chamar o manipulador pai para atualizar o estado
+    console.log(`DeliveryList: Chamando onStatusChange(${id}, ${status})`);
+    
+    // Importante: Verificar se a entrega existe antes de continuar
+    const delivery = deliveries.find(d => d.id === id);
+    if (!delivery) {
+      console.error(`Entrega com ID ${id} não encontrada`);
+      return;
+    }
+    
+    // Chamar o manipulador pai para atualizar o estado global
     onStatusChange(id, status);
+    
+    // IMPORTANTE: Forçar uma re-renderização imediata da lista para garantir que a UI seja atualizada
+    // Isso é crucial para que a entrega seja movida para a lista correta
+    setTimeout(() => {
+      console.log('Forçando re-renderização imediata após mudança de status');
+      
+      // Mudar o filtro temporariamente para forçar uma re-renderização completa
+      const currentFilter = filter;
+      setFilter('todos');
+      
+      // Mudar o termo de busca temporariamente
+      const currentQuery = searchQuery;
+      setSearchQuery(currentQuery + ' ');
+      
+      // Restaurar os valores originais após um curto atraso
+      setTimeout(() => {
+        setFilter(currentFilter);
+        setSearchQuery(currentQuery);
+        
+        // Forçar mais uma re-renderização após um tempo maior
+        setTimeout(() => {
+          console.log('Forçando re-renderização final para garantir atualização da UI');
+          // Alterar e restaurar rapidamente para forçar atualização
+          setFilter('todos');
+          setTimeout(() => setFilter(currentFilter), 10);
+        }, 300);
+      }, 50);
+    }, 10);
+    
+    // Verificar se a entrega foi realmente atualizada no estado local
+    setTimeout(() => {
+      const updatedDelivery = deliveries.find(d => d.id === id);
+      if (updatedDelivery && updatedDelivery.status !== status) {
+        console.error(`Erro de sincronização: Entrega ${id} deveria ter status ${status} mas tem ${updatedDelivery.status}`);
+        // Tentar forçar uma atualização manual
+        console.log('Tentando forçar atualização manual do status');
+        onStatusChange(id, status);
+      } else {
+        console.log(`Verificação de sincronização: Entrega ${id} tem status ${status} como esperado`);
+      }
+    }, 500);
   };
 
   // Effect to scroll to selected delivery when it changes
@@ -232,8 +307,22 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
                 <div 
                   key={delivery.id} 
                   ref={el => deliveryItemRefs.current[delivery.id] = el}
-                  className={`mb-2 border-l-4 ${delivery.status === 'pendente' ? 'border-l-blue-500' : delivery.status === 'entregue' ? 'border-l-green-500' : 'border-l-red-500'} ${selectedDeliveryId === delivery.id ? 'bg-gray-50 ring-2 ring-blue-200' : 'bg-white'} rounded shadow-sm hover:shadow-md active:scale-[0.99] transition-all cursor-pointer`}
-                  onClick={() => onSelectDelivery(delivery.id)}
+                  className={`mb-2 border-l-4 ${delivery.status === 'pendente' ? 'border-l-blue-500' : delivery.status === 'entregue' ? 'border-l-green-500' : 'border-l-red-500'} ${selectedDeliveryId === delivery.id ? 'bg-gray-50 ring-2 ring-blue-200' : 'bg-white'} rounded shadow-sm hover:shadow-md transition-all`}
+                  onClick={(e) => {
+                    // Verificar se o clique foi em um botão ou em seus filhos
+                    const target = e.target as HTMLElement;
+                    const isButtonClick = target.tagName === 'BUTTON' || 
+                                          target.tagName === 'svg' || 
+                                          target.tagName === 'path' || 
+                                          target.tagName === 'polyline' || 
+                                          target.tagName === 'circle' ||
+                                          target.closest('button');
+                    
+                    // Se não for um clique em botão, selecionar a entrega
+                    if (!isButtonClick) {
+                      onSelectDelivery(delivery.id);
+                    }
+                  }}
                   role="button"
                   tabIndex={0}
                   aria-selected={selectedDeliveryId === delivery.id}

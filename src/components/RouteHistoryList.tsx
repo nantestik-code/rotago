@@ -2,12 +2,34 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useRouteHistory, RouteAction } from '@/hooks/use-route-history';
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Clock, MapPin, RotateCw, CheckCircle, AlertTriangle, User, LogIn, LogOut, Plus } from 'lucide-react';
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Clock, MapPin, RotateCw, CheckCircle, AlertTriangle, User, LogIn, LogOut, Plus, Trash2, BarChart2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from "@/components/ui/dialog";
+import { supabase } from '@/integrations/supabase/client';
+import { smartToast } from '@/hooks/use-smart-toast';
 
 interface RouteHistoryItem {
   id: string;
@@ -116,14 +138,31 @@ const getActionText = (action: RouteAction) => {
   }
 };
 
-export function RouteHistoryList({ showUserInfo = false, routeId, limit = 10 }: RouteHistoryListProps) {
-  const { getUserRouteHistory, getAllRouteHistory, getRouteHistory } = useRouteHistory();
-  const { user, profile } = useAuth();
+export const RouteHistoryList = ({ showUserInfo = false, routeId, limit = 10 }: RouteHistoryListProps) => {
+  const { user } = useAuth();
+  // Usando o hook com tipagem corrigida
+  const routeHistory = useRouteHistory() as any;
+  const getUserRouteHistory = routeHistory.getUserRouteHistory;
+  const getAllRouteHistory = routeHistory.getAllRouteHistory;
+  const getRouteHistory = routeHistory.getRouteHistory;
+  const deleteRoute = routeHistory.deleteRoute;
   const [historyItems, setHistoryItems] = useState<RouteHistoryItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [deletingRouteId, setDeletingRouteId] = useState<string | null>(null);
+  const [showStatsDialog, setShowStatsDialog] = useState(false);
+  const [routeStats, setRouteStats] = useState<{
+    total: number;
+    entregue: number;
+    pendente: number;
+    ocorrencia: number;
+  }>({ total: 0, entregue: 0, pendente: 0, ocorrencia: 0 });
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
+  const [selectedRouteName, setSelectedRouteName] = useState<string>('');
 
   const loadHistory = useCallback(async () => {
     setIsLoading(true);
@@ -238,8 +277,140 @@ export function RouteHistoryList({ showUserInfo = false, routeId, limit = 10 }: 
     );
   }
   
+  // Função para excluir uma rota
+  const handleDeleteRoute = async (routeId: string, routeName: string) => {
+    if (!routeId) return;
+    
+    setDeletingRouteId(routeId);
+    
+    try {
+      console.log(`Excluindo rota ${routeId} (${routeName})`);
+      
+      // Usar o método deleteRoute do hook com tipagem corrigida
+      const result = await routeHistory.deleteRoute(routeId);
+      
+      if (result && result.success) {
+        smartToast({
+          title: 'Rota excluída',
+          description: `A rota "${routeName}" foi excluída com sucesso`,
+          variant: 'default'
+        });
+        
+        // Atualizar a lista de histórico
+        loadHistory();
+      } else {
+        console.error('Erro ao excluir rota:', result?.error);
+        smartToast({
+          title: 'Erro ao excluir rota',
+          description: (result && result.error) || 'Ocorreu um erro ao excluir a rota',
+          variant: 'destructive'
+        });
+      }
+    } catch (error: any) {
+      console.error('Erro ao excluir rota:', error);
+      smartToast({
+        title: 'Erro ao excluir rota',
+        description: error.message || 'Ocorreu um erro ao excluir a rota',
+        variant: 'destructive'
+      });
+    } finally {
+      setDeletingRouteId(null);
+      setIsLoading(false);
+    }
+  };
+  
+  // Função para carregar estatísticas de uma rota
+  const loadRouteStats = async (routeId: string, routeName: string) => {
+    if (!routeId) return;
+    
+    setSelectedRouteId(routeId);
+    setSelectedRouteName(routeName);
+    setLoadingStats(true);
+    
+    try {
+      console.log(`Carregando estatísticas da rota ${routeId} (${routeName})`);
+      
+      // Buscar entregas da rota no Supabase
+      const { data, error } = await supabase
+        .from('route_deliveries')
+        .select('*')
+        .eq('route_id', routeId as any);
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (data) {
+        // Calcular estatísticas
+        const total = data.length;
+        const entregue = data.filter(d => (d as any).status === 'entregue').length;
+        const ocorrencia = data.filter(d => (d as any).status === 'ocorrencia').length;
+        const pendente = total - entregue - ocorrencia;
+        
+        setRouteStats({
+          total,
+          entregue,
+          pendente,
+          ocorrencia
+        });
+        
+        setShowStatsDialog(true);
+      }
+    } catch (error: any) {
+      console.error('Erro ao carregar estatísticas:', error);
+      smartToast({
+        title: 'Erro ao carregar estatísticas',
+        description: error.message || 'Ocorreu um erro ao carregar as estatísticas da rota',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
   return (
     <div className="space-y-3">
+      {/* Diálogo de estatísticas */}
+      <Dialog open={showStatsDialog} onOpenChange={setShowStatsDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Estatísticas da Rota</DialogTitle>
+            <DialogDescription>
+              {selectedRouteName || 'Rota sem nome'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {loadingStats ? (
+            <div className="flex justify-center p-4">
+              <RotateCw className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4 py-4">
+              <div className="flex flex-col items-center p-3 border rounded-md bg-gray-50">
+                <span className="text-2xl font-bold">{routeStats.total}</span>
+                <span className="text-sm text-gray-500">Total de Entregas</span>
+              </div>
+              <div className="flex flex-col items-center p-3 border rounded-md bg-green-50">
+                <span className="text-2xl font-bold text-green-600">{routeStats.entregue}</span>
+                <span className="text-sm text-gray-500">Entregues</span>
+              </div>
+              <div className="flex flex-col items-center p-3 border rounded-md bg-blue-50">
+                <span className="text-2xl font-bold text-blue-600">{routeStats.pendente}</span>
+                <span className="text-sm text-gray-500">Pendentes</span>
+              </div>
+              <div className="flex flex-col items-center p-3 border rounded-md bg-yellow-50">
+                <span className="text-2xl font-bold text-yellow-600">{routeStats.ocorrencia}</span>
+                <span className="text-sm text-gray-500">Ocorrências</span>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button onClick={() => setShowStatsDialog(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
       {historyItems.map((item) => (
         <Card key={item.id} className="w-full">
           <CardHeader className="pb-2">
@@ -297,25 +468,153 @@ export function RouteHistoryList({ showUserInfo = false, routeId, limit = 10 }: 
                 </Badge>
               </div>
             )}
+            
+            {/* Botões de ação para rotas */}
+            {item.routes && item.action === 'create' && (
+              <div className="flex items-center gap-2 mt-3">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex items-center gap-1"
+                  onClick={() => loadRouteStats(item.routes?.id || '', item.routes?.name || '')}
+                  disabled={loadingStats || isLoading}
+                >
+                  <BarChart2 size={14} />
+                  Estatísticas
+                </Button>
+                
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button 
+                      variant="destructive" 
+                      size="sm" 
+                      className="flex items-center gap-1"
+                      disabled={!!deletingRouteId || isLoading}
+                    >
+                      {deletingRouteId === item.routes?.id ? (
+                        <RotateCw className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Trash2 size={14} />
+                      )}
+                      Excluir Rota
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Excluir Rota</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Tem certeza que deseja excluir a rota "{item.routes?.name || 'sem nome'}"?
+                        Esta ação não pode ser desfeita e todas as entregas associadas serão removidas.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={() => handleDeleteRoute(item.routes?.id || '', item.routes?.name || '')}
+                      >
+                        Excluir
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            )}
           </CardContent>
         </Card>
       ))}
       
-      {hasMore && (
-        <Button 
-          variant="outline" 
-          className="w-full" 
-          onClick={loadMore} 
-          disabled={isLoading}
+      <div className="flex justify-center mt-4">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={loadMore}
+          disabled={isLoading || !hasMore}
         >
           {isLoading ? (
             <>
               <RotateCw className="mr-2 h-4 w-4 animate-spin" />
               Carregando...
             </>
-          ) : 'Carregar mais'}
+          ) : hasMore ? (
+            "Carregar mais"
+          ) : (
+            "Fim do histórico"
+          )}
         </Button>
-      )}
+      </div>
+      
+      {/* Diálogo para exibir estatísticas */}
+      <Dialog open={showStatsDialog} onOpenChange={setShowStatsDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BarChart2 size={18} />
+              Estatísticas da Rota: {selectedRouteName}
+            </DialogTitle>
+            <DialogDescription>
+              Resumo das entregas desta rota
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-2 gap-4 mt-4">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex flex-col items-center">
+                  <div className="text-3xl font-bold">{routeStats.total}</div>
+                  <div className="text-sm text-muted-foreground">Total de Entregas</div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex flex-col items-center">
+                  <div className="text-3xl font-bold text-green-600">{routeStats.entregue}</div>
+                  <div className="text-sm text-muted-foreground">Entregas Realizadas</div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex flex-col items-center">
+                  <div className="text-3xl font-bold text-amber-600">{routeStats.pendente}</div>
+                  <div className="text-sm text-muted-foreground">Entregas Pendentes</div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex flex-col items-center">
+                  <div className="text-3xl font-bold text-red-600">{routeStats.ocorrencia}</div>
+                  <div className="text-sm text-muted-foreground">Ocorrências</div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          
+          {routeStats.total > 0 && (
+            <div className="mt-4">
+              <div className="text-sm font-medium mb-2">Progresso da Rota</div>
+              <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-green-500" 
+                  style={{ width: `${(routeStats.entregue / routeStats.total) * 100}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                <span>{Math.round((routeStats.entregue / routeStats.total) * 100)}% concluído</span>
+                <span>{routeStats.entregue} de {routeStats.total}</span>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button onClick={() => setShowStatsDialog(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
-}
+};

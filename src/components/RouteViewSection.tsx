@@ -65,6 +65,51 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
   // Log para depuração das entregas recebidas
   console.log('RouteViewSection - Entregas recebidas:', deliveries.length, deliveries);
   const [showBottomSheet, setShowBottomSheet] = useState(false);
+  const [sheetPosition, setSheetPosition] = useState('default'); // 'minimized', 'default', 'maximized'
+  const [startY, setStartY] = useState(0);
+  const [currentY, setCurrentY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [sheetHeight, setSheetHeight] = useState(0);
+  
+  // Referências para elementos
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const dragHandleRef = useRef<HTMLDivElement>(null);
+  
+  // Calcular altura da lista quando o componente montar e quando a orientação mudar
+  useEffect(() => {
+    if (isMobile && sheetRef.current) {
+      const updateSheetHeight = () => {
+        const viewportHeight = window.innerHeight;
+        setSheetHeight(viewportHeight * 0.6); // 60% da altura da tela
+        
+        // Reset para posição padrão quando a orientação mudar
+        setSheetPosition('default');
+        setCurrentY(0);
+      };
+      
+      updateSheetHeight();
+      window.addEventListener('resize', updateSheetHeight);
+      window.addEventListener('orientationchange', updateSheetHeight);
+      
+      return () => {
+        window.removeEventListener('resize', updateSheetHeight);
+        window.removeEventListener('orientationchange', updateSheetHeight);
+      };
+    }
+  }, [isMobile]);
+  
+  // Prevenir que o body role quando a lista estiver sendo arrastada
+  useEffect(() => {
+    if (isDragging) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isDragging]);
   const [showOcorrenciaDialog, setShowOcorrenciaDialog] = useState(false);
   const [ocorrenciaText, setOcorrenciaText] = useState('');
   const [currentDeliveryId, setCurrentDeliveryId] = useState<string | null>(null);
@@ -80,7 +125,13 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
   const nextDelivery = pendingDeliveries[0];
 
   const handleStatusChange = (id: string, status: 'pendente' | 'entregue' | 'ocorrencia') => {
-    console.log('Changing delivery status:', id, 'to', status);
+    console.log('RouteViewSection: Changing delivery status:', id, 'to', status);
+    console.log('RouteViewSection: Estado atual das entregas:', {
+      total: deliveries.length,
+      pendentes: deliveries.filter(d => d.status === 'pendente').length,
+      entregues: deliveries.filter(d => d.status === 'entregue').length,
+      ocorrencias: deliveries.filter(d => d.status === 'ocorrencia').length
+    });
     
     if (status === 'ocorrencia') {
       setCurrentDeliveryId(id);
@@ -88,13 +139,82 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
       return;
     }
     
-    onStatusChange(id, status);
+    // Encontrar a entrega para atualização
+    const deliveryToUpdate = deliveries.find(d => d.id === id);
+    if (!deliveryToUpdate) {
+      console.error(`RouteViewSection: Entrega com ID ${id} não encontrada`);
+      return;
+    }
     
-    // Mostrar feedback
-    const message = status === 'entregue' ? 'Entrega realizada!' : 'Status atualizado!';
+    // Registrar o status anterior para verificação
+    const previousStatus = deliveryToUpdate.status;
+    console.log(`RouteViewSection: Alterando status da entrega ${id} de ${previousStatus} para ${status}`);
+    
+    // IMPORTANTE: Primeiro mostrar feedback para melhor UX
+    let message = 'Status atualizado!';
+    if (status === 'entregue') {
+      // Encontrar a entrega e seu número de ordem real
+      const delivery = deliveries.find(d => d.id === id);
+      // Usar o orderNumber se disponível, ou o índice + 1 como fallback
+      const orderNum = delivery?.orderNumber || 
+                     (delivery ? deliveries.findIndex(d => d.id === delivery.id) + 1 : '?');
+      message = `Entrega concluída, ordem ${orderNum}`;
+    }
     setFeedbackMessage(message);
     setShowFeedback(true);
-    setTimeout(() => setShowFeedback(false), 2000);
+    setTimeout(() => setShowFeedback(false), 3000);
+    
+    // IMPORTANTE: Criar uma cópia local atualizada da entrega para verificação
+    const updatedDelivery = {
+      ...deliveryToUpdate,
+      status: status
+    };
+    
+    // Chamar o handler pai para atualizar o estado global
+    onStatusChange(id, status);
+    
+    // Mudar para a aba correta após a mudança de status
+    // Isso garante que o usuário veja a lista correta após a mudança
+    setActiveTab(status);
+    
+    // Forçar uma re-renderização completa para garantir que todas as listas sejam atualizadas
+    // Esta abordagem é semelhante à usada no mobile que está funcionando corretamente
+    setTimeout(() => {
+      // Forçar re-renderização alternando rapidamente entre abas
+      const currentTab = activeTab;
+      
+      // Alternar para outra aba e voltar rapidamente
+      if (currentTab !== 'pendente') {
+        setActiveTab('pendente');
+        setTimeout(() => setActiveTab(status), 50);
+      } else {
+        // Se já estiver na aba pendente, alternar para outra e voltar
+        const tempTab = status === 'entregue' ? 'ocorrencia' : 'entregue';
+        setActiveTab(tempTab);
+        setTimeout(() => setActiveTab(status), 50);
+      }
+      
+      // Verificar se a atualização foi aplicada corretamente
+      setTimeout(() => {
+        const checkDelivery = deliveries.find(d => d.id === id);
+        if (checkDelivery && checkDelivery.status !== status) {
+          console.error(`RouteViewSection: Erro de sincronização: Entrega ${id} deveria ter status ${status} mas tem ${checkDelivery.status}`);
+          
+          // Tentar forçar uma atualização manual novamente
+          console.log('RouteViewSection: Tentando forçar atualização manual do status');
+          onStatusChange(id, status);
+        } else if (checkDelivery) {
+          console.log(`RouteViewSection: Verificação de sincronização: Entrega ${id} tem status ${checkDelivery.status} como esperado`);
+        }
+        
+        // Log final do status das listas
+        console.log('RouteViewSection: Status das listas após verificação final:', {
+          pendente: pendingDeliveries.length,
+          entregue: deliveredDeliveries.length,
+          ocorrencia: occurrenceDeliveries.length
+        });
+      }, 200);
+    }, 50);
   };
   
   // Função para abrir o diálogo de ocorrência
@@ -119,12 +239,34 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
     const userAgent = navigator.userAgent || navigator.vendor;
     const { lat, lng } = delivery;
     
-    if (/iPad|iPhone|iPod/.test(userAgent)) {
-      window.open(`maps://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`, '_blank');
-    } else if (/android/i.test(userAgent)) {
-      window.open(`geo:0,0?q=${lat},${lng}`, '_blank');
-    } else {
-      window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+    // Criar o endereço formatado para melhor compatibilidade
+    const address = encodeURIComponent(
+      `${delivery.endereco || ''}, ${delivery.numero || ''}, ${delivery.bairro || ''}, ${delivery.cidade || ''}`
+    );
+    
+    // Log para debug
+    console.log('Abrindo navegação para:', { lat, lng, address, userAgent });
+    
+    try {
+      if (/iPad|iPhone|iPod/.test(userAgent)) {
+        // iOS - tentar com endereço e coordenadas como fallback
+        window.location.href = `maps://maps.apple.com/?q=${address}&ll=${lat},${lng}`;
+      } else if (/android/i.test(userAgent)) {
+        // Android - usar intent com fallback para Google Maps
+        window.location.href = `google.navigation:q=${lat},${lng}`;
+        
+        // Fallback se o primeiro método não funcionar
+        setTimeout(() => {
+          window.location.href = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+        }, 500);
+      } else {
+        // Desktop e outros dispositivos
+        window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+      }
+    } catch (error) {
+      console.error('Erro ao abrir navegação:', error);
+      // Fallback universal
+      window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank');
     }
   };
 
@@ -183,116 +325,225 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
             </div>
           </div>
 
-          {/* Mapa em tela cheia */}
-          <div className="mobile-map-container">
-            <DeliveryMap
-              deliveries={deliveries}
-              selectedDeliveryId={selectedDeliveryId}
-              onSelectDelivery={onSelectDelivery}
-              currentLocation={currentLocation}
-              isTrackingActive={isTrackingActive}
-              onStartTracking={onStartTracking}
-              onStopTracking={onStopTracking}
-              onOptimizeRoute={onOptimizeRoute}
-              onStatusChange={onStatusChange}
-              isMobileView={true}
-            />
-          </div>
-          
-          {/* Feedback visual quando uma lista está aberta */}
-          {showBottomSheet && <div className="fixed inset-0 bg-black bg-opacity-10 z-10"></div>}
-
-          {/* Botão para mostrar próxima entrega */}
-          {nextDelivery && (
-            <div className="next-delivery-fab fixed bottom-4 left-4 bg-green-600 text-white px-4 py-2 rounded-full flex items-center shadow-lg z-20" onClick={() => setShowBottomSheet(true)}>
-              <div className="fab-content flex items-center gap-1">
-                <MapPin size={16} />
-                <span className="text-sm font-medium">Próxima</span>
-              </div>
+          {/* Layout para mobile com mapa e lista suspensa arrastável */}
+          <div className="flex flex-col h-[calc(100vh-120px)] relative">
+            {/* Mapa em tela cheia */}
+            <div className="h-full rounded-md overflow-hidden">
+              <DeliveryMap
+                deliveries={deliveries}
+                selectedDeliveryId={selectedDeliveryId}
+                onSelectDelivery={onSelectDelivery}
+                currentLocation={currentLocation}
+                isTrackingActive={isTrackingActive}
+                onStartTracking={onStartTracking}
+                onStopTracking={onStopTracking}
+                onOptimizeRoute={onOptimizeRoute}
+                onStatusChange={onStatusChange}
+                isMobileView={true}
+              />
             </div>
-          )}
+            
+            {/* Lista de entregas suspensa arrastável */}
+            <div 
+              ref={sheetRef}
+              className={`absolute bottom-0 left-0 right-0 flex flex-col bg-white rounded-t-xl shadow-lg transition-transform duration-300 ease-out ${
+                sheetPosition === 'minimized' ? 'translate-y-[70%]' : 
+                sheetPosition === 'maximized' ? 'translate-y-0' : 
+                'translate-y-[30%]'
+              }`}
+              style={{
+                height: sheetHeight ? `${sheetHeight}px` : '60%',
+                transform: isDragging ? `translateY(${currentY}px)` : undefined,
+                transition: isDragging ? 'none' : 'transform 300ms ease-out',
+                zIndex: 50
+              }}
+              onTouchStart={(e) => {
+                if (dragHandleRef.current?.contains(e.target as Node)) {
+                  setStartY(e.touches[0].clientY);
+                  setIsDragging(true);
+                  e.preventDefault();
+                }
+              }}
+              onTouchMove={(e) => {
+                if (isDragging) {
+                  const deltaY = e.touches[0].clientY - startY;
+                  // Limitar o arraste para não ultrapassar os limites
+                  const maxUp = sheetPosition === 'default' ? -(sheetHeight * 0.3) : 0;
+                  const maxDown = sheetPosition === 'default' ? (sheetHeight * 0.4) : (sheetPosition === 'minimized' ? 0 : (sheetHeight * 0.7));
+                  
+                  const limitedDelta = Math.max(maxUp, Math.min(deltaY, maxDown));
+                  setCurrentY(limitedDelta);
+                  e.preventDefault();
+                }
+              }}
+              onTouchEnd={(e) => {
+                if (isDragging) {
+                  setIsDragging(false);
+                  
+                  // Determinar a nova posição com base no movimento
+                  const threshold = sheetHeight * 0.15;
+                  
+                  if (currentY > threshold) {
+                    // Arrastar para baixo
+                    if (sheetPosition === 'maximized') {
+                      setSheetPosition('default');
+                    } else if (sheetPosition === 'default') {
+                      setSheetPosition('minimized');
+                    }
+                  } else if (currentY < -threshold) {
+                    // Arrastar para cima
+                    if (sheetPosition === 'minimized') {
+                      setSheetPosition('default');
+                    } else if (sheetPosition === 'default') {
+                      setSheetPosition('maximized');
+                    }
+                  }
+                  
+                  setCurrentY(0);
+                  e.preventDefault();
+                }
+              }}
+              // Suporte para mouse também
+              onMouseDown={(e) => {
+                if (dragHandleRef.current?.contains(e.target as Node)) {
+                  setStartY(e.clientY);
+                  setIsDragging(true);
+                }
+              }}
+              onMouseMove={(e) => {
+                if (isDragging) {
+                  const deltaY = e.clientY - startY;
+                  const maxUp = sheetPosition === 'default' ? -(sheetHeight * 0.3) : 0;
+                  const maxDown = sheetPosition === 'default' ? (sheetHeight * 0.4) : (sheetPosition === 'minimized' ? 0 : (sheetHeight * 0.7));
+                  
+                  const limitedDelta = Math.max(maxUp, Math.min(deltaY, maxDown));
+                  setCurrentY(limitedDelta);
+                }
+              }}
+              onMouseUp={() => {
+                if (isDragging) {
+                  setIsDragging(false);
+                  
+                  const threshold = sheetHeight * 0.15;
+                  
+                  if (currentY > threshold) {
+                    if (sheetPosition === 'maximized') {
+                      setSheetPosition('default');
+                    } else if (sheetPosition === 'default') {
+                      setSheetPosition('minimized');
+                    }
+                  } else if (currentY < -threshold) {
+                    if (sheetPosition === 'minimized') {
+                      setSheetPosition('default');
+                    } else if (sheetPosition === 'default') {
+                      setSheetPosition('maximized');
+                    }
+                  }
+                  
+                  setCurrentY(0);
+                }
+              }}
+              onMouseLeave={() => {
+                if (isDragging) {
+                  setIsDragging(false);
+                  setCurrentY(0);
+                }
+              }}
+            >
+              {/* Indicador de arraste */}
+              <div 
+                ref={dragHandleRef}
+                className="drag-handle w-full h-8 flex flex-col items-center justify-center cursor-grab active:cursor-grabbing mx-auto"
+              >
+                <div className="w-12 h-1 bg-gray-300 rounded-full mb-1"></div>
+                <div className="w-12 h-1 bg-gray-300 rounded-full"></div>
+                {sheetPosition === 'minimized' && (
+                  <div className="text-xs text-gray-400 mt-1">Arraste para cima</div>
+                )}
+                {sheetPosition === 'maximized' && (
+                  <div className="text-xs text-gray-400 mt-1">Arraste para baixo</div>
+                )}
+              </div>
+              
+              {/* Abas de navegação */}
+              <div className="flex flex-wrap gap-1 space-x-1 mb-2 border-b border-gray-200 pb-2 overflow-x-auto px-2">
+                <button 
+                  className={`px-2 py-1 rounded-md text-xs font-medium flex items-center whitespace-nowrap ${activeTab === 'pendente' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
+                  onClick={() => setActiveTab('pendente')}
+                >
+                  <Clock size={14} className="mr-1 text-blue-500" />
+                  <span>Pend.</span>
+                  <span className="ml-1">({pendingDeliveries.length || deliveries.length})</span>
+                </button>
+                <button 
+                  className={`px-2 py-1 rounded-md text-xs font-medium flex items-center whitespace-nowrap ${activeTab === 'entregue' ? 'bg-green-100 text-green-700' : 'text-gray-600 hover:bg-gray-100'}`}
+                  onClick={() => setActiveTab('entregue')}
+                >
+                  <Check size={14} className="mr-1 text-green-500" />
+                  <span>Entr.</span>
+                  <span className="ml-1">({deliveredDeliveries.length})</span>
+                </button>
+                <button 
+                  className={`px-2 py-1 rounded-md text-xs font-medium flex items-center whitespace-nowrap ${activeTab === 'ocorrencia' ? 'bg-red-100 text-red-700' : 'text-gray-600 hover:bg-gray-100'}`}
+                  onClick={() => setActiveTab('ocorrencia')}
+                >
+                  <AlertTriangle size={14} className="mr-1 text-red-500" />
+                  <span>Ocor.</span>
+                  <span className="ml-1">({occurrenceDeliveries.length})</span>
+                </button>
+              </div>
 
-          {/* Botão das listas */}
-          <div className="delivery-lists-fab fixed bottom-4 right-4 w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center shadow-lg z-20" onClick={() => setShowBottomSheet(true)}>
-            <List size={20} className="text-white" />
-            <span className="fab-badge absolute -top-2 -right-2 bg-red-500 text-white text-xs w-6 h-6 rounded-full flex items-center justify-center">{deliveries.length}</span>
-          </div>
-
-          {/* Bottom Sheet com listas */}
-          {showBottomSheet && (
-            <div className="bottom-sheet-overlay fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => setShowBottomSheet(false)}>
-              <div className="bottom-sheet z-50 bg-white rounded-t-xl shadow-xl" onClick={(e) => e.stopPropagation()}>
-                <div className="bottom-sheet-header sticky top-0 bg-white border-b border-gray-200 p-3">
-                  <div className="bottom-sheet-handle w-16 h-1 bg-gray-300 rounded-full mx-auto mb-3"></div>
-                  <div className="sheet-tabs flex space-x-2 overflow-x-auto pb-1">
-                    <button 
-                      className={`tab-btn px-3 py-1 rounded-md text-sm font-medium ${activeTab === 'pendente' ? 'bg-blue-100 text-blue-700' : 'text-gray-600'}`}
-                      onClick={() => setActiveTab('pendente')}
-                    >
-                      Pendentes ({statusCounts.pendente})
-                    </button>
-                    <button 
-                      className={`tab-btn px-3 py-1 rounded-md text-sm font-medium ${activeTab === 'entregue' ? 'bg-green-100 text-green-700' : 'text-gray-600'}`}
-                      onClick={() => setActiveTab('entregue')}
-                    >
-                      Entregues ({statusCounts.entregue})
-                    </button>
-                    <button 
-                      className={`tab-btn px-3 py-1 rounded-md text-sm font-medium ${activeTab === 'ocorrencia' ? 'bg-red-100 text-red-700' : 'text-gray-600'}`}
-                      onClick={() => setActiveTab('ocorrencia')}
-                    >
-                      Ocorrências ({statusCounts.ocorrencia})
-                    </button>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowBottomSheet(false)}
-                    className="close-btn absolute right-2 top-2 p-1 rounded-full hover:bg-gray-100"
-                  >
-                    <X size={20} />
-                  </Button>
-                </div>
-
-                <div className="sheet-content p-2 max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300">
-                  {/* Renderizar apenas a lista ativa selecionada */}
-                  {activeTab === 'pendente' && (
-                    <div className="delivery-cards space-y-3">
+              <div className="flex-1 overflow-y-auto p-1 touch-auto overscroll-contain">
+                {/* Renderizar apenas a lista ativa selecionada */}
+                {activeTab === 'pendente' && (
+                    <div className="delivery-cards space-y-2">
                       {pendingDeliveries.length > 0 ? pendingDeliveries.map((delivery, index) => (
-                        <div key={delivery.id} className="mobile-delivery-card bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                          <div className="card-header">
-                            <div className="delivery-number w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-medium mr-2">{index + 1}</div>
-                            <div className="delivery-info">
-                              <h3 className="truncate">{delivery.endereco.split(',')[0]}</h3>
-                              <p className="truncate">{delivery.cidade}</p>
-                              <span className="status-label">Pendente</span>
+                        <div key={delivery.id} className="mobile-delivery-card bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden text-sm">
+                          <div className="card-header p-2 flex">
+                            <div className="delivery-number w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-medium mr-2">{index + 1}</div>
+                            <div className="delivery-info flex-1 min-w-0">
+                              <h3 className="truncate font-medium">{delivery.endereco}</h3>
+                              <p className="truncate text-xs text-gray-500">
+                                {delivery.bairro && <span className="mr-1">{delivery.bairro},</span>}
+                                {delivery.cidade || 'Sem cidade'}
+                                {delivery.complemento && <span className="ml-1">- {delivery.complemento}</span>}
+                              </p>
+                              {delivery.observacoes && (
+                                <p className="truncate text-xs text-gray-400 italic">Obs: {delivery.observacoes}</p>
+                              )}
+                              <div className="flex items-center mt-0.5">
+                                <span className="status-label text-xs bg-blue-50 text-blue-700 px-1 py-0.5 rounded">Pendente</span>
+                                {delivery.isMultiple && (
+                                  <span className="text-xs bg-orange-100 text-orange-800 px-1 py-0.5 rounded ml-1 flex items-center">
+                                    <span className="font-medium">#{index + 1}</span>
+                                    <span className="mx-0.5">múltipla</span>
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                          <div className="card-actions">
+                          <div className="card-actions p-1 flex border-t border-gray-100">
                             <Button
-                              className="action-btn nav-btn flex-1 flex items-center justify-center gap-1"
+                              className="action-btn nav-btn flex-1 flex items-center justify-center gap-1 h-8 rounded-sm"
                               onClick={() => openNavigation(delivery)}
                               size="sm"
                               disabled={!delivery.lat || !delivery.lng}
                             >
-                              <MapPin size={16} />
-                              <span className="hidden sm:inline">Navegar</span>
+                              <MapPin size={14} />
                             </Button>
                             <Button
-                              className="action-btn done-btn flex-1 flex items-center justify-center gap-1 bg-green-600 hover:bg-green-700 text-white"
+                              className="action-btn done-btn flex-1 flex items-center justify-center gap-1 bg-green-600 hover:bg-green-700 text-white h-8 rounded-sm"
                               onClick={() => handleStatusChange(delivery.id, 'entregue')}
                               size="sm"
                             >
-                              <Check size={16} />
-                              <span className="hidden sm:inline">Entregue</span>
+                              <Check size={14} />
                             </Button>
                             <Button
-                              className="action-btn issue-btn flex-1 flex items-center justify-center gap-1 bg-red-600 hover:bg-red-700 text-white"
+                              className="action-btn issue-btn flex-1 flex items-center justify-center gap-1 bg-red-600 hover:bg-red-700 text-white h-8 rounded-sm"
                               onClick={() => handleOcorrenciaClick(delivery.id)}
                               size="sm"
                             >
-                              <AlertTriangle size={16} />
-                              <span className="hidden sm:inline">Ocorrência</span>
+                              <AlertTriangle size={14} />
                             </Button>
                           </div>
                         </div>
@@ -302,9 +553,9 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                     </div>
                   )}
 
-                  {activeTab === 'entregue' && (
-                    <div className="delivery-cards space-y-3">
-                      {deliveredDeliveries.length > 0 ? deliveredDeliveries.map((delivery, index) => (
+                {activeTab === 'entregue' && (
+                  <div className="delivery-cards space-y-3">
+                    {deliveredDeliveries.length > 0 ? deliveredDeliveries.map((delivery, index) => (
                         <div key={delivery.id} className="mobile-delivery-card delivered bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                           <div className="card-header">
                             <div className="delivery-number delivered w-6 h-6 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-sm font-medium mr-2">{index + 1}</div>
@@ -325,15 +576,15 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                             </Button>
                           </div>
                         </div>
-                      )) : (
-                        <div className="empty-list-message p-4 text-center text-gray-500 italic">Nenhuma entrega concluída</div>
-                      )}
-                    </div>
-                  )}
+                    )) : (
+                      <div className="empty-list-message p-4 text-center text-gray-500 italic">Nenhuma entrega concluída</div>
+                    )}
+                  </div>
+                )}
 
-                  {activeTab === 'ocorrencia' && (
-                    <div className="delivery-cards space-y-3">
-                      {occurrenceDeliveries.length > 0 ? occurrenceDeliveries.map((delivery, index) => (
+                {activeTab === 'ocorrencia' && (
+                  <div className="delivery-cards space-y-3">
+                    {occurrenceDeliveries.length > 0 ? occurrenceDeliveries.map((delivery, index) => (
                         <div key={delivery.id} className="mobile-delivery-card occurrence bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                           <div className="card-header">
                             <div className="delivery-number occurrence w-6 h-6 rounded-full bg-red-100 text-red-700 flex items-center justify-center text-sm font-medium mr-2">{index + 1}</div>
@@ -354,15 +605,14 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                             </Button>
                           </div>
                         </div>
-                      )) : (
-                        <div className="empty-list-message p-4 text-center text-gray-500 italic">Nenhuma ocorrência registrada</div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                    )) : (
+                      <div className="empty-list-message p-4 text-center text-gray-500 italic">Nenhuma ocorrência registrada</div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
-          )}
+          </div>
         </div>
       ) : (
         // Layout desktop
@@ -445,16 +695,7 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                 
                 {/* Conteúdo da aba ativa */}
                 <div className="flex-1 overflow-hidden">
-                  {/* Debug para verificar as entregas */}
-                  {false && (
-                    <div className="hidden">
-                      {'RouteViewSection - deliveries: ' + deliveries.length}
-                      {'RouteViewSection - pendingDeliveries: ' + pendingDeliveries.length}
-                      {'RouteViewSection - deliveredDeliveries: ' + deliveredDeliveries.length}
-                      {'RouteViewSection - occurrenceDeliveries: ' + occurrenceDeliveries.length}
-                      {'RouteViewSection - activeTab: ' + activeTab}
-                    </div>
-                  )}
+                  {/* Removido código de debug não funcional */}
                   
                   {activeTab === 'pendente' && (
                     <div className="h-full">
