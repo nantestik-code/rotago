@@ -145,6 +145,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(null);
       setProfile(null);
       
+      // 4.1. Limpar dados de negócio específicos para evitar vazamento entre usuários
+      console.log('🧹 Limpando dados de negócio específicos...');
+      localStorage.removeItem('currentRouteDeliveries');
+      localStorage.removeItem('currentRouteId');
+      localStorage.removeItem('pendingRouteActions');
+      localStorage.removeItem('pending_payment');
+      localStorage.removeItem('pending_plan_id');
+      localStorage.removeItem('pending_payment_time');
+      localStorage.removeItem('rotafacil-landing-state');
+      console.log('✅ Dados de negócio removidos do localStorage');
+      
       // 5. Limpar timer de refresh se existir
       if (tokenRefreshTimerRef.current) {
         console.log('⏰ Limpando timer de refresh...');

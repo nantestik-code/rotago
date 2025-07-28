@@ -45,15 +45,23 @@ export const useRouteHistory = () => {
   
   // Carregar ações pendentes do localStorage
   useEffect(() => {
+    if (!user) return; // Não carregar sem usuário autenticado
+    
     try {
       const pendingActionsString = localStorage.getItem('pendingRouteActions');
-      if (pendingActionsString) {
+      const savedUserId = localStorage.getItem('currentUserId');
+      
+      if (pendingActionsString && savedUserId === user.id) {
         const actions = JSON.parse(pendingActionsString);
-        if (user) {
-          // Filtrar apenas ações deste usuário
-          const userActions = actions.filter((action: any) => action.user_id === user.id);
-          setPendingActions(userActions);
-        }
+        // Filtrar apenas ações deste usuário (dupla validação)
+        const userActions = actions.filter((action: any) => action.user_id === user.id);
+        setPendingActions(userActions);
+        console.log('Carregando ações pendentes para usuário atual:', userActions.length);
+      } else if (pendingActionsString && savedUserId !== user.id) {
+        // Dados pertencem a outro usuário - limpar para evitar vazamento
+        console.log('🧹 Ações pendentes pertencem a outro usuário - limpando...');
+        localStorage.removeItem('pendingRouteActions');
+        setPendingActions([]);
       }
     } catch (err) {
       console.error('Erro ao carregar ações pendentes:', err);

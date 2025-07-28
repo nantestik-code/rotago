@@ -101,6 +101,7 @@ export function useDeliveries() {
         console.log('Atualizando entregas locais com dados mais recentes do Supabase');
         setDeliveries(updatedDeliveries);
         localStorage.setItem('currentRouteDeliveries', JSON.stringify(updatedDeliveries));
+        localStorage.setItem('currentUserId', user?.id || ''); // Salvar ownership
         
         // Atualizar as contagens de status
         const newStatusCounts = getStatusCounts(updatedDeliveries);
@@ -156,12 +157,15 @@ export function useDeliveries() {
         setIsLoading(true);
         
         // Primeiro, tentar carregar do localStorage para rápida restauração do estado
+        // IMPORTANTE: Validar ownership para evitar vazamento de dados entre usuários
         const savedDeliveriesString = localStorage.getItem('currentRouteDeliveries');
-        if (savedDeliveriesString) {
+        const savedUserId = localStorage.getItem('currentUserId');
+        
+        if (savedDeliveriesString && savedUserId === user.id) {
           try {
             const savedDeliveries = JSON.parse(savedDeliveriesString);
             if (savedDeliveries && savedDeliveries.length > 0) {
-              console.log('Carregando entregas do localStorage:', savedDeliveries.length);
+              console.log('Carregando entregas do localStorage para usuário atual:', savedDeliveries.length);
               setDeliveries(savedDeliveries);
               
               // Selecionar a primeira entrega pendente
@@ -182,6 +186,12 @@ export function useDeliveries() {
             console.error('Erro ao carregar entregas do localStorage:', error);
             // Continuar para carregar do Supabase se houver erro
           }
+        } else if (savedDeliveriesString && savedUserId !== user.id) {
+          // Dados pertencem a outro usuário - limpar para evitar vazamento
+          console.log('🧹 Dados do localStorage pertencem a outro usuário - limpando...');
+          localStorage.removeItem('currentRouteDeliveries');
+          localStorage.removeItem('currentRouteId');
+          localStorage.removeItem('currentUserId');
         }
         
         // Se não conseguiu carregar do localStorage, tentar do Supabase
@@ -286,6 +296,7 @@ export function useDeliveries() {
               // Salvar entregas no localStorage para persistência
               try {
                 localStorage.setItem('currentRouteDeliveries', JSON.stringify(orderedDeliveries));
+                localStorage.setItem('currentUserId', user.id); // Salvar ownership
               } catch (error) {
                 console.error('Erro ao salvar entregas no localStorage:', error);
               }
@@ -485,6 +496,7 @@ export function useDeliveries() {
       
       // Salvar ID da rota atual no localStorage
       localStorage.setItem('currentRouteId', routeId);
+      localStorage.setItem('currentUserId', user?.id || ''); // Salvar ownership
       setCurrentRouteId(routeId);
       
       setDeliveries(deliveriesWithIds);
@@ -492,6 +504,7 @@ export function useDeliveries() {
       // Salvar entregas no localStorage para persistência
       try {
         localStorage.setItem('currentRouteDeliveries', JSON.stringify(deliveriesWithIds));
+        localStorage.setItem('currentUserId', user?.id || ''); // Salvar ownership
       } catch (error) {
         console.error('Erro ao salvar entregas no localStorage:', error);
       }
@@ -606,6 +619,7 @@ export function useDeliveries() {
       // Salvar imediatamente no localStorage para garantir persistência
       try {
         localStorage.setItem('currentRouteDeliveries', JSON.stringify(updatedDeliveries));
+        localStorage.setItem('currentUserId', user?.id || ''); // Salvar ownership
         console.log('useDeliveries: Entregas atualizadas salvas no localStorage após mudança de status');
       } catch (error) {
         console.error('Erro ao salvar entregas no localStorage após mudança de status:', error);
@@ -665,6 +679,7 @@ export function useDeliveries() {
         // Salvar novamente no localStorage após remover o flag de animação
         try {
           localStorage.setItem('currentRouteDeliveries', JSON.stringify(updatedDeliveries));
+        localStorage.setItem('currentUserId', user?.id || ''); // Salvar ownership
         } catch (error) {
           console.error('Erro ao salvar entregas no localStorage após animação:', error);
         }
@@ -826,6 +841,7 @@ export function useDeliveries() {
           if (hasUpdates) {
             console.log('Atualizando entregas locais com base no log de alterações pendentes');
             localStorage.setItem('currentRouteDeliveries', JSON.stringify(updatedDeliveries));
+        localStorage.setItem('currentUserId', user?.id || ''); // Salvar ownership
             setDeliveries(updatedDeliveries);
           }
         } catch (error) {
@@ -1038,6 +1054,7 @@ export function useDeliveries() {
       
       // Salvar no localStorage com a sequência de entrega atualizada
       localStorage.setItem('currentRouteDeliveries', JSON.stringify(updatedOptimizedRoute));
+      localStorage.setItem('currentUserId', user?.id || ''); // Salvar ownership
       
       // Registrar ação no histórico de rotas
       if (user && currentRouteId) {

@@ -40,8 +40,17 @@ const Index = () => {
   useEffect(() => {
     try {
       const savedState = localStorage.getItem(STORAGE_KEY);
+      const savedUserId = localStorage.getItem('currentUserId');
+      
       if (savedState) {
         const parsedState = JSON.parse(savedState);
+        
+        // Validar ownership se usuário estiver logado
+        if (user && savedUserId && savedUserId !== user.id) {
+          console.log('🧹 Dados da landing page pertencem a outro usuário - limpando...');
+          localStorage.removeItem(STORAGE_KEY);
+          return;
+        }
         
         // Verificar se os dados salvos são válidos
         if (parsedState.deliveries && Array.isArray(parsedState.deliveries) && parsedState.deliveries.length > 0) {
