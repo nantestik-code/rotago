@@ -1,0 +1,208 @@
+# .htaccess para RotaFacil Turbo - Hospedagem Compartilhada Hostinger
+# Configuração otimizada para SPA React + Service Worker + PWA
+
+# ============================================
+# CONFIGURAÇÕES GERAIS
+# ============================================
+
+# Habilitar mod_rewrite
+RewriteEngine On
+
+# Definir charset padrão
+AddDefaultCharset UTF-8
+
+# ============================================
+# CONFIGURAÇÕES PWA E SERVICE WORKER
+# ============================================
+
+# Service Worker - deve ser servido com MIME type correto
+<Files "sw.js">
+    Header set Content-Type "application/javascript"
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+</Files>
+
+# Manifest PWA
+<Files "manifest.json">
+    Header set Content-Type "application/manifest+json"
+    Header set Cache-Control "public, max-age=31536000"
+</Files>
+
+# ============================================
+# HEADERS DE SEGURANÇA
+# ============================================
+
+# Prevenir clickjacking
+Header always append X-Frame-Options SAMEORIGIN
+
+# Prevenir MIME type sniffing
+Header set X-Content-Type-Options nosniff
+
+# XSS Protection
+Header set X-XSS-Protection "1; mode=block"
+
+# Referrer Policy
+Header set Referrer-Policy "strict-origin-when-cross-origin"
+
+# Content Security Policy (ajuste conforme necessário)
+Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://api.mapbox.com https://*.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co https://api.mapbox.com wss://*.supabase.co; worker-src 'self' blob:; child-src 'self' blob:; manifest-src 'self';"
+
+# ============================================
+# CONFIGURAÇÕES DE CACHE
+# ============================================
+
+# Cache para arquivos estáticos (1 ano)
+<FilesMatch "\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+    Header unset ETag
+    FileETag None
+</FilesMatch>
+
+# Cache para HTML (sem cache para garantir atualizações)
+<FilesMatch "\.(html|htm)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+</FilesMatch>
+
+# Cache para arquivos de dados
+<FilesMatch "\.(json|xml)$">
+    Header set Cache-Control "public, max-age=3600"
+</FilesMatch>
+
+# ============================================
+# COMPRESSÃO GZIP
+# ============================================
+
+# Habilitar compressão para tipos de arquivo específicos
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/plain
+    AddOutputFilterByType DEFLATE text/html
+    AddOutputFilterByType DEFLATE text/xml
+    AddOutputFilterByType DEFLATE text/css
+    AddOutputFilterByType DEFLATE text/javascript
+    AddOutputFilterByType DEFLATE application/xml
+    AddOutputFilterByType DEFLATE application/xhtml+xml
+    AddOutputFilterByType DEFLATE application/rss+xml
+    AddOutputFilterByType DEFLATE application/javascript
+    AddOutputFilterByType DEFLATE application/x-javascript
+    AddOutputFilterByType DEFLATE application/json
+    AddOutputFilterByType DEFLATE application/manifest+json
+    AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# ============================================
+# CONFIGURAÇÕES PARA SPA (SINGLE PAGE APPLICATION)
+# ============================================
+
+# Redirecionar todas as rotas para index.html (exceto arquivos existentes)
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} !^/api/
+RewriteRule ^(.*)$ /index.html [QSA,L]
+
+# ============================================
+# CONFIGURAÇÕES ESPECÍFICAS PARA HOSTINGER
+# ============================================
+
+# Desabilitar listagem de diretórios
+Options -Indexes
+
+# Prevenir acesso a arquivos sensíveis
+<FilesMatch "\.(env|log|sql|md|gitignore|htaccess)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Bloquear acesso a pastas do sistema
+RedirectMatch 403 ^/\.git
+RedirectMatch 403 ^/node_modules
+RedirectMatch 403 ^/src
+
+# ============================================
+# CONFIGURAÇÕES DE PERFORMANCE
+# ============================================
+
+# Habilitar Keep-Alive
+<IfModule mod_headers.c>
+    Header set Connection keep-alive
+</IfModule>
+
+# Configurar ETags para melhor cache
+<IfModule mod_expires.c>
+    ExpiresActive on
+    
+    # HTML
+    ExpiresByType text/html "access plus 0 seconds"
+    
+    # CSS e JavaScript
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType text/javascript "access plus 1 year"
+    
+    # Imagens
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/jpg "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/gif "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+    ExpiresByType image/x-icon "access plus 1 year"
+    ExpiresByType image/vnd.microsoft.icon "access plus 1 year"
+    
+    # Fontes
+    ExpiresByType font/woff "access plus 1 year"
+    ExpiresByType font/woff2 "access plus 1 year"
+    ExpiresByType application/font-woff "access plus 1 year"
+    ExpiresByType application/font-woff2 "access plus 1 year"
+    
+    # Outros
+    ExpiresByType application/json "access plus 1 hour"
+    ExpiresByType application/manifest+json "access plus 1 year"
+</IfModule>
+
+# ============================================
+# CONFIGURAÇÕES ESPECÍFICAS PARA REACT/VITE
+# ============================================
+
+# Garantir que arquivos com hash sejam cacheados por muito tempo
+<FilesMatch "\.[a-f0-9]{8}\.(css|js)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+</FilesMatch>
+
+# ============================================
+# REDIRECIONAMENTOS ESPECÍFICOS
+# ============================================
+
+# Redirecionar www para não-www (opcional - ajuste conforme necessário)
+# RewriteCond %{HTTP_HOST} ^www\.(.*)$ [NC]
+# RewriteRule ^(.*)$ https://%1/$1 [R=301,L]
+
+# Forçar HTTPS (descomente se necessário)
+# RewriteCond %{HTTPS} off
+# RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# ============================================
+# CONFIGURAÇÕES DE ERRO
+# ============================================
+
+# Páginas de erro customizadas (opcional)
+# ErrorDocument 404 /index.html
+# ErrorDocument 500 /index.html
+
+# ============================================
+# CONFIGURAÇÕES ADICIONAIS PARA HOSTINGER
+# ============================================
+
+# Aumentar limites se necessário (ajuste conforme seu plano)
+# php_value upload_max_filesize 64M
+# php_value post_max_size 64M
+# php_value max_execution_time 300
+# php_value max_input_vars 3000
+
+# Desabilitar magic quotes (se PHP < 5.4)
+# php_flag magic_quotes_gpc off
+
+# ============================================
+# FIM DA CONFIGURAÇÃO
+# ============================================

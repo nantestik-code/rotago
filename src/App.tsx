@@ -17,6 +17,7 @@ import PrivateRoute from "./components/PrivateRoute";
 import AdminPanel from "./pages/admin/AdminPanel";
 import RouteHistoryPage from "./pages/RouteHistoryPage";
 import SubscriptionPage from "./pages/SubscriptionPage";
+import UpdateNotification from "./components/UpdateNotification";
 
 const queryClient = new QueryClient();
 
@@ -82,6 +83,9 @@ const App = () => (
             </Routes>
           </RouteHistoryProvider>
         </AuthProvider>
+        
+        {/* Componente de notificação de atualizações */}
+        <UpdateNotification />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

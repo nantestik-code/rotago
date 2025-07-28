@@ -5,6 +5,9 @@ import App from './App.tsx'
 import './index.css'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
+// 🔧 Inicializar Service Worker para cache e atualizações
+import './utils/sw-manager';
+
 // 🔍 INTERCEPTADOR GLOBAL PARA DETECTAR DUPLICAÇÃO DE ASSINATURAS
 console.log('🚨 ===========================================');
 console.log('🚨 INTERCEPTADOR GLOBAL ATIVO');
