@@ -101,6 +101,33 @@ const SignUp = () => {
     setIsLoading(true);
 
     try {
+      // VALIDAÇÃO PRÉVIA: Verificar se CPF já existe na tabela profiles
+      const cpfClean = formData.cpf.replace(/[^0-9]/g, '');
+      console.log('🔍 Verificando se CPF já existe:', cpfClean);
+      
+      // Usar função RPC criada no banco para validação de CPF
+      const { data: cpfExists, error: checkError } = await supabase
+        .rpc('check_cpf_exists', { cpf_input: cpfClean });
+      
+      console.log('📊 Resultado da validação de CPF:', { cpfExists, checkError });
+      
+      if (checkError) {
+        console.warn('⚠️ Erro ao verificar CPF:', checkError);
+        // Se der erro na validação, continua mas com aviso
+        console.warn('⚠️ Continuando cadastro mesmo com erro na validação prévia');
+      } else if (cpfExists === true) {
+        console.error('❌ CPF já existe no banco:', cpfClean);
+        smartToast({
+          title: "CPF já cadastrado",
+          description: "Este CPF já está em uso por outra conta. Use um CPF diferente ou faça login na conta existente.",
+          variant: "destructive"
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      console.log('✅ CPF disponível, prosseguindo com cadastro...');
+      
       const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -115,11 +142,29 @@ const SignUp = () => {
 
       if (error) {
         console.error('Erro no cadastro:', error);
-        smartToast({
-          title: "Erro no cadastro",
-          description: error.message || "Não foi possível criar sua conta. Tente novamente.",
-          variant: "destructive",
-        });
+        
+        // Tratamento específico para usuário já registrado
+        if (error.message?.includes('User already registered') || error.message?.includes('already registered')) {
+          smartToast({
+            title: "Email já cadastrado",
+            description: "Este email já possui uma conta. Faça login ou use um email diferente.",
+            variant: "destructive",
+          });
+        } else if (error.message?.includes('Database error saving new user') || error.status === 500) {
+          // Erro 500 geralmente indica problema de constraint no banco (CPF duplicado)
+          console.error('❌ Erro 500 detectado - possível CPF duplicado que passou pela validação prévia');
+          smartToast({
+            title: "Erro no cadastro",
+            description: "Não foi possível completar o cadastro. Verifique se os dados estão corretos e tente novamente.",
+            variant: "destructive",
+          });
+        } else {
+          smartToast({
+            title: "Erro no cadastro",
+            description: error.message || "Não foi possível criar sua conta. Tente novamente.",
+            variant: "destructive",
+          });
+        }
       } else if (data.user) {
         // Criar perfil do usuário na tabela profiles
         try {
@@ -137,17 +182,44 @@ const SignUp = () => {
 
           if (profileError) {
             console.error('Erro ao criar perfil:', profileError);
-            // Mensagem amigável para CPF duplicado
+            
+            // Tratamento específico para CPF duplicado
             if (profileError.code === '23505' || (profileError.message && profileError.message.includes('unique_cpf'))) {
+              // CPF duplicado é um erro crítico - precisamos desfazer o cadastro
+              console.error('❌ CPF duplicado detectado - desfazendo cadastro...');
+              
+              // Tentar remover o usuário criado no auth
+              try {
+                await supabase.auth.admin.deleteUser(data.user.id);
+                console.log('✅ Usuário removido do auth devido ao CPF duplicado');
+              } catch (deleteError) {
+                console.error('⚠️ Erro ao remover usuário:', deleteError);
+              }
+              
               smartToast({
                 title: "CPF já cadastrado",
-                description: "Já existe um usuário com este CPF. Se você já tem conta, faça login ou recupere sua senha.",
+                description: "Este CPF já está em uso por outra conta. Use um CPF diferente ou faça login na conta existente.",
                 variant: "destructive"
               });
               setIsLoading(false);
               return;
             }
-            // Não bloquear o fluxo principal se falhar por outro motivo
+            
+            // Outros erros de perfil também são críticos
+            console.error('❌ Erro crítico ao criar perfil - desfazendo cadastro...');
+            try {
+              await supabase.auth.admin.deleteUser(data.user.id);
+            } catch (deleteError) {
+              console.error('⚠️ Erro ao remover usuário:', deleteError);
+            }
+            
+            smartToast({
+              title: "Erro no cadastro",
+              description: "Não foi possível completar o cadastro. Tente novamente.",
+              variant: "destructive"
+            });
+            setIsLoading(false);
+            return;
           }
           
           // Criar assinatura trial para o usuário

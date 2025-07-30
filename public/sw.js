@@ -19,6 +19,32 @@ const DYNAMIC_RESOURCES = [
   '/app'
 ];
 
+// Função para verificar se um request pode ser cacheado
+function shouldCacheRequest(request) {
+  // Não cachear requests POST, PUT, DELETE, PATCH
+  if (request.method !== 'GET') {
+    return false;
+  }
+  
+  // Não cachear URLs com schemes não suportados
+  const url = new URL(request.url);
+  if (url.protocol === 'chrome-extension:' || url.protocol === 'moz-extension:') {
+    return false;
+  }
+  
+  // Não cachear requests com parâmetros de autenticação
+  if (url.searchParams.has('token') || url.searchParams.has('access_token')) {
+    return false;
+  }
+  
+  // Não cachear APIs dinâmicas
+  if (DYNAMIC_RESOURCES.some(resource => url.pathname.includes(resource))) {
+    return false;
+  }
+  
+  return true;
+}
+
 // Instalar Service Worker
 self.addEventListener('install', (event) => {
   console.log('🔧 [SW] Instalando Service Worker v' + CACHE_VERSION);
@@ -87,12 +113,15 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          // Cache apenas se a resposta for válida
-          if (response.status === 200) {
+          // Cache apenas se a resposta for válida e request for cacheável
+          if (response.status === 200 && shouldCacheRequest(event.request)) {
             const responseClone = response.clone();
             caches.open(CACHE_NAME)
               .then((cache) => {
                 cache.put(event.request, responseClone);
+              })
+              .catch((error) => {
+                console.warn('Erro ao cachear request:', error);
               });
           }
           return response;
@@ -130,11 +159,14 @@ self.addEventListener('fetch', (event) => {
         // Se não está no cache, busca da rede
         return fetch(event.request)
           .then((networkResponse) => {
-            if (networkResponse.status === 200) {
+            if (networkResponse.status === 200 && shouldCacheRequest(event.request)) {
               const responseClone = networkResponse.clone();
               caches.open(CACHE_NAME)
                 .then((cache) => {
                   cache.put(event.request, responseClone);
+                })
+                .catch((error) => {
+                  console.warn('Erro ao cachear request:', error);
                 });
             }
             return networkResponse;
