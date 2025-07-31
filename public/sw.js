@@ -1,8 +1,8 @@
 // Service Worker para RotaFacil Turbo
 // Sistema de cache e atualização forçada
 
-const CACHE_NAME = 'rotafacil-turbo-v1.0.0';
-const CACHE_VERSION = '1.0.0';
+const CACHE_NAME = 'rotafacil-turbo-v1.0.2';
+const CACHE_VERSION = '1.0.2';
 
 // Recursos essenciais para cache
 const ESSENTIAL_RESOURCES = [
@@ -107,6 +107,28 @@ self.addEventListener('activate', (event) => {
 // Interceptar requisições
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
+  
+  // FORÇA ATUALIZAÇÃO para HTML principal (resolve problema de cache)
+  if (url.pathname === '/' || url.pathname === '/index.html') {
+    console.log('🔄 [SW] Forçando atualização do HTML:', url.pathname);
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          if (response.ok) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then(cache => {
+              cache.put(event.request, responseClone);
+            });
+          }
+          return response;
+        })
+        .catch(() => {
+          console.log('⚠️ [SW] Rede falhou, usando cache para HTML');
+          return caches.match(event.request);
+        })
+    );
+    return;
+  }
   
   // Estratégia para recursos dinâmicos (sempre da rede)
   if (DYNAMIC_RESOURCES.some(resource => url.pathname.startsWith(resource))) {
