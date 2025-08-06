@@ -32,27 +32,34 @@ const SiteContent = () => {
     try {
       setLoading(true);
       
-      // Use a custom query to get data from site_content
+      // Verificar se a tabela existe antes de tentar acessá-la
       const { data, error } = await supabase
         .from('site_content')
         .select('*')
         .order('created_at', { ascending: true });
       
-      if (error) throw error;
+      if (error) {
+        // Se a tabela não existe (código 42P01), usar dados de demonstração
+        if (error.code === '42P01') {
+          console.warn("Tabela site_content não existe, usando dados de demonstração");
+          toast({
+            title: "Modo Demonstração",
+            description: "Tabela site_content não configurada. Exibindo dados de exemplo.",
+            variant: "default",
+          });
+        } else {
+          throw error;
+        }
+      } else {
+        // Safely type the response as ContentItem[]
+        setContent(data as unknown as ContentItem[]);
+        return;
+      }
       
-      // Safely type the response as ContentItem[]
-      setContent(data as unknown as ContentItem[]);
-    } catch (error: any) {
-      console.error("Error fetching content:", error);
-      toast({
-        title: "Erro ao carregar conteúdo",
-        description: error.message,
-        variant: "destructive",
-      });
-      // Provide mock data as fallback
+      // Dados de demonstração quando a tabela não existe
       setContent([
         {
-          id: "1",
+          id: "demo-1",
           title: "Banner Principal",
           content: "Rota Fácil - Otimize suas entregas com a melhor ferramenta do mercado!",
           type: "banner",
@@ -60,10 +67,37 @@ const SiteContent = () => {
           updated_at: new Date().toISOString()
         },
         {
-          id: "2",
+          id: "demo-2",
           title: "Texto Benefícios",
           content: "Economize tempo e combustível, evite voltar 10x no mesmo endereço, organize suas entregas de forma eficiente.",
           type: "text",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        },
+        {
+          id: "demo-3",
+          title: "Recurso Principal",
+          content: "Otimização automática de rotas com algoritmos avançados",
+          type: "feature",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      ]);
+    } catch (error: any) {
+      console.error("Error fetching content:", error);
+      toast({
+        title: "Erro ao carregar conteúdo",
+        description: error.message,
+        variant: "destructive",
+      });
+      
+      // Fallback para dados de demonstração em caso de erro
+      setContent([
+        {
+          id: "fallback-1",
+          title: "Banner Principal",
+          content: "Rota Fácil - Otimize suas entregas com a melhor ferramenta do mercado!",
+          type: "banner",
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }
@@ -81,6 +115,22 @@ const SiteContent = () => {
     if (!editingContent) return;
     
     try {
+      // Verificar se é um item de demonstração
+      if (editingContent.id.startsWith('demo-') || editingContent.id.startsWith('fallback-')) {
+        // Para dados de demonstração, apenas atualizar o estado local
+        const updatedContent = content.map(item => 
+          item.id === editingContent.id ? editingContent : item
+        );
+        setContent(updatedContent);
+        
+        toast({
+          title: "Conteúdo atualizado (Demo)",
+          description: "Alterações salvas localmente. Configure a tabela site_content para persistir dados.",
+        });
+        setEditingContent(null);
+        return;
+      }
+
       const { error } = await supabase
         .from('site_content')
         .update({
@@ -90,7 +140,17 @@ const SiteContent = () => {
         })
         .eq('id', editingContent.id);
       
-      if (error) throw error;
+      if (error) {
+        if (error.code === '42P01') {
+          toast({
+            title: "Tabela não configurada",
+            description: "A tabela site_content não existe. Configure o banco de dados.",
+            variant: "destructive",
+          });
+          return;
+        }
+        throw error;
+      }
       
       // Update local state
       const updatedContent = content.map(item => 
@@ -123,7 +183,29 @@ const SiteContent = () => {
         })
         .select();
       
-      if (error) throw error;
+      if (error) {
+        if (error.code === '42P01') {
+          // Se a tabela não existe, criar um item local de demonstração
+          const newItem: ContentItem = {
+            id: `demo-${Date.now()}`,
+            title: newContent.title,
+            content: newContent.content,
+            type: newContent.type,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          
+          setContent([...content, newItem]);
+          setNewContent({ title: "", content: "", type: "banner" });
+          
+          toast({
+            title: "Conteúdo adicionado (Demo)",
+            description: "Item criado localmente. Configure a tabela site_content para persistir dados.",
+          });
+          return;
+        }
+        throw error;
+      }
       
       // Update local state with the returned item
       if (data) {

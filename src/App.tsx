@@ -12,9 +12,12 @@ import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
 import AuthCallback from "./pages/auth/AuthCallback";
 import { AuthProvider } from "@/hooks/use-auth";
+import { AdminAuthProvider } from "@/hooks/use-admin-auth";
 import { RouteHistoryProvider } from "@/hooks/use-route-history-provider";
 import PrivateRoute from "./components/PrivateRoute";
+import AdminRoute from "./components/auth/AdminRoute";
 import AdminPanel from "./pages/admin/AdminPanel";
+import AdminLogin from "./pages/auth/AdminLogin";
 import RouteHistoryPage from "./pages/RouteHistoryPage";
 import SubscriptionPage from "./pages/SubscriptionPage";
 import UpdateNotification from "./components/UpdateNotification";
@@ -28,35 +31,37 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <RouteHistoryProvider>
-            <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/auth/signup" element={<SignUp />} />
-            <Route path="/auth/login" element={<Login />} />
-            <Route path="/auth/forgot-password" element={<ForgotPassword />} />
-            <Route path="/auth/reset-password" element={<ResetPassword />} />
-            <Route path="/auth/callback" element={<AuthCallback />} />
-            
-            {/* Protected Routes */}
-            <Route 
-              path="/app" 
-              element={
-                <PrivateRoute>
-                  <Index />
-                </PrivateRoute>
-              } 
-            />
-            
-            {/* Admin Panel */}
-            <Route 
-              path="/admin" 
-              element={
-                <PrivateRoute>
-                  <AdminPanel />
-                </PrivateRoute>
-              } 
-            />
+          <AdminAuthProvider>
+            <RouteHistoryProvider>
+              <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/auth/signup" element={<SignUp />} />
+              <Route path="/auth/login" element={<Login />} />
+              <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+              <Route path="/auth/reset-password" element={<ResetPassword />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
+              
+              {/* Admin Routes */}
+              <Route path="/admin/login" element={<AdminLogin />} />
+              <Route 
+                path="/admin" 
+                element={
+                  <AdminRoute>
+                    <AdminPanel />
+                  </AdminRoute>
+                } 
+              />
+              
+              {/* Protected Routes */}
+              <Route 
+                path="/app" 
+                element={
+                  <PrivateRoute>
+                    <Index />
+                  </PrivateRoute>
+                } 
+              />
             
             {/* Histórico de Rotas */}
             <Route 
@@ -78,10 +83,11 @@ const App = () => (
               } 
             />
             
-            {/* Catch All - Redirect to home instead of NotFound page */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </RouteHistoryProvider>
+              {/* Catch All - Redirect to home instead of NotFound page */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </RouteHistoryProvider>
+          </AdminAuthProvider>
         </AuthProvider>
         
         {/* Componente de notificação de atualizações */}

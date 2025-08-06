@@ -4,6 +4,7 @@ import { Session, User } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 import { smartToast } from '@/hooks/use-smart-toast';
 import { clearAllAuthData, hasResidualAuthTokens } from '@/utils/authUtils';
+import { logger } from '@/utils/logger';
 
 // Interface para o perfil do usuário com todas as propriedades necessárias
 interface UserProfile {
@@ -42,21 +43,61 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const attemptedProfileFetch = useRef<Set<string>>(new Set());
 
   const refreshToken = useCallback(async () => {
+    logger.info('AUTH', 'Iniciando refresh do token', {
+      component: 'useAuth',
+      function: 'refreshToken',
+      data: { 
+        hasSession: !!session,
+        userId: user?.id,
+        timestamp: new Date().toISOString()
+      }
+    });
+
     try {
+      console.log('🔄 [refreshToken] Iniciando refresh do token...');
       const { data, error } = await supabase.auth.refreshSession();
+      
       if (error) {
+        logger.error('AUTH', 'Erro ao renovar token', {
+          component: 'useAuth',
+          function: 'refreshToken',
+          error,
+          data: { 
+            errorCode: error.message,
+            userId: user?.id
+          }
+        });
+        console.error('❌ [refreshToken] Erro ao renovar token:', error);
         return false;
       }
+      
       if (data.session) {
+        logger.info('AUTH', 'Token renovado com sucesso', {
+          component: 'useAuth',
+          function: 'refreshToken',
+          data: { 
+            userId: data.session.user.id,
+            expiresAt: data.session.expires_at,
+            timestamp: new Date().toISOString()
+          }
+        });
+        console.log('✅ [refreshToken] Token renovado com sucesso');
         setSession(data.session);
         setUser(data.session.user);
         return true;
       }
     } catch (error) {
+      logger.critical('AUTH', 'Falha crítica no refresh do token', {
+        component: 'useAuth',
+        function: 'refreshToken',
+        error: error as Error,
+        data: { userId: user?.id }
+      });
+      console.error('❌ [refreshToken] Falha crítica no refresh:', error);
       return false;
     }
     return false;
-  }, []);
+  }, [session, user]);
 
   const setupTokenRefresh = useCallback(() => {
     if (tokenRefreshTimerRef.current) {
@@ -68,42 +109,91 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [refreshToken]);
 
   const fetchProfile = useCallback(async (userId: string) => {
-    console.log('🔍 [fetchProfile] Iniciando para userId:', userId);
-    
-    // Timeout de 5 segundos para não travar o loading
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('fetchProfile_timeout')), 5000);
+    logger.info('AUTH', 'Iniciando busca do perfil', {
+      component: 'useAuth',
+      function: 'fetchProfile',
+      data: { 
+        userId,
+        alreadyAttempted: attemptedProfileFetch.current.has(userId)
+      }
     });
+
+    console.log('🔄 [fetchProfile] Iniciando busca do perfil para userId:', userId);
+    
+    if (attemptedProfileFetch.current.has(userId)) {
+      logger.warn('AUTH', 'Busca de perfil já tentada para este userId', {
+        component: 'useAuth',
+        function: 'fetchProfile',
+        data: { userId }
+      });
+      console.log('⚠️ [fetchProfile] Busca já tentada para este userId, pulando...');
+      return;
+    }
+    
+    attemptedProfileFetch.current.add(userId);
     
     try {
-      if (attemptedProfileFetch.current.has(userId)) {
-        console.log('🔄 [fetchProfile] Já tentado anteriormente, usando perfil básico');
-        setProfile({ id: userId });
-        return;
-      }
+      logger.debug('DATABASE', 'Fazendo requisição para tabela profiles', {
+        component: 'useAuth',
+        function: 'fetchProfile',
+        data: { userId, table: 'profiles' }
+      });
+      console.log('📡 [fetchProfile] Fazendo requisição para profiles...');
       
-      console.log('📊 [fetchProfile] Consultando Supabase com timeout...');
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('fetchProfile_timeout')), 10000);
+      });
       
-      const supabasePromise = supabase
+      const fetchPromise = supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
       
-      const { data, error } = await Promise.race([supabasePromise, timeoutPromise]) as any;
-
-      if (error || !data) {
-        console.log('⚠️ [fetchProfile] Erro ou sem dados:', error);
-        attemptedProfileFetch.current.add(userId);
+      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any;
+      
+      if (error) {
+        logger.error('DATABASE', 'Erro na consulta de perfil', {
+          component: 'useAuth',
+          function: 'fetchProfile',
+          error,
+          data: { 
+            userId,
+            errorCode: error.code,
+            errorMessage: error.message
+          }
+        });
+        console.error('❌ [fetchProfile] Erro na consulta:', error);
         setProfile({ id: userId, full_name: 'Usuário' });
         return;
       }
+      
+      logger.info('AUTH', 'Perfil carregado com sucesso', {
+        component: 'useAuth',
+        function: 'fetchProfile',
+        data: { 
+          userId,
+          fullName: data.full_name,
+          hasProfile: !!data
+        }
+      });
       console.log('✅ [fetchProfile] Perfil carregado com sucesso:', data.full_name);
       setProfile(data);
     } catch (error: any) {
       if (error.message === 'fetchProfile_timeout') {
+        logger.warn('AUTH', 'Timeout na busca de perfil - usando perfil básico', {
+          component: 'useAuth',
+          function: 'fetchProfile',
+          data: { userId, timeout: 10000 }
+        });
         console.log('⏰ [fetchProfile] Timeout - usando perfil básico');
       } else {
+        logger.error('AUTH', 'Erro inesperado na busca de perfil', {
+          component: 'useAuth',
+          function: 'fetchProfile',
+          error: error as Error,
+          data: { userId }
+        });
         console.error('❌ [fetchProfile] Erro:', error);
       }
       attemptedProfileFetch.current.add(userId);

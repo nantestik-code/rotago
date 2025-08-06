@@ -4,6 +4,7 @@ import { HelmetProvider } from 'react-helmet-async'
 import App from './App.tsx'
 import './index.css'
 import 'mapbox-gl/dist/mapbox-gl.css'
+import './utils/testLogs'
 
 // 🔧 Inicializar Service Worker para cache e atualizações
 import './utils/sw-manager';

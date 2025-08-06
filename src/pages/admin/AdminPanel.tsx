@@ -1,156 +1,267 @@
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { 
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+import { 
+  BarChart3, 
+  Users, 
+  DollarSign, 
+  CreditCard, 
+  Settings, 
+  FileText,
+  Shield,
+  LogOut,
+  Bug,
+  Bell,
+  Home
+} from "lucide-react";
+import { useAdminAuth } from "@/hooks/use-admin-auth";
 import UsersManagement from "@/components/admin/UsersManagement";
-import SiteContent from "@/components/admin/SiteContent";
 import Analytics from "@/components/admin/Analytics";
-import { toast } from "@/hooks/use-toast";
-import { Shield, Users, FileText, BarChart } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
+import SiteContent from "@/components/admin/SiteContent";
+import FinancialDashboard from "@/components/admin/FinancialDashboard";
+import SubscriptionManagement from "@/components/admin/SubscriptionManagement";
+import SystemSettings from "@/components/admin/SystemSettings";
+import ReportsAndExports from "@/components/admin/ReportsAndExports";
+import AuditLogs from "@/components/admin/AuditLogs";
+import LogsViewer from "@/components/admin/LogsViewer";
 
 const AdminPanel = () => {
-  const { user, profile } = useAuth();
-  const navigate = useNavigate();
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
-  
-  // Check if current user is admin
-  useEffect(() => {
-    const checkAdminStatus = async () => {
-      if (!user) {
-        navigate("/auth/login");
-        return;
-      }
-      
-      try {
-        // Check if user has admin rights - for a simple implementation we're using the is_early_adopter field
-        // In a production environment, you'd want a proper roles table
-        if (profile?.is_early_adopter) {
-          setIsAdmin(true);
-        } else {
-          toast({
-            title: "Acesso não autorizado",
-            description: "Você não tem permissões de administrador.",
-            variant: "destructive",
-          });
-          navigate("/app");
-        }
-      } catch (error) {
-        console.error("Error checking admin status:", error);
-        navigate("/app");
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    checkAdminStatus();
-  }, [user, navigate, profile]);
-  
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-lg">Carregando painel administrativo...</p>
-        </div>
-      </div>
-    );
-  }
-  
-  if (!isAdmin) {
-    return null; // Will redirect from useEffect
-  }
+  const { admin, logoutAdmin } = useAdminAuth();
+
+  const handleLogout = async () => {
+    await logoutAdmin();
+  };
 
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
-        <div className="flex items-center">
-          <Shield className="h-8 w-8 mr-2 text-primary" />
-          <div>
-            <h1 className="text-3xl font-bold">Painel Administrativo</h1>
-            <p className="text-muted-foreground">
-              Gerencie usuários, conteúdo e visualize estatísticas do sistema.
-            </p>
+    <TooltipProvider>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+      <div className="container mx-auto p-6 max-w-7xl">
+        {/* Header com gradiente */}
+        <div className="mb-8 relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 rounded-2xl opacity-90"></div>
+          <div className="relative bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
+            {/* Breadcrumb */}
+            <Breadcrumb className="mb-4">
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <BreadcrumbLink href="/" className="text-white/80 hover:text-white">
+                    <Home className="w-4 h-4" />
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator className="text-white/60" />
+                <BreadcrumbItem>
+                  <BreadcrumbPage className="text-white font-medium">
+                    Painel Administrativo
+                  </BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <Avatar className="w-16 h-16 border-4 border-white/30">
+                    <AvatarImage src="/placeholder.svg" />
+                    <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-xl font-bold">
+                      {admin?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2) || 'AD'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-3 border-white flex items-center justify-center">
+                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                  </div>
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold text-white mb-1">
+                    Painel Administrativo
+                  </h1>
+                  <p className="text-white/80 text-lg">
+                    Gerencie o sistema RotaGo
+                  </p>
+                  {admin && (
+                    <p className="text-white/70 text-sm mt-1">
+                      Bem-vindo, {admin.full_name}
+                    </p>
+                  )}
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-white hover:bg-white/20 relative"
+                    >
+                      <Bell className="w-5 h-5" />
+                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Notificações</p>
+                  </TooltipContent>
+                </Tooltip>
+
+                <Badge 
+                  variant="secondary" 
+                  className="bg-white/20 text-white border-white/30 hover:bg-white/30 transition-colors"
+                >
+                  <Shield className="w-3 h-3 mr-1" />
+                  {admin?.role === 'super_admin' ? 'Super Admin' : 
+                   admin?.role === 'moderator' ? 'Moderador' : 'Administrador'}
+                </Badge>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleLogout}
+                      className="text-white hover:bg-white/20 flex items-center gap-2"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Sair
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Fazer logout</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            </div>
           </div>
         </div>
-        <Button onClick={() => navigate("/app")} className="shrink-0">Voltar ao App</Button>
-      </div>
-      
-      <Separator className="my-6" />
-      
-      <Tabs defaultValue="users" className="space-y-6">
-        <TabsList className="grid grid-cols-3 w-full max-w-md mx-auto mb-4">
-          <TabsTrigger value="users" className="flex items-center gap-2">
-            <Users className="h-4 w-4 md:mr-1" />
-            <span className="hidden sm:inline">Usuários</span>
-          </TabsTrigger>
-          <TabsTrigger value="content" className="flex items-center gap-2">
-            <FileText className="h-4 w-4 md:mr-1" />
-            <span className="hidden sm:inline">Conteúdo</span>
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="flex items-center gap-2">
-            <BarChart className="h-4 w-4 md:mr-1" />
-            <span className="hidden sm:inline">Analytics</span>
-          </TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="users">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Gerenciamento de Usuários
-              </CardTitle>
-              <CardDescription>
-                Visualize, filtre e gerencie os usuários cadastrados na plataforma.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <UsersManagement />
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="content">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Conteúdo do Site
-              </CardTitle>
-              <CardDescription>
-                Atualize banners, mensagens e outros conteúdos do site.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <SiteContent />
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="analytics">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart className="h-5 w-5" />
-                Analytics
-              </CardTitle>
-              <CardDescription>
-                Visualize estatísticas de uso e desempenho do app.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+
+        {/* Tabs Navigation com cores temáticas */}
+        <Tabs defaultValue="analytics" className="w-full">
+          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-2 mb-6 border border-white/20 shadow-lg">
+            <TabsList className="grid w-full grid-cols-9 bg-transparent gap-1">
+              <TabsTrigger 
+                value="analytics" 
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-blue-600 data-[state=active]:text-white hover:bg-blue-50 transition-all duration-200"
+              >
+                📊 Análises
+              </TabsTrigger>
+              <TabsTrigger 
+                value="financial" 
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-green-600 data-[state=active]:text-white hover:bg-green-50 transition-all duration-200"
+              >
+                💰 Financeiro
+              </TabsTrigger>
+              <TabsTrigger 
+                value="subscriptions" 
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-purple-600 data-[state=active]:text-white hover:bg-purple-50 transition-all duration-200"
+              >
+                🎯 Assinaturas
+              </TabsTrigger>
+              <TabsTrigger 
+                value="users" 
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-orange-600 data-[state=active]:text-white hover:bg-orange-50 transition-all duration-200"
+              >
+                👥 Usuários
+              </TabsTrigger>
+              <TabsTrigger 
+                value="reports" 
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white hover:bg-indigo-50 transition-all duration-200"
+              >
+                📈 Relatórios
+              </TabsTrigger>
+              <TabsTrigger 
+                value="audit" 
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-500 data-[state=active]:to-red-600 data-[state=active]:text-white hover:bg-red-50 transition-all duration-200"
+              >
+                🔍 Auditoria
+              </TabsTrigger>
+              <TabsTrigger 
+                value="logs" 
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-gray-500 data-[state=active]:to-gray-600 data-[state=active]:text-white hover:bg-gray-50 transition-all duration-200"
+              >
+                📝 Logs
+              </TabsTrigger>
+              <TabsTrigger 
+                value="content" 
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-teal-500 data-[state=active]:to-teal-600 data-[state=active]:text-white hover:bg-teal-50 transition-all duration-200"
+              >
+                📄 Conteúdo
+              </TabsTrigger>
+              <TabsTrigger 
+                value="settings" 
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-slate-500 data-[state=active]:to-slate-600 data-[state=active]:text-white hover:bg-slate-50 transition-all duration-200"
+              >
+                ⚙️ Configurações
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          {/* Tab Contents com containers modernos */}
+          <TabsContent value="analytics" className="mt-0">
+            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
               <Analytics />
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="financial" className="mt-0">
+            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+              <FinancialDashboard />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="subscriptions" className="mt-0">
+            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+              <SubscriptionManagement />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="users" className="mt-0">
+            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+              <UsersManagement />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="reports" className="mt-0">
+            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+              <ReportsAndExports />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="audit" className="mt-0">
+            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+              <AuditLogs />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="logs" className="mt-0">
+            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+              <LogsViewer />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="content" className="mt-0">
+            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+              <SiteContent />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="settings" className="mt-0">
+            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+              <SystemSettings />
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
+    </TooltipProvider>
   );
 };
 
