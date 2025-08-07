@@ -39,6 +39,163 @@ SaaS moderno para gestão de rotas de entrega, com sistema de assinatura, integr
 - React
 - shadcn-ui
 - Tailwind CSS
+- Supabase (Database + Auth)
+- Mercado Pago (Pagamentos)
+
+---
+
+## 🔐 Sistema Administrativo
+
+### Visão Geral
+O RotaFacil possui um sistema administrativo completo para gerenciamento de usuários, assinaturas e monitoramento da plataforma. O painel admin é acessível via `/admin` e oferece controle total sobre o sistema.
+
+### Funcionalidades do Admin
+
+#### 📊 **Dashboard Analytics**
+- Métricas em tempo real de usuários ativos
+- Estatísticas de assinaturas por plano
+- Gráficos de crescimento e receita
+- Indicadores de performance do sistema
+
+#### 👥 **Gerenciamento de Usuários**
+- **Visualização completa**: Lista todos os usuários com filtros avançados
+- **Detalhes do cliente**: Modal com informações completas incluindo:
+  - Nome completo e email
+  - CPF (formatado e validado)
+  - Status da assinatura
+  - Plano atual e datas
+  - Histórico de criação e atualizações
+- **Ações administrativas**: Ativar/desativar usuários, gerenciar assinaturas
+
+#### 🛡️ **Gerenciamento de Administradores**
+- **Criação de novos admins**: Interface para cadastrar administradores diretamente pelo painel
+- **Validação de campos**: Email, nome completo e senha obrigatórios
+- **Integração completa**: Cria usuário no Supabase Auth + perfil + entrada na tabela admins
+- **Feedback visual**: Toasts de sucesso/erro e validação em tempo real
+
+#### 💰 **Gestão Financeira**
+- Relatórios de receita por período
+- Status de pagamentos e cobranças
+- Integração com Mercado Pago
+- Análise de conversão de trials
+
+#### ⚙️ **Configurações do Sistema**
+- Configuração de planos de assinatura
+- Parâmetros do sistema
+- Logs de auditoria
+- Backup e manutenção
+
+### Autenticação Administrativa
+
+#### **Sistema de Login Seguro**
+O sistema de autenticação administrativa foi completamente refatorado para garantir máxima segurança:
+
+```typescript
+// Fluxo de autenticação admin
+1. Verificação na tabela 'admins' (email + status ativo)
+2. Validação de senha via cliente temporário Supabase
+3. Criação de sessão administrativa local
+4. Logs de auditoria completos
+```
+
+#### **Características de Segurança**
+- ✅ **Validação real de senha**: Usa Supabase Auth para verificar credenciais
+- ✅ **Cliente temporário**: Evita conflitos de sessão com `persistSession: false`
+- ✅ **Sem credenciais hardcoded**: Todas as credenciais são validadas no banco
+- ✅ **Logs de auditoria**: Registro completo de tentativas de login
+- ✅ **Sessão isolada**: Sistema administrativo independente da sessão do usuário
+
+#### **Resolução de Problemas**
+Problemas anteriores resolvidos:
+- ❌ **Erro 400**: Conflitos de sessão com signInWithPassword
+- ✅ **Solução**: Cliente temporário isolado para validação
+- ❌ **Credenciais hardcoded**: Sistema inseguro
+- ✅ **Solução**: Validação real contra Supabase Auth
+- ❌ **RLS conflicts**: Políticas conflitantes na tabela admins
+- ✅ **Solução**: RLS desabilitado para tabela admins
+
+### Estrutura Técnica
+
+#### **Arquivos Principais**
+```
+src/
+├── components/admin/
+│   ├── AdminPanel.tsx          # Painel principal com tabs
+│   ├── UsersManagement.tsx     # Gerenciamento de usuários
+│   └── AdminLogin.tsx          # Tela de login admin
+├── services/
+│   └── adminAuthService.ts     # Serviço de autenticação
+├── pages/admin/
+│   └── AdminPanel.tsx          # Página principal do admin
+└── hooks/
+    └── useAdminAuth.ts         # Hook para autenticação admin
+```
+
+#### **Banco de Dados**
+```sql
+-- Tabela de administradores
+CREATE TABLE admins (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT UNIQUE NOT NULL,
+  full_name TEXT NOT NULL,
+  role TEXT DEFAULT 'admin' CHECK (role IN ('super_admin', 'admin', 'moderator')),
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  last_login_at TIMESTAMP WITH TIME ZONE
+);
+
+-- RLS desabilitado para acesso direto
+ALTER TABLE admins DISABLE ROW LEVEL SECURITY;
+```
+
+### Como Usar o Sistema Admin
+
+#### **Acesso Inicial**
+1. Navegue para `/admin`
+2. Faça login com credenciais de administrador
+3. Acesse o painel principal com todas as funcionalidades
+
+#### **Criar Novo Administrador**
+1. No painel admin, vá para a aba "Usuários"
+2. Clique em "Criar Admin"
+3. Preencha: email, nome completo e senha
+4. O sistema criará automaticamente:
+   - Usuário no Supabase Auth
+   - Perfil na tabela profiles
+   - Entrada na tabela admins
+
+#### **Gerenciar Usuários**
+1. Visualize lista completa de usuários
+2. Use filtros para encontrar usuários específicos
+3. Clique em qualquer usuário para ver detalhes completos
+4. Execute ações administrativas conforme necessário
+
+### Logs e Monitoramento
+
+O sistema inclui logging completo:
+- 📝 **Tentativas de login**: Sucessos e falhas
+- 👤 **Ações administrativas**: Criação/edição de usuários
+- 🔍 **Auditoria**: Rastro completo de ações sensíveis
+- ⚠️ **Erros**: Captura e log de exceções
+
+### Manutenção e Troubleshooting
+
+#### **Problemas Comuns**
+1. **Admin não consegue fazer login**:
+   - Verificar se existe na tabela `admins` com `is_active = true`
+   - Confirmar senha no Supabase Auth
+   - Verificar logs no console do navegador
+
+2. **Erro ao criar admin**:
+   - Verificar se email já existe
+   - Confirmar conexão com Supabase
+   - Verificar permissões da tabela
+
+3. **Usuários não aparecem na lista**:
+   - Verificar políticas RLS na tabela `profiles`
+   - Confirmar sessão administrativa ativa
+   - Verificar filtros aplicados
 
 ---
 
