@@ -63,7 +63,7 @@ export class AdminAuthService {
     logger.info('ADMIN', 'Tentativa de login admin iniciada', {
       component: 'AdminAuthService',
       function: 'loginAdmin',
-      data: { email: email.toLowerCase() }
+      data: { email }
     });
 
     try {
@@ -86,20 +86,23 @@ export class AdminAuthService {
         };
       }
 
-      // Buscar admin na tabela do banco de dados
+      // Buscar admin na tabela do banco de dados (sem RLS)
+      console.log('🔍 Buscando admin na tabela admins:', email);
+      
       const { data: adminData, error: adminError } = await supabase
         .from('admins')
         .select('*')
-        .eq('email', email.toLowerCase())
+        .eq('email', email)
         .eq('is_active', true)
         .limit(1);
-
+      
       if (adminError || !adminData || adminData.length === 0) {
+        console.log('❌ Admin não encontrado na tabela admins');
+        
         logger.warn('ADMIN', 'Admin não encontrado na tabela admins', {
           component: 'AdminAuthService',
           function: 'loginAdmin',
-          error: adminError,
-          data: { email: email.toLowerCase() }
+          data: { email, error: adminError }
         });
         
         return {
@@ -107,8 +110,15 @@ export class AdminAuthService {
           error: 'Administrador não encontrado ou inativo'
         };
       }
-
+      
       const admin = adminData[0] as AdminUser;
+      
+      console.log('✅ Admin encontrado:', {
+        id: admin.id,
+        email: admin.email,
+        role: admin.role,
+        isActive: admin.is_active
+      });
 
       // Tentar login no Supabase Auth (funciona para admin@rotafacil.com)
       console.log('🚀 [LOGIN] Tentando login no Supabase Auth para admin:', admin.email);
@@ -116,17 +126,20 @@ export class AdminAuthService {
       let supabaseAuthSuccess = false;
       
       try {
-        // Apenas para admins que existem no Supabase Auth
+        // Configurar credenciais para admins que existem no Supabase Auth
         let supabaseEmail = admin.email;
         let supabasePassword = 'admin123';
         
         if (admin.email === 'admin@rotafacil.com') {
           supabaseEmail = 'admin@rotafacil.com';
           supabasePassword = 'admin123';
+        } else if (admin.email === 'evandromromero@gmail.com') {
+          supabaseEmail = 'evandromromero@gmail.com';
+          supabasePassword = '933755GiEv**';
         }
         
-        // Só tentar login se for um admin que existe no Supabase Auth
-        if (admin.email === 'admin@rotafacil.com') {
+        // Tentar login no Supabase Auth para admins que existem no auth.users
+        if (admin.email === 'admin@rotafacil.com' || admin.email === 'evandromromero@gmail.com') {
           console.log('🔑 [LOGIN] Tentando login Supabase para:', supabaseEmail);
           
           const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
