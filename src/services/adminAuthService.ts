@@ -105,15 +105,76 @@ export class AdminAuthService {
       const admin = adminData[0];
       console.log('✅ Admin encontrado na tabela:', admin);
       
-      // Para administradores, não validamos senha no Supabase Auth
-      // Apenas verificamos se existe na tabela admins e está ativo
-      console.log('ℹ️ Login administrativo autorizado sem validação de senha Supabase');
-      console.log('🔑 Admin logado com base na tabela admins:', {
-        id: admin.id,
-        email: admin.email,
-        role: admin.role,
-        is_active: admin.is_active
-      });
+      // Validar senha usando cliente temporário do Supabase
+      console.log('🔑 Validando senha para admin:', email);
+      
+      try {
+        // Criar cliente temporário para validação sem afetar sessão principal
+        const { createClient } = await import('@supabase/supabase-js');
+        const tempClient = createClient(
+          import.meta.env.VITE_SUPABASE_URL,
+          import.meta.env.VITE_SUPABASE_ANON_KEY,
+          {
+            auth: {
+              persistSession: false, // Não persistir sessão
+              autoRefreshToken: false,
+              detectSessionInUrl: false
+            }
+          }
+        );
+
+        const { data: authData, error: authError } = await tempClient.auth.signInWithPassword({
+          email: email.toLowerCase(),
+          password: password
+        });
+
+        if (authError) {
+          logger.warn('AUTH', 'Falha na validação de senha do admin', {
+            component: 'AdminAuthService',
+            function: 'loginAdmin',
+            data: { 
+              email, 
+              errorMessage: authError.message,
+              errorCode: authError.status
+            }
+          });
+          
+          return {
+            success: false,
+            error: 'Email ou senha incorretos'
+          };
+        }
+
+        if (!authData.user) {
+          logger.warn('AUTH', 'Validação de senha retornou usuário nulo', {
+            component: 'AdminAuthService',
+            function: 'loginAdmin',
+            data: { email }
+          });
+          
+          return {
+            success: false,
+            error: 'Falha na autenticação'
+          };
+        }
+
+        // Fazer logout imediatamente no cliente temporário
+        await tempClient.auth.signOut();
+        console.log('✅ Senha validada com sucesso (cliente temporário)');
+        
+      } catch (validationException) {
+        logger.error('AUTH', 'Exceção na validação de senha', {
+          component: 'AdminAuthService',
+          function: 'loginAdmin',
+          error: validationException as Error,
+          data: { email }
+        });
+        
+        return {
+          success: false,
+          error: 'Erro interno na validação'
+        };
+      }
 
       // Admin já foi verificado anteriormente, agora finalizar login
       console.log('✅ Autenticação Supabase bem-sucedida para admin:', email);
