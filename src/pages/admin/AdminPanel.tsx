@@ -1,9 +1,10 @@
+
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+
 import { 
   Breadcrumb,
   BreadcrumbItem,
@@ -57,11 +58,8 @@ const AdminPanel = () => {
   ];
 
   return (
-    <TooltipProvider>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex">
-        {/* Sidebar */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex">
         <div className="w-64 bg-white/90 backdrop-blur-sm border-r border-white/20 shadow-xl flex flex-col">
-          {/* Logo/Header */}
           <div className="p-6 border-b border-gray-200/50">
             <div className="flex items-center gap-3">
               <div className="relative">
@@ -94,24 +92,19 @@ const AdminPanel = () => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
               return (
-                <Tooltip key={item.id}>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={() => setActiveTab(item.id)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-left ${
-                        isActive
-                          ? `bg-gradient-to-r from-${item.color}-500 to-${item.color}-600 text-white shadow-lg transform scale-[1.02]`
-                          : `hover:bg-${item.color}-50 text-gray-700 hover:text-${item.color}-700`
-                      }`}
-                    >
-                      <Icon className={`w-5 h-5 ${isActive ? 'text-white' : `text-${item.color}-500`}`} />
-                      <span className="font-medium">{item.label}</span>
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">
-                    <p>{item.label}</p>
-                  </TooltipContent>
-                </Tooltip>
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-left ${
+                    isActive
+                      ? `bg-gradient-to-r from-${item.color}-500 to-${item.color}-600 text-white shadow-lg transform scale-[1.02]`
+                      : `hover:bg-${item.color}-50 text-gray-700 hover:text-${item.color}-700`
+                  }`}
+                  title={item.label}
+                >
+                  <Icon className={`w-5 h-5 ${isActive ? 'text-white' : `text-${item.color}-500`}`} />
+                  <span className="font-medium">{item.label}</span>
+                </button>
               );
             })}
           </nav>
@@ -119,36 +112,24 @@ const AdminPanel = () => {
           {/* Footer */}
           <div className="p-4 border-t border-gray-200/50">
             <div className="flex items-center gap-2 mb-3">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="flex-1 text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-                  >
-                    <Bell className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Notificações</p>
-                </TooltipContent>
-              </Tooltip>
-              
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleLogout}
-                    className="flex-1 text-gray-600 hover:bg-red-50 hover:text-red-600"
-                  >
-                    <LogOut className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Sair</p>
-                </TooltipContent>
-              </Tooltip>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex-1 text-gray-600 hover:bg-blue-50 hover:text-blue-600"
+                title="Notificações"
+              >
+                <Bell className="w-4 h-4" />
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLogout}
+                className="flex-1 text-gray-600 hover:bg-red-50 hover:text-red-600"
+                title="Sair"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
             </div>
           </div>
         </div>
@@ -177,20 +158,12 @@ const AdminPanel = () => {
           {/* Content Area */}
           <div className="flex-1 p-6 overflow-auto">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <div className="hidden"> {/* Hide the original TabsList */}
-                <TabsList>
-                  {menuItems.map(item => (
-                    <TabsTrigger key={item.id} value={item.id}>{item.label}</TabsTrigger>
-                  ))}
-                </TabsList>
-              </div>
-
               {/* Tab Contents com containers modernos */}
-          <TabsContent value="analytics" className="mt-0">
-            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
-              <Analytics />
-            </div>
-          </TabsContent>
+              <TabsContent value="analytics" className="mt-0">
+                <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+                  <Analytics />
+                </div>
+              </TabsContent>
 
           <TabsContent value="financial" className="mt-0">
             <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
@@ -239,10 +212,10 @@ const AdminPanel = () => {
               <SystemSettings />
             </div>
           </TabsContent>
-        </Tabs>
+          </Tabs>
+        </div>
       </div>
     </div>
-    </TooltipProvider>
   );
 };
 

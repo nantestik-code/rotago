@@ -429,7 +429,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         window.clearInterval(tokenRefreshTimerRef.current);
       }
     };
-  }, [fetchProfile, navigate, setupTokenRefresh, isLoading]);
+  }, []); // Executar apenas uma vez na montagem
 
   const value = {
     session,

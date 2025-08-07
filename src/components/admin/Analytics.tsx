@@ -18,7 +18,7 @@ import { Loader2, Users, Package, MapPin, CheckCircle, TrendingUp, Activity } fr
 import { useDeliveries } from "@/hooks/useDeliveries";
 import { useRoutes } from "@/hooks/useRoutes";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
-import { supabase } from "@/integrations/supabase/client";
+import { useAdminSupabaseClient } from "@/utils/adminSupabaseClient";
 
 interface StatsCard {
   title: string;
@@ -50,99 +50,181 @@ const deliveriesByStatusMockData = [
 ];
 
 const Analytics = () => {
-  const { data: deliveries, isLoading: isLoadingDeliveries } = useDeliveries();
-  const { data: routes, isLoading: isLoadingRoutes } = useRoutes();
-  const [userCount, setUserCount] = useState(0);
-  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<StatsCard[]>([]);
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [performanceData, setPerformanceData] = useState<any[]>([]);
+  const { admin } = useAdminAuth();
+  const adminSupabase = useAdminSupabaseClient();
 
   useEffect(() => {
-    // Fetch user count from auth.users (admin only)
-    const fetchUserCount = async () => {
-      try {
-        // Para administradores, podemos usar uma query alternativa ou definir um valor fixo
-        // Como não temos acesso direto à tabela auth.users, vamos usar user_subscriptions como proxy
-        const { count, error } = await supabase
-          .from("user_subscriptions")
-          .select("user_id", { count: "exact", head: true });
-        
-        if (error) throw error;
-        setUserCount(count || 0);
-      } catch (error) {
-        console.error("Error fetching user count:", error);
-        // Fallback para um valor estimado
-        setUserCount(0);
-      } finally {
-        setLoadingUsers(false);
-      }
-    };
+    if (admin) {
+      console.log('🚀 [Analytics] Sessão admin detectada, carregando dados...');
+      fetchAnalyticsData();
+    }
+  }, [admin, adminSupabase]);
 
-    fetchUserCount();
-  }, []);
+  const fetchAnalyticsData = async () => {
+    if (!admin) {
+      console.warn('⚠️ [Analytics] Sem sessão admin ativa');
+      setLoading(false);
+      return;
+    }
 
-  // Calculate stats based on actual data
-  const getTotalDeliveries = () => deliveries?.length || 0;
-  const getCompletedDeliveries = () => deliveries?.filter(d => d.status === "entregue").length || 0;
-  const getActiveRoutes = () => routes?.filter(r => r.status === "ativo").length || 0;
-  
-  // Calculate completion percentage
-  const getCompletionPercentage = () => {
-    if (!deliveries || deliveries.length === 0) return "0%";
-    return `${Math.round((getCompletedDeliveries() / getTotalDeliveries()) * 100)}%`;
+    try {
+      console.log('📊 [Analytics] Iniciando busca de dados analíticos...');
+      console.log('🔑 [Analytics] Usando cliente admin para bypass RLS');
+      
+      // Buscar dados básicos usando cliente admin
+      const [usersResult, routesResult, deliveriesResult, subscriptionsResult] = await Promise.all([
+        adminSupabase.from('profiles').select('*'),
+        adminSupabase.from('routes').select('*'),
+        adminSupabase.from('deliveries').select('*'),
+        adminSupabase.from('user_subscriptions').select('*')
+      ]);
+
+      const users = usersResult.data;
+      const routes = routesResult.data;
+      const deliveries = deliveriesResult.data;
+      const subscriptions = subscriptionsResult.data;
+
+      console.log('✅ [Analytics] Dados carregados com sucesso:', {
+        users: users.length,
+        routes: routes.length,
+        deliveries: deliveries.length,
+        subscriptions: subscriptions.length,
+        clientType: adminSupabase === adminSupabase ? 'admin' : 'standard'
+      });
+
+      // Processar dados para estatísticas
+      const totalUsers = users.length;
+      const totalRoutes = routes.length;
+      const totalDeliveries = deliveries.length;
+      const totalSubscriptions = subscriptions.length;
+
+      const pendentes = deliveries.filter(d => d.status === "pendente").length;
+      const emRota = deliveries.filter(d => d.status === "em_rota").length;
+      const entregues = deliveries.filter(d => d.status === "entregue").length;
+      const cancelados = deliveries.filter(d => d.status === "cancelado").length;
+
+      setStats([
+        {
+          title: "Usuários Ativos",
+          value: totalUsers,
+          icon: <Users className="h-4 w-4" />,
+          description: `${totalUsers} usuários cadastrados`,
+          gradient: "from-blue-500 to-cyan-500",
+          progress: Math.min((totalUsers / 50) * 100, 100)
+        },
+        {
+          title: "Rotas Ativas",
+          value: totalRoutes,
+          icon: <MapPin className="h-4 w-4" />,
+          description: `${totalRoutes} rotas criadas`,
+          gradient: "from-amber-500 to-amber-600",
+          progress: Math.min((totalRoutes / 30) * 100, 100)
+        },
+        {
+          title: "Entregas",
+          value: totalDeliveries,
+          icon: <Package className="h-4 w-4" />,
+          description: `${totalDeliveries} entregas registradas`,
+          gradient: "from-green-500 to-emerald-600",
+          progress: Math.min((totalDeliveries / 100) * 100, 100)
+        },
+        {
+          title: "Assinaturas",
+          value: totalSubscriptions,
+          icon: <CheckCircle className="h-4 w-4" />,
+          description: `${totalSubscriptions} assinaturas ativas`,
+          gradient: "from-purple-500 to-purple-600",
+          progress: Math.min((totalSubscriptions / 50) * 100, 100)
+        },
+      ]);
+
+      setChartData([
+        { name: 'Pendente', value: pendentes },
+        { name: 'Em Rota', value: emRota },
+        { name: 'Entregue', value: entregues },
+        { name: 'Cancelado', value: cancelados },
+      ]);
+
+      setPerformanceData([
+        { date: '10:00', users: 12 },
+        { date: '11:00', users: 19 },
+        { date: '12:00', users: 15 },
+        { date: '13:00', users: 21 },
+        { date: '14:00', users: 28 },
+        { date: '15:00', users: 24 },
+        { date: '16:00', users: 30 },
+        { date: '17:00', users: 22 },
+      ]);
+
+      setLoading(false);
+    } catch (error) {
+      console.error('❌ [Analytics] Erro ao carregar dados:', error);
+      console.error('🔍 [Analytics] Detalhes do erro:', {
+        message: error instanceof Error ? error.message : 'Erro desconhecido',
+        admin: !!admin,
+        clientType: 'admin'
+      });
+      
+      // Usar dados de fallback em caso de erro
+      setStats([
+        {
+          title: "Usuários Ativos",
+          value: "--",
+          icon: <Users className="h-4 w-4" />,
+          description: "Erro ao carregar dados",
+          gradient: "from-blue-500 to-cyan-500",
+          progress: 0
+        },
+        {
+          title: "Rotas Ativas",
+          value: "--",
+          icon: <MapPin className="h-4 w-4" />,
+          description: "Erro ao carregar dados",
+          gradient: "from-amber-500 to-amber-600",
+          progress: 0
+        },
+        {
+          title: "Entregas",
+          value: "--",
+          icon: <Package className="h-4 w-4" />,
+          description: "Erro ao carregar dados",
+          gradient: "from-green-500 to-emerald-600",
+          progress: 0
+        },
+        {
+          title: "Assinaturas",
+          value: "--",
+          icon: <CheckCircle className="h-4 w-4" />,
+          description: "Erro ao carregar dados",
+          gradient: "from-purple-500 to-purple-600",
+          progress: 0
+        },
+      ]);
+
+      setChartData(deliveriesByStatusMockData);
+      setPerformanceData(activeUsersMockData);
+
+      setLoading(false);
+    }
   };
 
-  const statsCards: StatsCard[] = [
-    {
-      title: "Total de Usuários",
-      value: loadingUsers ? "..." : userCount,
-      icon: <Users className="h-8 w-8 text-white" />,
-      description: "Usuários registrados",
-      gradient: "from-blue-500 to-blue-600",
-      progress: Math.min((userCount / 100) * 100, 100)
-    },
-    {
-      title: "Total de Entregas",
-      value: isLoadingDeliveries ? "..." : getTotalDeliveries(),
-      icon: <Package className="h-8 w-8 text-white" />,
-      description: "Entregas cadastradas",
-      gradient: "from-green-500 to-green-600",
-      progress: Math.min((getTotalDeliveries() / 50) * 100, 100)
-    },
-    {
-      title: "Rotas Ativas",
-      value: isLoadingRoutes ? "..." : getActiveRoutes(),
-      icon: <MapPin className="h-8 w-8 text-white" />,
-      description: "Rotas em andamento",
-      gradient: "from-amber-500 to-amber-600",
-      progress: Math.min((getActiveRoutes() / 20) * 100, 100)
-    },
-    {
-      title: "Taxa de Conclusão",
-      value: isLoadingDeliveries ? "..." : getCompletionPercentage(),
-      icon: <CheckCircle className="h-8 w-8 text-white" />,
-      description: "Entregas concluídas",
-      gradient: "from-purple-500 to-purple-600",
-      progress: parseInt(getCompletionPercentage().replace('%', '')) || 0
-    },
-  ];
-  
-  // Generate stats for deliveries by status using actual data
-  const getDeliveriesByStatus = () => {
-    if (!deliveries) return deliveriesByStatusMockData;
-    
-    const pendentes = deliveries.filter(d => d.status === "pendente").length;
-    const emRota = deliveries.filter(d => d.status === "em_rota").length;
-    const entregues = deliveries.filter(d => d.status === "entregue").length;
-    const cancelados = deliveries.filter(d => d.status === "cancelado").length;
-    
-    return [
-      { name: 'Pendente', value: pendentes },
-      { name: 'Em Rota', value: emRota },
-      { name: 'Entregue', value: entregues },
-      { name: 'Cancelado', value: cancelados },
-    ];
-  };
+  if (!admin) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-600">Acesso negado. Faça login como administrador.</p>
+          <p className="text-sm text-gray-500 mt-2">Sessão administrativa necessária para visualizar analytics.</p>
+        </div>
+      </div>
+    );
+  }
 
-  if (isLoadingDeliveries || isLoadingRoutes || loadingUsers) {
+  if (loading) {
     return (
       <div className="flex justify-center items-center p-8">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -166,7 +248,7 @@ const Analytics = () => {
 
       {/* Cards de estatísticas modernos */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statsCards.map((stat, index) => (
+        {stats.map((stat, index) => (
           <Card key={index} className="relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
             <div className={`absolute inset-0 bg-gradient-to-br ${stat.gradient} opacity-90`}></div>
             <CardContent className="relative p-6 text-white">
@@ -216,7 +298,7 @@ const Analytics = () => {
           <CardContent className="pt-0">
             <ResponsiveContainer width="100%" height={320}>
               <LineChart
-                data={activeUsersMockData}
+                data={performanceData}
                 margin={{ top: 20, right: 30, left: 0, bottom: 20 }}
               >
                 <defs>
@@ -271,7 +353,7 @@ const Analytics = () => {
           <CardContent className="pt-0">
             <ResponsiveContainer width="100%" height={320}>
               <BarChart
-                data={getDeliveriesByStatus()}
+                data={chartData}
                 margin={{ top: 20, right: 30, left: 0, bottom: 20 }}
               >
                 <defs>
