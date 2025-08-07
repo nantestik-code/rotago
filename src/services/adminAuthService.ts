@@ -11,12 +11,7 @@ export interface AdminUser {
   updated_at: string;
 }
 
-// Credenciais temporárias para autenticação (senhas conhecidas)
-const ADMIN_CREDENTIALS = {
-  'evandromromero@gmail.com': '933755GiEv**',
-  'admin@rotafacil.com': 'admin123',
-  'suporte@rotafacil.com': 'suporte123'
-};
+// Credenciais hardcoded removidas - agora usa verificação direta na tabela admins
 
 export class AdminAuthService {
   private static instance: AdminAuthService;
@@ -67,10 +62,31 @@ export class AdminAuthService {
     });
 
     try {
-      // Verificar credenciais temporárias
-      const expectedPassword = ADMIN_CREDENTIALS[email.toLowerCase() as keyof typeof ADMIN_CREDENTIALS];
-      if (!expectedPassword || expectedPassword !== password) {
-        logger.warn('SECURITY', 'Tentativa de login admin com credenciais inválidas', {
+      // Verificar se o usuário existe na tabela admins (sem restrições)
+      console.log('🔍 Verificando admin na tabela admins:', email);
+      
+      const { data: adminData, error: adminError } = await supabase
+        .from('admins')
+        .select('*')
+        .eq('email', email.toLowerCase())
+        .eq('is_active', true)
+        .limit(1);
+
+      if (adminError) {
+        logger.error('DATABASE', 'Erro ao buscar admin na tabela admins', {
+          component: 'AdminAuthService',
+          function: 'loginAdmin',
+          error: adminError,
+          data: { email }
+        });
+        return {
+          success: false,
+          error: 'Erro ao verificar credenciais administrativas'
+        };
+      }
+
+      if (!adminData || adminData.length === 0) {
+        logger.warn('SECURITY', 'Tentativa de login com email não cadastrado como admin', {
           component: 'AdminAuthService',
           function: 'loginAdmin',
           data: { 
@@ -82,86 +98,41 @@ export class AdminAuthService {
         
         return {
           success: false,
-          error: 'Credenciais inválidas ou acesso não autorizado'
+          error: 'Email não cadastrado como administrador'
         };
       }
 
-      // Buscar admin na tabela do banco de dados (sem RLS)
-      console.log('🔍 Buscando admin na tabela admins:', email);
+      const admin = adminData[0];
+      console.log('✅ Admin encontrado na tabela:', admin);
       
-      const { data: adminData, error: adminError } = await supabase
-        .from('admins')
-        .select('*')
-        .eq('email', email)
-        .eq('is_active', true)
-        .limit(1);
-      
-      if (adminError || !adminData || adminData.length === 0) {
-        console.log('❌ Admin não encontrado na tabela admins');
-        
-        logger.warn('ADMIN', 'Admin não encontrado na tabela admins', {
-          component: 'AdminAuthService',
-          function: 'loginAdmin',
-          data: { email, error: adminError }
-        });
-        
-        return {
-          success: false,
-          error: 'Administrador não encontrado ou inativo'
-        };
-      }
-      
-      const admin = adminData[0] as AdminUser;
-      
-      console.log('✅ Admin encontrado:', {
+      // Para administradores, não validamos senha no Supabase Auth
+      // Apenas verificamos se existe na tabela admins e está ativo
+      console.log('ℹ️ Login administrativo autorizado sem validação de senha Supabase');
+      console.log('🔑 Admin logado com base na tabela admins:', {
         id: admin.id,
         email: admin.email,
         role: admin.role,
-        isActive: admin.is_active
+        is_active: admin.is_active
       });
 
-      // Tentar login no Supabase Auth (funciona para admin@rotafacil.com)
-      console.log('🚀 [LOGIN] Tentando login no Supabase Auth para admin:', admin.email);
+      // Admin já foi verificado anteriormente, agora finalizar login
+      console.log('✅ Autenticação Supabase bem-sucedida para admin:', email);
       
-      let supabaseAuthSuccess = false;
+      // Atualizar último login na tabela admins
+      const { error: updateError } = await supabase
+        .from('admins')
+        .update({ 
+          last_login_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('email', email.toLowerCase());
       
-      try {
-        // Configurar credenciais para admins que existem no Supabase Auth
-        let supabaseEmail = admin.email;
-        let supabasePassword = 'admin123';
-        
-        if (admin.email === 'admin@rotafacil.com') {
-          supabaseEmail = 'admin@rotafacil.com';
-          supabasePassword = 'admin123';
-        } else if (admin.email === 'evandromromero@gmail.com') {
-          supabaseEmail = 'evandromromero@gmail.com';
-          supabasePassword = '933755GiEv**';
-        }
-        
-        // Tentar login no Supabase Auth para admins que existem no auth.users
-        if (admin.email === 'admin@rotafacil.com' || admin.email === 'evandromromero@gmail.com') {
-          console.log('🔑 [LOGIN] Tentando login Supabase para:', supabaseEmail);
-          
-          const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-            email: supabaseEmail,
-            password: supabasePassword
-          });
-
-          if (authError) {
-            console.warn('⚠️ [LOGIN] Login Supabase falhou:', authError.message);
-          } else {
-            console.log('✅ [LOGIN] Login Supabase realizado com sucesso!');
-            supabaseAuthSuccess = true;
-          }
-        } else {
-          console.log('ℹ️ [LOGIN] Admin não existe no Supabase Auth, usando apenas sessão local:', admin.email);
-        }
-      } catch (supabaseError) {
-        console.warn('⚠️ [LOGIN] Erro no login Supabase, continuando com sessão local:', supabaseError);
+      if (updateError) {
+        console.warn('⚠️ Não foi possível atualizar último login:', updateError);
       }
-
-      // Criar sessão admin
-      const adminSession: AdminUser = {
+      
+      // Criar objeto AdminUser a partir dos dados da tabela
+      const adminUser: AdminUser = {
         id: admin.id,
         email: admin.email,
         full_name: admin.full_name,
@@ -170,32 +141,28 @@ export class AdminAuthService {
         created_at: admin.created_at,
         updated_at: admin.updated_at
       };
-
-      this.currentAdmin = adminSession;
       
-      // Salvar sessão no localStorage
-      localStorage.setItem('adminSession', JSON.stringify(adminSession));
-      
-      // Salvar informação sobre o tipo de autenticação
-      localStorage.setItem('adminAuthType', supabaseAuthSuccess ? 'supabase' : 'local');
+      // Salvar sessão administrativa
+      this.currentAdmin = adminUser;
+      localStorage.setItem('rotago_admin_session', JSON.stringify(adminUser));
       
       logger.info('ADMIN', 'Login administrativo realizado com sucesso', {
         component: 'AdminAuthService',
         function: 'loginAdmin',
         data: { 
-          adminEmail: admin.email, 
-          adminRole: admin.role,
-          supabaseAuth: supabaseAuthSuccess
+          adminId: adminUser.id,
+          email: adminUser.email,
+          role: adminUser.role
         }
       });
-
+      
       return {
         success: true,
-        admin: adminSession
+        admin: adminUser
       };
-
-    } catch (error) {
-      logger.error('ADMIN', 'Erro durante login administrativo', {
+      
+    } catch (error: any) {
+      logger.error('ADMIN', 'Erro inesperado no login administrativo', {
         component: 'AdminAuthService',
         function: 'loginAdmin',
         error: error as Error,

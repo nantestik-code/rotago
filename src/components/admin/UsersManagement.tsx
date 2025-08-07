@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, CheckCircle2, XCircle, PieChart, Download, Search, Filter, Users, Shield, Crown, UserCheck } from "lucide-react";
+import { Users, Search, Filter, Eye, EyeOff, UserPlus, Trash2, Download, Upload, Shield, CheckCircle2, Loader2, XCircle, PieChart, Crown, UserCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -38,10 +38,13 @@ import { Progress } from "@/components/ui/progress";
 interface UserProfile {
   id: string;
   full_name: string | null;
+  cpf: string | null;
   avatar_url: string | null;
+  role: string | null;
   is_early_adopter: boolean | null;
   subscription_status: string | null;
   created_at: string | null;
+  updated_at: string | null;
 }
 
 // Extended status type for user filtering
@@ -54,6 +57,14 @@ const UsersManagement = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<UserStatus>("all");
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const [showCreateAdmin, setShowCreateAdmin] = useState(false);
+  const [newAdminData, setNewAdminData] = useState({
+    email: '',
+    password: '',
+    full_name: '',
+    role: 'admin'
+  });
+  const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
 
   const fetchUsers = async () => {
     logger.info('ADMIN', 'Iniciando busca de usuários', {
@@ -211,6 +222,158 @@ const UsersManagement = () => {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  const createAdmin = async () => {
+    if (isDemoMode) {
+      toast({
+        title: "Modo Demonstração",
+        description: "Criação de admin não permitida em modo demonstração.",
+        variant: "default",
+      });
+      return;
+    }
+
+    if (!newAdminData.email || !newAdminData.password || !newAdminData.full_name) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Preencha todos os campos obrigatórios.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsCreatingAdmin(true);
+      
+      logger.info('ADMIN', 'Iniciando criação de novo administrador', {
+        component: 'UsersManagement',
+        function: 'createAdmin',
+        data: { 
+          email: newAdminData.email,
+          full_name: newAdminData.full_name,
+          role: newAdminData.role
+        }
+      });
+
+      // 1. Criar usuário no Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: newAdminData.email,
+        password: newAdminData.password,
+        options: {
+          data: {
+            full_name: newAdminData.full_name,
+            role: newAdminData.role
+          }
+        }
+      });
+
+      if (authError) {
+        logger.error('AUTH', 'Erro ao criar usuário no Supabase Auth', {
+          component: 'UsersManagement',
+          function: 'createAdmin',
+          error: authError
+        });
+        throw authError;
+      }
+
+      if (!authData.user) {
+        throw new Error('Usuário não foi criado no Supabase Auth');
+      }
+
+      logger.info('AUTH', 'Usuário criado no Supabase Auth', {
+        component: 'UsersManagement', 
+        function: 'createAdmin',
+        data: { userId: authData.user.id }
+      });
+
+      // 2. Criar perfil na tabela profiles
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: authData.user.id,
+          full_name: newAdminData.full_name,
+          role: newAdminData.role,
+          is_early_adopter: true, // Admins são early adopters
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+
+      if (profileError) {
+        logger.error('DATABASE', 'Erro ao criar perfil do admin', {
+          component: 'UsersManagement',
+          function: 'createAdmin', 
+          error: profileError
+        });
+        throw profileError;
+      }
+
+      // 3. Criar entrada na tabela admins
+      const { error: adminError } = await supabase
+        .from('admins')
+        .insert({
+          id: authData.user.id,
+          email: newAdminData.email,
+          full_name: newAdminData.full_name,
+          role: newAdminData.role,
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+
+      if (adminError) {
+        logger.error('DATABASE', 'Erro ao criar entrada na tabela admins', {
+          component: 'UsersManagement',
+          function: 'createAdmin',
+          error: adminError
+        });
+        // Não falhar aqui, pois o usuário já foi criado
+        console.warn('⚠️ Admin criado mas não foi possível adicionar à tabela admins:', adminError);
+      }
+
+      logger.info('ADMIN', 'Administrador criado com sucesso', {
+        component: 'UsersManagement',
+        function: 'createAdmin',
+        data: {
+          userId: authData.user.id,
+          email: newAdminData.email,
+          role: newAdminData.role
+        }
+      });
+
+      toast({
+        title: "Admin criado com sucesso!",
+        description: `Administrador ${newAdminData.full_name} foi criado e pode fazer login.`,
+        variant: "default",
+      });
+
+      // Limpar formulário e fechar modal
+      setNewAdminData({
+        email: '',
+        password: '',
+        full_name: '',
+        role: 'admin'
+      });
+      setShowCreateAdmin(false);
+      
+      // Recarregar lista de usuários
+      fetchUsers();
+
+    } catch (error: any) {
+      logger.error('ADMIN', 'Erro ao criar administrador', {
+        component: 'UsersManagement',
+        function: 'createAdmin',
+        error: error as Error
+      });
+      
+      toast({
+        title: "Erro ao criar admin",
+        description: error.message || "Erro desconhecido ao criar administrador",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingAdmin(false);
+    }
+  };
 
   const toggleAdminStatus = async (user: UserProfile) => {
     if (isDemoMode) {
@@ -518,29 +681,125 @@ const UsersManagement = () => {
             <CardContent className="p-4">
               <div className="flex flex-col sm:flex-row gap-4">
                 <div className="relative flex-1">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                  <Input
-                    placeholder="Buscar por nome..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500/20"
-                  />
+                  <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                    <div className="flex-1">
+                      <Input
+                        placeholder="Buscar por nome ou email..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full"
+                      />
+                    </div>
+                    <Select value={statusFilter} onValueChange={(value: UserStatus) => setStatusFilter(value)}>
+                      <SelectTrigger className="w-full sm:w-[200px]">
+                        <SelectValue placeholder="Filtrar por status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os usuários</SelectItem>
+                        <SelectItem value="free">Usuários gratuitos</SelectItem>
+                        <SelectItem value="premium">Usuários premium</SelectItem>
+                        <SelectItem value="admin">Administradores</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Dialog open={showCreateAdmin} onOpenChange={setShowCreateAdmin}>
+                      <DialogTrigger asChild>
+                        <Button className="bg-purple-600 hover:bg-purple-700 text-white">
+                          <UserPlus className="h-4 w-4 mr-2" />
+                          Criar Admin
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-md">
+                        <DialogHeader>
+                          <DialogTitle className="text-xl font-bold text-purple-800 flex items-center">
+                            <Crown className="h-5 w-5 mr-2" />
+                            Criar Novo Administrador
+                          </DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">Nome Completo *</label>
+                            <Input
+                              placeholder="Digite o nome completo"
+                              value={newAdminData.full_name}
+                              onChange={(e) => setNewAdminData(prev => ({ ...prev, full_name: e.target.value }))}
+                              className="w-full"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">Email *</label>
+                            <Input
+                              type="email"
+                              placeholder="admin@rotago.com"
+                              value={newAdminData.email}
+                              onChange={(e) => setNewAdminData(prev => ({ ...prev, email: e.target.value }))}
+                              className="w-full"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">Senha *</label>
+                            <Input
+                              type="password"
+                              placeholder="Digite uma senha segura"
+                              value={newAdminData.password}
+                              onChange={(e) => setNewAdminData(prev => ({ ...prev, password: e.target.value }))}
+                              className="w-full"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">Função</label>
+                            <Select 
+                              value={newAdminData.role} 
+                              onValueChange={(value) => setNewAdminData(prev => ({ ...prev, role: value }))}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="admin">Administrador</SelectItem>
+                                <SelectItem value="super_admin">Super Admin</SelectItem>
+                                <SelectItem value="moderator">Moderador</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                            <div className="flex items-start">
+                              <Shield className="h-4 w-4 text-yellow-600 mt-0.5 mr-2" />
+                              <div className="text-xs text-yellow-800">
+                                <strong>Atenção:</strong> Este administrador terá acesso completo ao sistema e poderá fazer login imediatamente após a criação.
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-4 border-t">
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setShowCreateAdmin(false)}
+                            disabled={isCreatingAdmin}
+                          >
+                            Cancelar
+                          </Button>
+                          <Button 
+                            onClick={createAdmin}
+                            disabled={isCreatingAdmin || !newAdminData.email || !newAdminData.password || !newAdminData.full_name}
+                            className="bg-purple-600 hover:bg-purple-700"
+                          >
+                            {isCreatingAdmin ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Criando...
+                              </>
+                            ) : (
+                              <>
+                                <UserCheck className="h-4 w-4 mr-2" />
+                                Criar Admin
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                 </div>
-                <Select
-                  defaultValue="all"
-                  onValueChange={(value) => setStatusFilter(value as UserStatus)}
-                  value={statusFilter}
-                >
-                  <SelectTrigger className="w-full sm:w-[180px] bg-white border-slate-200">
-                    <SelectValue placeholder="Filtrar por status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="admin">Administradores</SelectItem>
-                    <SelectItem value="premium">Premium</SelectItem>
-                    <SelectItem value="free">Gratuitos</SelectItem>
-                  </SelectContent>
-                </Select>
                 <Button 
                   variant="outline" 
                   className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white border-0 hover:from-blue-600 hover:to-purple-700 shadow-md" 
@@ -614,28 +873,96 @@ const UsersManagement = () => {
                                 Detalhes
                               </Button>
                             </DialogTrigger>
-                            <DialogContent>
+                            <DialogContent className="max-w-2xl">
                               <DialogHeader>
-                                <DialogTitle>Detalhes do Usuário</DialogTitle>
+                                <DialogTitle className="text-xl font-bold text-gray-800">
+                                  Detalhes Completos do Cliente
+                                </DialogTitle>
                               </DialogHeader>
                               {selectedUser && (
-                                <div className="space-y-4 py-4">
-                                  <div className="grid grid-cols-2 gap-2">
-                                    <div className="font-medium">ID:</div>
-                                    <div className="truncate">{selectedUser.id}</div>
-                                    <div className="font-medium">Nome:</div>
-                                    <div>{selectedUser.full_name || "N/A"}</div>
-                                    <div className="font-medium">Status:</div>
-                                    <div>{selectedUser.subscription_status || "free"}</div>
-                                    <div className="font-medium">Admin:</div>
-                                    <div>{selectedUser.is_early_adopter ? "Sim" : "Não"}</div>
-                                    <div className="font-medium">Cadastro:</div>
-                                    <div>{formatDate(selectedUser.created_at)}</div>
+                                <div className="space-y-6 py-4">
+                                  {/* Informações Pessoais */}
+                                  <div className="bg-blue-50 p-4 rounded-lg">
+                                    <h3 className="font-semibold text-blue-800 mb-3 flex items-center">
+                                      <Users className="h-4 w-4 mr-2" />
+                                      Informações Pessoais
+                                    </h3>
+                                    <div className="grid grid-cols-2 gap-3 text-sm">
+                                      <div className="font-medium text-gray-700">ID do Usuário:</div>
+                                      <div className="font-mono text-xs bg-white px-2 py-1 rounded border">
+                                        {selectedUser.id}
+                                      </div>
+                                      <div className="font-medium text-gray-700">Nome Completo:</div>
+                                      <div className="font-medium">{selectedUser.full_name || "Não informado"}</div>
+                                      <div className="font-medium text-gray-700">CPF:</div>
+                                      <div className="font-medium text-blue-600">
+                                        {selectedUser.cpf || "Não informado"}
+                                      </div>
+                                      <div className="font-medium text-gray-700">Role/Função:</div>
+                                      <div>
+                                        <Badge variant={selectedUser.role === 'admin' ? 'destructive' : 'secondary'}>
+                                          {selectedUser.role || 'cliente'}
+                                        </Badge>
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div className="flex justify-end">
+
+                                  {/* Status da Conta */}
+                                  <div className="bg-green-50 p-4 rounded-lg">
+                                    <h3 className="font-semibold text-green-800 mb-3 flex items-center">
+                                      <Shield className="h-4 w-4 mr-2" />
+                                      Status da Conta
+                                    </h3>
+                                    <div className="grid grid-cols-2 gap-3 text-sm">
+                                      <div className="font-medium text-gray-700">Status da Assinatura:</div>
+                                      <div>
+                                        <Badge variant={selectedUser.subscription_status === 'active' ? 'default' : 'secondary'}>
+                                          {selectedUser.subscription_status || "trial"}
+                                        </Badge>
+                                      </div>
+                                      <div className="font-medium text-gray-700">É Administrador:</div>
+                                      <div>
+                                        <Badge variant={selectedUser.is_early_adopter ? 'destructive' : 'secondary'}>
+                                          {selectedUser.is_early_adopter ? "Sim" : "Não"}
+                                        </Badge>
+                                      </div>
+                                      <div className="font-medium text-gray-700">Avatar:</div>
+                                      <div className="text-xs text-gray-500">
+                                        {selectedUser.avatar_url ? "Configurado" : "Não configurado"}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Datas */}
+                                  <div className="bg-purple-50 p-4 rounded-lg">
+                                    <h3 className="font-semibold text-purple-800 mb-3 flex items-center">
+                                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                                      Histórico
+                                    </h3>
+                                    <div className="grid grid-cols-2 gap-3 text-sm">
+                                      <div className="font-medium text-gray-700">Data de Cadastro:</div>
+                                      <div className="font-medium text-purple-600">
+                                        {formatDate(selectedUser.created_at)}
+                                      </div>
+                                      <div className="font-medium text-gray-700">Última Atualização:</div>
+                                      <div className="text-gray-600">
+                                        {formatDate(selectedUser.updated_at)}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Ações Administrativas */}
+                                  <div className="flex justify-between items-center pt-4 border-t">
+                                    <div className="text-xs text-gray-500">
+                                      Todas as informações do cliente estão sendo exibidas
+                                    </div>
                                     <Button
                                       onClick={() => toggleAdminStatus(selectedUser)}
                                       disabled={isDemoMode}
+                                      className={selectedUser.is_early_adopter 
+                                        ? "bg-red-500 hover:bg-red-600" 
+                                        : "bg-purple-500 hover:bg-purple-600"
+                                      }
                                     >
                                       {selectedUser.is_early_adopter
                                         ? "Remover Admin"
