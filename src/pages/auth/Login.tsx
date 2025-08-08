@@ -197,7 +197,11 @@ const Login = () => {
               .from('profiles')
               .select('*')
               .eq('id', data.user.id)
-              .single();
+              .maybeSingle();
+
+            if (profileError) {
+              console.warn('[Login] Erro ao buscar perfil do usuário:', profileError);
+            }
 
             if (!profile) {
               // Cria o perfil se não existir

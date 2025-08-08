@@ -46,7 +46,7 @@ Header set X-XSS-Protection "1; mode=block"
 Header set Referrer-Policy "strict-origin-when-cross-origin"
 
 # Content Security Policy (ajuste conforme necessário)
-Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://api.mapbox.com https://*.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co https://api.mapbox.com wss://*.supabase.co; worker-src 'self' blob:; child-src 'self' blob:; manifest-src 'self';"
+Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://maps.gstatic.com https://api.mapbox.com https://*.supabase.co https://cdn.gpteng.co https://sdk.mercadopago.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co https://api.mapbox.com wss://*.supabase.co https://www.mercadopago.com.br https://sandbox.mercadopago.com.br https://api.mercadopago.com; worker-src 'self' blob:; child-src 'self' blob: https://www.mercadopago.com.br https://sandbox.mercadopago.com.br; manifest-src 'self';"
 
 # ============================================
 # CONFIGURAÇÕES DE CACHE

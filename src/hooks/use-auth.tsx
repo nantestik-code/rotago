@@ -148,7 +148,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
       
       const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any;
       
@@ -164,6 +164,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         });
         console.error('❌ [fetchProfile] Erro na consulta:', error);
+        setProfile({ id: userId, full_name: 'Usuário' });
+        return;
+      }
+      
+      // Quando usamos maybeSingle(), se não houver registro, teremos data === null e error === null
+      if (!data) {
+        logger.warn('AUTH', 'Perfil não encontrado - usando perfil básico', {
+          component: 'useAuth',
+          function: 'fetchProfile',
+          data: { userId, note: 'maybeSingle retornou null' }
+        });
+        console.log('ℹ️ [fetchProfile] Perfil não encontrado. Usando perfil básico.');
         setProfile({ id: userId, full_name: 'Usuário' });
         return;
       }
@@ -249,7 +261,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // 5. Limpar timer de refresh se existir
       if (tokenRefreshTimerRef.current) {
         console.log('⏰ Limpando timer de refresh...');
-        clearTimeout(tokenRefreshTimerRef.current);
+        window.clearInterval(tokenRefreshTimerRef.current);
         tokenRefreshTimerRef.current = null;
       }
       
