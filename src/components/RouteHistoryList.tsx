@@ -456,7 +456,7 @@ export const RouteHistoryList = ({ showUserInfo = false, routeId, limit = 10 }: 
       // Buscar entregas da rota no Supabase
       const { data, error } = await supabase
         .from('route_deliveries')
-        .select('*')
+        .select('delivery_id, deliveries(status)')
         .eq('route_id', routeId as any);
       
       if (error) {
@@ -466,8 +466,8 @@ export const RouteHistoryList = ({ showUserInfo = false, routeId, limit = 10 }: 
       if (data) {
         // Calcular estatísticas
         const total = data.length;
-        const entregue = data.filter(d => (d as any).status === 'entregue').length;
-        const ocorrencia = data.filter(d => (d as any).status === 'ocorrencia').length;
+        const entregue = data.filter((d: any) => d?.deliveries?.status === 'entregue').length;
+        const ocorrencia = data.filter((d: any) => d?.deliveries?.status === 'ocorrencia').length;
         const pendente = total - entregue - ocorrencia;
         
         setRouteStats({

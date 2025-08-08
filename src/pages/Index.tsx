@@ -11,6 +11,7 @@ import { useActivityTracker } from '@/hooks/use-activity-tracker';
 import { useRouteHistory } from '@/hooks/use-route-history';
 import SubscriptionBanner from '@/components/subscription/SubscriptionBanner';
 import { toast } from '@/components/ui/use-toast';
+import { useAuth } from '@/hooks/use-auth';
 
 const STORAGE_KEY = 'rota-facil-turbo-state';
 
@@ -18,6 +19,7 @@ const Index = () => {
   const isMobile = useIsMobile();
   const [showFileImport, setShowFileImport] = useState(true);
   const { logRouteAction } = useRouteHistory();
+  const { user } = useAuth();
   
   // Ativar o rastreamento de atividade para manter a sessão ativa
   useActivityTracker();

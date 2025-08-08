@@ -81,6 +81,12 @@ export const useRouteHistory = () => {
       return { success: false, error: 'Usuário não autenticado' };
     }
 
+    // Evita violação de FK quando a rota já não existe (ex.: após exclusão)
+    const effectiveRouteId = action === 'delete' ? null : routeId;
+    const effectiveDetails = action === 'delete'
+      ? { ...details, original_route_id: routeId }
+      : details;
+
     try {
       setIsLoading(true);
       setError(null);
@@ -88,9 +94,9 @@ export const useRouteHistory = () => {
       
       const historyItem = {
         user_id: user.id,
-        route_id: routeId,
+        route_id: effectiveRouteId,
         action,
-        details,
+        details: effectiveDetails,
         created_at: new Date().toISOString()
       };
       
@@ -107,6 +113,26 @@ export const useRouteHistory = () => {
       
       if (result?.error) {
         console.warn('Erro ao registrar ação no servidor, salvando localmente:', result.error);
+
+        // Se a falha for por FK (rota inexistente), tentar fallback com route_id = null
+        if ((result as any)?.error?.code === '23503') {
+          const fallbackItem = {
+            ...historyItem,
+            route_id: null,
+            details: { ...(historyItem as any).details, original_route_id: effectiveRouteId, note: 'route_missing' }
+          };
+          try {
+            const fallbackRes = await supabase
+              .from('route_history')
+              .insert(fallbackItem as any);
+            if (!fallbackRes.error) {
+              setIsLoading(false);
+              return { success: true, message: 'Ação registrada sem referência de rota (rota inexistente)' };
+            }
+          } catch (fallbackErr) {
+            console.error('Falha no fallback de histórico:', fallbackErr);
+          }
+        }
         
         // Salvar ação localmente para sincronização posterior
         const pendingActionsString = localStorage.getItem('pendingRouteActions');
@@ -115,7 +141,7 @@ export const useRouteHistory = () => {
         const newPendingAction = {
           ...historyItem,
           synced: false,
-          error: result.error.message
+          error: (result as any)?.error?.message
         };
         
         existingPendingActions.push(newPendingAction);
@@ -367,14 +393,43 @@ export const useRouteHistory = () => {
       
       for (let i = 0; i < userActions.length; i += batchSize) {
         const batch = userActions.slice(i, i + batchSize);
-        const actionsToInsert = batch.map(action => ({
-          user_id: action.user_id,
-          route_id: action.route_id,
-          action: action.action,
-          details: action.details,
-          created_at: action.created_at
-        }));
-        
+
+        // Validar existence das rotas referenciadas no lote para evitar FK 23503
+        const routeIds = Array.from(new Set(batch.map(a => a.route_id).filter(Boolean)));
+        let validRouteIds = new Set<string>();
+        if (routeIds.length > 0) {
+          try {
+            const { data: existingRoutes } = await supabase
+              .from('routes')
+              .select('id')
+              .in('id', routeIds as any);
+            validRouteIds = new Set((existingRoutes || []).map((r: any) => r.id));
+          } catch (e) {
+            console.warn('Falha ao validar rotas do lote, prosseguindo mesmo assim');
+          }
+        }
+
+        const actionsToInsert = batch.map(action => {
+          const hasValidRoute = !action.route_id || validRouteIds.has(action.route_id);
+          if (hasValidRoute) {
+            return {
+              user_id: action.user_id,
+              route_id: action.route_id,
+              action: action.action,
+              details: action.details,
+              created_at: action.created_at
+            };
+          }
+          // Fallback: rota não existe mais -> inserir sem route_id e anotar o original
+          return {
+            user_id: action.user_id,
+            route_id: null,
+            action: action.action,
+            details: { ...(action.details || {}), original_route_id: action.route_id, note: 'route_missing' },
+            created_at: action.created_at
+          };
+        });
+
         const { error } = await supabase
           .from('route_history')
           .insert(actionsToInsert);
@@ -452,13 +507,42 @@ export const useRouteHistory = () => {
     
         for (let i = 0; i < userActions.length; i += batchSize) {
           const batch = userActions.slice(i, i + batchSize);
-          const actionsToInsert = batch.map(action => ({
-            user_id: action.user_id,
-            route_id: action.route_id,
-            action: action.action,
-            details: action.details,
-            created_at: action.created_at
-          }));
+
+          // Validar existence das rotas referenciadas no lote para evitar FK 23503
+          const routeIds = Array.from(new Set(batch.map(a => a.route_id).filter(Boolean)));
+          let validRouteIds = new Set<string>();
+          if (routeIds.length > 0) {
+            try {
+              const { data: existingRoutes } = await supabase
+                .from('routes')
+                .select('id')
+                .in('id', routeIds as any);
+              validRouteIds = new Set((existingRoutes || []).map((r: any) => r.id));
+            } catch (e) {
+              console.warn('Falha ao validar rotas do lote, prosseguindo mesmo assim');
+            }
+          }
+
+          const actionsToInsert = batch.map(action => {
+            const hasValidRoute = !action.route_id || validRouteIds.has(action.route_id);
+            if (hasValidRoute) {
+              return {
+                user_id: action.user_id,
+                route_id: action.route_id,
+                action: action.action,
+                details: action.details,
+                created_at: action.created_at
+              };
+            }
+            // Fallback: rota não existe mais -> inserir sem route_id e anotar o original
+            return {
+              user_id: action.user_id,
+              route_id: null,
+              action: action.action,
+              details: { ...(action.details || {}), original_route_id: action.route_id, note: 'route_missing' },
+              created_at: action.created_at
+            };
+          });
           
           const { error } = await supabase
             .from('route_history')

@@ -320,7 +320,7 @@ export function useDeliveries() {
     };
     
     loadDeliveries();
-  }, []);
+  }, [user]);
 
   // Handle deliveries import with UI update
   const handleImportComplete = useCallback(async (importedDeliveries: DeliveryItem[], routeName?: string): Promise<ImportResult> => {
@@ -453,6 +453,7 @@ export function useDeliveries() {
           const routeDeliveries = deliveriesWithIds.map((delivery, index) => ({
             route_id: routeId,
             delivery_id: delivery.id,
+            delivery_order: index + 1,
             sequence_number: index + 1
           }));
           
@@ -460,6 +461,7 @@ export function useDeliveries() {
           
           // Inserir em lotes menores para evitar problemas com limites de tamanho
           const batchSize = 20; // Reduzindo o tamanho do lote para evitar problemas
+          let allBatchesOk = true;
           for (let i = 0; i < routeDeliveries.length; i += batchSize) {
             const batch = routeDeliveries.slice(i, i + batchSize);
             console.log(`Inserindo lote ${Math.floor(i/batchSize) + 1} de ${Math.ceil(routeDeliveries.length/batchSize)}`);
@@ -471,10 +473,12 @@ export function useDeliveries() {
                 
               if (rdError) {
                 console.error(`Erro ao inserir lote ${Math.floor(i/batchSize) + 1}:`, rdError);
+                allBatchesOk = false;
                 // Continuar mesmo com erro para tentar inserir o máximo possível
               }
             } catch (batchError) {
               console.error(`Erro ao processar lote ${Math.floor(i/batchSize) + 1}:`, batchError);
+              allBatchesOk = false;
               // Continuar mesmo com erro para tentar inserir o máximo possível
             }
             
@@ -482,7 +486,11 @@ export function useDeliveries() {
             await new Promise(resolve => setTimeout(resolve, 100));
           }
           
-          console.log('Relações inseridas com sucesso');
+          if (allBatchesOk) {
+            console.log('Relações inseridas com sucesso');
+          } else {
+            console.warn('Algumas relações de rota não foram inseridas (ex.: delivery_order NOT NULL). Verifique os logs acima.');
+          }
         } catch (error) {
           console.error('Erro ao relacionar entregas com rota:', error);
           // Não lançar o erro para permitir que o usuário continue usando o app
