@@ -265,7 +265,7 @@ export function useDeliveries() {
                 endereco: d.address || '',
                 cidade: d.city || '',
                 estado: d.state || '',
-                cep: d.zip_code || '',  // Corrigido: usando zip_code em vez de postal_code
+                cep: d.postal_code || '',  // Usando postal_code do banco
                 telefone: '',
                 observacoes: d.notes || '',
                 // Campos para compatibilidade com Supabase
@@ -273,12 +273,12 @@ export function useDeliveries() {
                 address: d.address || '',
                 city: d.city || '',
                 state: d.state || '',
-                zipCode: d.zip_code || '',  // Corrigido: usando zip_code em vez de postal_code
+                zipCode: d.postal_code || '',  // Usando postal_code do banco
                 notes: d.notes || '',
                 // Campos de posição
-                lat: d.latitude || undefined,  // Corrigido: usando latitude em vez de lat
-                lng: d.longitude || undefined,  // Corrigido: usando longitude em vez de lng
-                position: d.latitude && d.longitude ? { lat: d.latitude, lng: d.longitude } : null,
+                lat: d.lat || undefined,  // Usando lat do banco
+                lng: d.lng || undefined,  // Usando lng do banco
+                position: d.lat && d.lng ? { lat: d.lat, lng: d.lng } : null,
                 // Campos de status
                 status: (d.status as 'pendente' | 'entregue' | 'ocorrencia') || 'pendente',
                 statusChanged: false
@@ -388,7 +388,6 @@ export function useDeliveries() {
             const address = String(delivery.address || delivery.endereco || 'Endereço não informado');
             const city = String(delivery.city || delivery.cidade || 'Cidade');
             const state = String(delivery.state || delivery.estado || 'UF');
-            const phone = ''; // Campo obrigatório na tabela
             
             return {
               id: delivery.id,
@@ -397,10 +396,9 @@ export function useDeliveries() {
               address: address,
               city: city,
               state: state,
-              zip_code: String(delivery.zipCode || delivery.cep || ''),  // Corrigido: usando zip_code em vez de postal_code
-              phone: phone, // Adicionado campo obrigatório
-              latitude: delivery.position?.lat || delivery.lat || null,  // Corrigido: usando latitude em vez de lat
-              longitude: delivery.position?.lng || delivery.lng || null,  // Corrigido: usando longitude em vez de lng
+              postal_code: String(delivery.zipCode || delivery.cep || ''),  // Usando postal_code do banco
+              lat: delivery.position?.lat || delivery.lat || null,  // Usando lat do banco
+              lng: delivery.position?.lng || delivery.lng || null,  // Usando lng do banco
               status: delivery.status || 'pendente',
               notes: String(delivery.notes || delivery.observacoes || '')
             };

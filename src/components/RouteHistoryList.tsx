@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Clock, MapPin, RotateCw, CheckCircle, AlertTriangle, User, LogIn, LogOut, Plus, Trash2, BarChart2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useNavigate } from 'react-router-dom';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -163,6 +164,128 @@ export const RouteHistoryList = ({ showUserInfo = false, routeId, limit = 10 }: 
   const [loadingStats, setLoadingStats] = useState(false);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [selectedRouteName, setSelectedRouteName] = useState<string>('');
+  const [loadingRouteId, setLoadingRouteId] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  const handleLoadRoute = useCallback(async (rid: string, rname?: string) => {
+    if (!rid) return;
+    if (!user) {
+      smartToast({
+        title: 'Ação não permitida',
+        description: 'Você precisa estar logado para carregar uma rota.',
+        variant: 'destructive'
+      });
+      return;
+    }
+    try {
+      setLoadingRouteId(rid);
+      // Validar propriedade da rota
+      const { data: routeData, error: routeError } = await supabase
+        .from('routes')
+        .select('id, user_id, name')
+        .eq('id', rid)
+        .maybeSingle();
+      if (routeError) {
+        throw routeError;
+      }
+      if (!routeData) {
+        smartToast({
+          title: 'Rota não encontrada',
+          description: 'Não foi possível localizar a rota selecionada.',
+          variant: 'destructive'
+        });
+        return;
+      }
+      if ((routeData as any).user_id && (routeData as any).user_id !== user.id) {
+        smartToast({
+          title: 'Sem permissão',
+          description: 'Você não pode carregar uma rota de outro usuário.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Buscar entregas vinculadas à rota com join
+      const { data: routeDeliveries, error: rdError } = await supabase
+        .from('route_deliveries')
+        .select('delivery_id, sequence_number, deliveries(*)')
+        .eq('route_id', rid)
+        .order('sequence_number', { ascending: true });
+      if (rdError) throw rdError;
+
+      const mapped = (routeDeliveries || []).map((rd: any) => {
+        const d = rd.deliveries || {};
+        return {
+          id: d.id,
+          orderNumber: d.order_number || '',
+          cliente: d.client_name || '',
+          endereco: d.address || '',
+          cidade: d.city || '',
+          estado: d.state || '',
+          cep: d.postal_code || '',
+          telefone: '',
+          observacoes: d.notes || '',
+          client: d.client_name || '',
+          address: d.address || '',
+          city: d.city || '',
+          state: d.state || '',
+          zipCode: d.postal_code || '',
+          notes: d.notes || '',
+          lat: d.lat || undefined,
+          lng: d.lng || undefined,
+          position: d.lat && d.lng ? { lat: d.lat, lng: d.lng } : null,
+          status: (d.status as 'pendente' | 'entregue' | 'ocorrencia') || 'pendente',
+          statusChanged: false
+        };
+      });
+
+      // Já retornam ordenadas por sequence_number
+      const orderedDeliveries = mapped;
+      const firstPending = orderedDeliveries.find((d: any) => d.status === 'pendente') || orderedDeliveries[0] || null;
+
+      // Persistir no localStorage para restauração e para o hook useDeliveries
+      localStorage.setItem('currentRouteId', rid);
+      localStorage.setItem('currentRouteDeliveries', JSON.stringify(orderedDeliveries));
+      localStorage.setItem('currentUserId', user.id);
+
+      // Também persistir no estado usado pela landing para exibir a rota imediatamente
+      try {
+        const stateToSave = {
+          deliveries: orderedDeliveries,
+          selectedDeliveryId: firstPending ? firstPending.id : null,
+          timestamp: new Date().toISOString()
+        };
+        localStorage.setItem('rota-facil-turbo-state', JSON.stringify(stateToSave));
+      } catch (e) {
+        console.error('Erro ao salvar estado geral da rota:', e);
+      }
+
+      // Logar ação no histórico
+      if (routeHistory?.logRouteAction) {
+        routeHistory.logRouteAction('update', rid, {
+          message: `Rota "${(routeData as any).name || rname || 'sem nome'}" carregada do histórico`,
+          delivery_count: orderedDeliveries.length
+        });
+      }
+
+      smartToast({
+        title: 'Rota carregada',
+        description: `${orderedDeliveries.length} entregas foram carregadas.`
+      });
+
+      // Navegar para a tela principal
+      navigate('/app');
+    } catch (err: any) {
+      console.error('Erro ao carregar rota:', err);
+      smartToast({
+        title: 'Erro ao carregar rota',
+        description: err?.message || 'Tente novamente mais tarde.',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoadingRouteId(null);
+    }
+  }, [user, navigate, routeHistory]);
 
   const loadHistory = useCallback(async () => {
     setIsLoading(true);
@@ -517,6 +640,26 @@ export const RouteHistoryList = ({ showUserInfo = false, routeId, limit = 10 }: 
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
+              </div>
+            )}
+
+            {/* Botão Carregar Rota disponível para qualquer item com rota */}
+            {item.routes && (
+              <div className="flex items-center gap-2 mt-3">
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="flex items-center gap-1"
+                  onClick={() => handleLoadRoute(item.routes?.id || '', item.routes?.name || '')}
+                  disabled={!!loadingRouteId || isLoading}
+                >
+                  {loadingRouteId === item.routes?.id ? (
+                    <RotateCw className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <MapPin size={14} />
+                  )}
+                  Carregar Rota
+                </Button>
               </div>
             )}
           </CardContent>
