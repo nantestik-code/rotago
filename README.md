@@ -201,6 +201,53 @@ O sistema inclui logging completo:
 
 ## Histórico de Mudanças e Decisões Técnicas
 
+### 2025-08-08 — Correção das Estatísticas no Histórico de Rotas e Documentação do Carregamento de Rotas
+
+#### 1) Problema
+- As estatísticas exibidas no histórico de rotas estavam incorretas, pois o código lia `status` diretamente de `route_deliveries`.
+- A coluna `status` não existe na tabela `route_deliveries` (status pertence à tabela `deliveries`).
+
+#### 2) Causa Raiz
+- Consulta ao Supabase fazia `select('*')` em `route_deliveries` e depois filtrava por `status`, resultando em contagens inconsistentes ou sempre zeradas.
+
+#### 3) Solução Implementada
+- Ajuste da consulta para usar join com `deliveries` e retornar o campo de status corretamente:
+  - De: `select('*')` em `route_deliveries`
+  - Para: `select('delivery_id, deliveries(status)')` com `.eq('route_id', routeId)`
+- Cálculo de estatísticas atualizado para utilizar `d?.deliveries?.status`:
+  - `entregue`: status == `entregue`
+  - `ocorrencia`: status == `ocorrencia`
+  - `pendente`: `total - entregue - ocorrencia`
+
+#### 4) Arquivos Alterados
+- `src/components/RouteHistoryList.tsx`
+  - Função: `loadRouteStats()`
+  - Mudança: join em `deliveries(status)` e ajuste do cálculo das contagens.
+
+#### 5) Impacto e Compatibilidade
+- Estatísticas do diálogo de histórico passam a refletir fielmente os dados de `deliveries.status`.
+- Nenhuma mudança estrutural no banco; compatível com as colunas existentes (`sequence_number` em `route_deliveries` e `status` em `deliveries`).
+- Requer que as políticas RLS permitam leitura das entregas relacionadas do usuário autenticado.
+
+#### 6) Como Testar
+1. Acesse `Histórico de Rotas` e abra as estatísticas de uma rota.
+2. Verifique:
+  - `Total` = quantidade de registros em `route_deliveries` para a rota.
+  - `Entregue`/`Ocorrência` = contagem por `deliveries.status`.
+  - `Pendente` = `Total - Entregue - Ocorrência`.
+3. Compare com a tela principal `/app` na mesma rota e confirme que os números batem.
+
+#### 7) Checklist Pós-Deploy
+- [ ] Estatísticas batem com a listagem em `/app`.
+- [ ] Nenhum erro de RLS nas consultas do histórico.
+- [ ] Join retorna `deliveries.status` corretamente.
+
+#### 8) Como Reverter (se necessário)
+- Reverter a consulta em `loadRouteStats()` para o estado anterior (não recomendado): trocar `select('delivery_id, deliveries(status)')` por `select('*')` e ajustar o cálculo (o que reintroduz o bug). Alternativa melhor é manter o join e revisar RLS caso a consulta falhe.
+
+#### 9) Relação com o Objetivo Principal
+- Esta correção complementa a iniciativa de garantir consistência ao carregar rotas do histórico e apresentar dados corretos na UI. Não altera o fluxo de carregamento; apenas corrige a exibição de estatísticas, mantendo compatibilidade com as mudanças já aplicadas em `sequence_number`/`delivery_order` e com o restauro de estado pós-autenticação.
+
 ### 2025-07 — Refatoração Completa de Login, Logout e Perfis (RotaFacil Turbo)
 
 #### 1. **Logout e Limpeza de Sessão**
