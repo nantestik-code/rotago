@@ -28,9 +28,14 @@ export class ServiceWorkerManager {
 
     try {
       console.log('🔧 [SW-Manager] Registrando Service Worker...');
-      
-      this.registration = await navigator.serviceWorker.register('/sw.js', {
-        scope: '/'
+
+      // Usa BASE_URL do Vite para suportar deploy em subpasta (Hostinger)
+      const base = (import.meta as any).env?.BASE_URL ?? '/';
+      const normalizedBase = base.endsWith('/') ? base : base + '/';
+      const swPath = `${normalizedBase}sw.js`;
+
+      this.registration = await navigator.serviceWorker.register(swPath, {
+        scope: normalizedBase,
       });
 
       console.log('✅ [SW-Manager] Service Worker registrado:', this.registration.scope);

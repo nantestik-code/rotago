@@ -1,8 +1,8 @@
 // Service Worker para RotaFacil Turbo
 // Sistema de cache e atualização forçada
 
-const CACHE_NAME = 'rotafacil-turbo-v1.0.2';
-const CACHE_VERSION = '1.0.2';
+const CACHE_NAME = 'rotafacil-turbo-v1.0.3';
+const CACHE_VERSION = '1.0.3';
 
 // Recursos essenciais para cache
 const ESSENTIAL_RESOURCES = [
