@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { supabaseAdmin } from '@/integrations/supabase/admin-client';
 import { logger } from '@/utils/logger';
 
 export interface AdminUser {
@@ -247,12 +248,14 @@ export class AdminAuthService {
       return supabase; // Cliente padrão
     }
     
+    // Sempre usar cliente administrativo para operações de admin
+    
     if (authType === 'supabase') {
-      console.log('✅ [ADMIN CLIENT] Usando cliente Supabase com auth session');
-      return supabase; // Cliente com sessão auth ativa
+      console.log('✅ [ADMIN CLIENT] Usando cliente administrativo com auth session');
+      return supabaseAdmin; // Cliente administrativo
     } else {
-      console.log('🔑 [ADMIN CLIENT] Usando cliente Supabase padrão (sessão local)');
-      return supabase; // Cliente padrão para sessão local
+      console.log('🔑 [ADMIN CLIENT] Usando cliente administrativo (sessão local)');
+      return supabaseAdmin; // Cliente administrativo para sessão local
     }
   }
 
@@ -292,7 +295,7 @@ export class AdminAuthService {
 
     // Tentar recuperar do localStorage
     try {
-      const savedSession = localStorage.getItem('adminSession');
+      const savedSession = localStorage.getItem('rotago_admin_session');
       if (savedSession) {
         const session = JSON.parse(savedSession);
         this.currentAdmin = session;
@@ -300,7 +303,7 @@ export class AdminAuthService {
       }
     } catch (error) {
       console.error('Erro ao recuperar sessão admin do localStorage:', error);
-      localStorage.removeItem('adminSession');
+      localStorage.removeItem('rotago_admin_session');
     }
 
     return null;

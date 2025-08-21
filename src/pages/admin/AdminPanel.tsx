@@ -52,7 +52,7 @@ const AdminPanel = () => {
     { id: 'financial', label: 'Financeiro', icon: DollarSign, color: 'green' },
     { id: 'subscriptions', label: 'Assinaturas', icon: CreditCard, color: 'purple' },
     { id: 'users', label: 'Usuários', icon: Users, color: 'orange' },
-    { id: 'emails', label: 'Emails', icon: Mail, color: 'emerald' },
+    { id: 'emails', label: 'E-mails', icon: Mail, color: 'cyan' },
     { id: 'reports', label: 'Relatórios', icon: FileText, color: 'indigo' },
     { id: 'audit', label: 'Auditoria', icon: Shield, color: 'red' },
     { id: 'logs', label: 'Logs', icon: Bug, color: 'gray' },
@@ -186,6 +186,12 @@ const AdminPanel = () => {
             </div>
           </TabsContent>
 
+          <TabsContent value="emails" className="mt-0">
+            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+              <EmailManager />
+            </div>
+          </TabsContent>
+
           <TabsContent value="reports" className="mt-0">
             <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
               <ReportsAndExports />
@@ -207,12 +213,6 @@ const AdminPanel = () => {
           <TabsContent value="content" className="mt-0">
             <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
               <SiteContent />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="emails" className="mt-0">
-            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
-              <EmailManager />
             </div>
           </TabsContent>
 

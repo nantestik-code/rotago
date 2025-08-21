@@ -38,44 +38,15 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
             adminRole: currentAdmin.role
           });
 
-          // Validar sessão
-          const isValid = await adminAuthService.validateSession();
-          if (isValid) {
-            // Fazer login automático no Supabase Auth para permitir acesso aos dados
-            console.log('🚀 [HOOK] Iniciando login automático no Supabase para:', currentAdmin.email);
-            try {
-              await adminAuthService.ensureSupabaseAuth(currentAdmin.email);
-              console.log('✅ [HOOK] Login automático no Supabase executado com sucesso');
-              logger.info('ADMIN', 'Login automático no Supabase Auth executado', {
-                component: 'AdminAuthProvider',
-                function: 'initializeAdminSession',
-                adminEmail: currentAdmin.email
-              });
-            } catch (supabaseError) {
-              console.error('❌ [HOOK] Falha no login automático Supabase:', supabaseError);
-              logger.warn('ADMIN', 'Falha no login automático Supabase, continuando com sessão local', {
-                component: 'AdminAuthProvider',
-                function: 'initializeAdminSession',
-                error: supabaseError as Error,
-                adminEmail: currentAdmin.email
-              });
-            }
-            
-            setAdmin(currentAdmin);
-            logger.info('ADMIN', 'Sessão administrativa validada com sucesso', {
-              component: 'AdminAuthProvider',
-              function: 'initializeAdminSession',
-              adminEmail: currentAdmin.email,
-              adminRole: currentAdmin.role
-            });
-          } else {
-            setAdmin(null);
-            logger.warn('ADMIN', 'Sessão administrativa inválida, removendo dados', {
-              component: 'AdminAuthProvider',
-              function: 'initializeAdminSession',
-              adminEmail: currentAdmin.email
-            });
-          }
+          // Sempre aceitar sessão local válida (não validar via Supabase)
+          console.log('✅ [HOOK] Restaurando sessão administrativa local:', currentAdmin.email);
+          setAdmin(currentAdmin);
+          logger.info('ADMIN', 'Sessão administrativa restaurada com sucesso', {
+            component: 'AdminAuthProvider',
+            function: 'initializeAdminSession',
+            adminEmail: currentAdmin.email,
+            adminRole: currentAdmin.role
+          });
         } else {
           logger.debug('ADMIN', 'Nenhuma sessão administrativa encontrada', {
             component: 'AdminAuthProvider',
@@ -86,7 +57,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         logger.error('ADMIN', 'Erro ao inicializar sessão administrativa', {
           component: 'AdminAuthProvider',
           function: 'initializeAdminSession',
-          error: error.message
+          error: error?.message || error || 'Erro desconhecido'
         });
         setAdmin(null);
       } finally {
@@ -135,7 +106,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         component: 'AdminAuthProvider',
         function: 'loginAdmin',
         email: email,
-        error: error.message
+        error: error?.message || error || 'Erro desconhecido'
       });
       return { 
         success: false, 
@@ -171,7 +142,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         component: 'AdminAuthProvider',
         function: 'logoutAdmin',
         adminEmail: admin?.email,
-        error: error.message
+        error: error?.message || error || 'Erro desconhecido'
       });
     } finally {
       setIsLoading(false);
@@ -213,7 +184,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         component: 'AdminAuthProvider',
         function: 'validateSession',
         adminEmail: admin?.email,
-        error: error.message
+        error: error?.message || error || 'Erro desconhecido'
       });
       setAdmin(null);
       return false;

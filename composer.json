@@ -1,0 +1,27 @@
+{
+    "name": "rotago/email-system",
+    "description": "Sistema de envio de emails para RotaGo com suporte a múltiplos provedores",
+    "type": "project",
+    "require": {
+        "php": ">=7.4",
+        "phpmailer/phpmailer": "^6.8"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "RotaGo\\Email\\": "src/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "scripts": {
+        "test": "phpunit",
+        "install-deps": "composer install --no-dev --optimize-autoloader"
+    }
+}

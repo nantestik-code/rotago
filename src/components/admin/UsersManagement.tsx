@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabaseAdmin } from "@/integrations/supabase/admin-client";
+import { useAdminAuth } from "@/hooks/use-admin-auth";
 import { logger } from "@/utils/logger";
 import { 
   Table, 
@@ -66,6 +67,8 @@ const UsersManagement = () => {
   });
   const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
 
+  const { admin, isAdminLoggedIn } = useAdminAuth();
+
   const fetchUsers = async () => {
     logger.info('ADMIN', 'Iniciando busca de usuários', {
       component: 'UsersManagement',
@@ -76,20 +79,15 @@ const UsersManagement = () => {
       setLoading(true);
       
       // Verificar se há uma sessão administrativa ativa
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
+      if (!isAdminLoggedIn || !admin) {
         logger.warn('SECURITY', 'Tentativa de acesso admin sem sessão ativa', {
           component: 'UsersManagement',
           function: 'fetchUsers',
           data: { hasSession: false }
         });
         console.warn('⚠️ Sem sessão ativa para acesso administrativo');
-        toast({
-          title: "Acesso negado",
-          description: "Sessão administrativa necessária",
-          variant: "destructive",
-        });
+        setUsers([]); // Limpar dados
+        setLoading(false);
         return;
       }
 
@@ -98,13 +96,14 @@ const UsersManagement = () => {
         function: 'fetchUsers',
         data: { 
           table: 'profiles',
-          userId: session.user.id,
+          adminEmail: admin.email,
           hasSession: true
         }
       });
 
-      // Tentar buscar usuários com tratamento específico para RLS
-      const { data, error } = await supabase
+      // Buscar usuários usando cliente administrativo
+      console.log('🔍 [UsersManagement] Buscando usuários com admin:', admin.email);
+      const { data, error } = await supabaseAdmin
         .from("profiles")
         .select("*")
         .order('created_at', { ascending: false });
@@ -117,7 +116,7 @@ const UsersManagement = () => {
           data: { 
             errorCode: error.code,
             errorMessage: error.message,
-            userId: session.user.id
+            adminId: admin.id,
           }
         });
         console.error('❌ Erro ao buscar usuários:', error);
@@ -196,7 +195,7 @@ const UsersManagement = () => {
         function: 'fetchUsers',
         data: { 
           usersCount: data?.length || 0,
-          userId: session.user.id
+          adminId: admin.id
         }
       });
       console.log('✅ Usuários carregados com sucesso:', data?.length || 0);
@@ -256,7 +255,18 @@ const UsersManagement = () => {
       });
 
       // 1. Criar usuário no Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      const { data: authUsers, error: authError } = await supabaseAdmin.auth.admin.listUsers();
+      const existingUser = authUsers?.users?.find(user => user.email === newAdminData.email);
+      if (existingUser) {
+        logger.error('AUTH', 'Erro ao criar usuário no Supabase Auth', {
+          component: 'UsersManagement',
+          function: 'createAdmin',
+          error: new Error('Usuário já existe')
+        });
+        throw new Error('Usuário já existe');
+      }
+
+      const { data: authData, error: authCreateError } = await supabaseAdmin.auth.signUp({
         email: newAdminData.email,
         password: newAdminData.password,
         options: {
@@ -267,13 +277,13 @@ const UsersManagement = () => {
         }
       });
 
-      if (authError) {
+      if (authCreateError) {
         logger.error('AUTH', 'Erro ao criar usuário no Supabase Auth', {
           component: 'UsersManagement',
           function: 'createAdmin',
-          error: authError
+          error: authCreateError
         });
-        throw authError;
+        throw authCreateError;
       }
 
       if (!authData.user) {
@@ -287,7 +297,7 @@ const UsersManagement = () => {
       });
 
       // 2. Criar perfil na tabela profiles
-      const { error: profileError } = await supabase
+      const { data: profiles, error } = await supabaseAdmin
         .from('profiles')
         .insert({
           id: authData.user.id,
@@ -298,17 +308,17 @@ const UsersManagement = () => {
           updated_at: new Date().toISOString()
         });
 
-      if (profileError) {
+      if (error) {
         logger.error('DATABASE', 'Erro ao criar perfil do admin', {
           component: 'UsersManagement',
           function: 'createAdmin', 
-          error: profileError
+          error: error
         });
-        throw profileError;
+        throw error;
       }
 
       // 3. Criar entrada na tabela admins
-      const { error: adminError } = await supabase
+      const { error: adminError } = await supabaseAdmin
         .from('admins')
         .insert({
           id: authData.user.id,
@@ -386,7 +396,7 @@ const UsersManagement = () => {
     }
 
     try {
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from("profiles")
         .update({ is_early_adopter: !user.is_early_adopter })
         .eq("id", user.id);

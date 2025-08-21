@@ -19,6 +19,7 @@ import { useDeliveries } from "@/hooks/useDeliveries";
 import { useRoutes } from "@/hooks/useRoutes";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import { useAdminSupabaseClient } from "@/utils/adminSupabaseClient";
+import { testAdminConnection } from "@/integrations/supabase/admin-client";
 
 interface StatsCard {
   title: string;
@@ -59,7 +60,7 @@ const Analytics = () => {
 
   useEffect(() => {
     if (admin) {
-
+      console.log('🚀 [Analytics] Sessão admin detectada, carregando dados...');
       fetchAnalyticsData();
     }
   }, [admin, adminSupabase]);
@@ -72,7 +73,23 @@ const Analytics = () => {
     }
 
     try {
+      console.log('📊 [Analytics] Iniciando busca de dados analíticos...');
+      console.log('🔑 [Analytics] Usando cliente admin para bypass RLS');
+      
+      // Debug do cliente Supabase
+      console.log('🔍 [Analytics] Debug cliente:', {
+        supabaseUrl: adminSupabase.supabaseUrl,
+        supabaseKey: adminSupabase.supabaseKey?.substring(0, 20) + '...',
+        hasKey: !!adminSupabase.supabaseKey
+      });
 
+      // Smoke test do cliente administrativo
+      console.log('🧪 [Analytics] testAdminConnection() iniciando...');
+      const adminPingOk = await testAdminConnection();
+      console.log('🧪 [Analytics] testAdminConnection() status:', adminPingOk);
+      if (!adminPingOk) {
+        throw new Error('Conexão administrativa falhou (smoke test)');
+      }
       
       // Buscar dados básicos usando cliente admin
       const [usersResult, routesResult, deliveriesResult, subscriptionsResult] = await Promise.all([
@@ -82,12 +99,36 @@ const Analytics = () => {
         adminSupabase.from('user_subscriptions').select('*')
       ]);
 
-      const users = usersResult.data;
-      const routes = routesResult.data;
-      const deliveries = deliveriesResult.data;
-      const subscriptions = subscriptionsResult.data;
+      // Verificar erros nas consultas
+      if (usersResult.error) {
+        console.error('❌ [Analytics] Erro ao buscar usuários:', usersResult.error);
+        throw new Error(`Erro ao buscar usuários: ${usersResult.error.message}`);
+      }
+      if (routesResult.error) {
+        console.error('❌ [Analytics] Erro ao buscar rotas:', routesResult.error);
+        throw new Error(`Erro ao buscar rotas: ${routesResult.error.message}`);
+      }
+      if (deliveriesResult.error) {
+        console.error('❌ [Analytics] Erro ao buscar entregas:', deliveriesResult.error);
+        throw new Error(`Erro ao buscar entregas: ${deliveriesResult.error.message}`);
+      }
+      if (subscriptionsResult.error) {
+        console.error('❌ [Analytics] Erro ao buscar assinaturas:', subscriptionsResult.error);
+        throw new Error(`Erro ao buscar assinaturas: ${subscriptionsResult.error.message}`);
+      }
 
+      const users = usersResult.data || [];
+      const routes = routesResult.data || [];
+      const deliveries = deliveriesResult.data || [];
+      const subscriptions = subscriptionsResult.data || [];
 
+      console.log('✅ [Analytics] Dados carregados com sucesso:', {
+        users: users.length,
+        routes: routes.length,
+        deliveries: deliveries.length,
+        subscriptions: subscriptions.length,
+        clientType: 'admin'
+      });
 
       // Processar dados para estatísticas
       const totalUsers = users.length;

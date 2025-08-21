@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Email - Hostinger SMTP</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="email"], input[type="text"], textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        button {
+            background-color: #007cba;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+        }
+        button:hover {
+            background-color: #005a87;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .loading {
+            text-align: center;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Teste de Email - Hostinger SMTP</h1>
+        
+        <form id="emailForm">
+            <div class="form-group">
+                <label for="to">Para (Email de destino):</label>
+                <input type="email" id="to" name="to" required placeholder="exemplo@email.com">
+            </div>
+            
+            <div class="form-group">
+                <label for="subject">Assunto:</label>
+                <input type="text" id="subject" name="subject" required placeholder="Teste de Email RotaGo" value="Teste de Email RotaGo">
+            </div>
+            
+            <div class="form-group">
+                <label for="message">Mensagem:</label>
+                <textarea id="message" name="message" required placeholder="Digite sua mensagem aqui...">Este é um email de teste enviado via SMTP da Hostinger.
+
+Se você recebeu este email, significa que a configuração está funcionando corretamente!
+
+Atenciosamente,
+Equipe RotaGo</textarea>
+            </div>
+            
+            <button type="submit">📧 Enviar Email de Teste</button>
+        </form>
+        
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        document.getElementById('emailForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const resultDiv = document.getElementById('result');
+            const button = document.querySelector('button');
+            const originalText = button.textContent;
+            
+            // Mostrar loading
+            button.textContent = '⏳ Enviando...';
+            button.disabled = true;
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result loading';
+            resultDiv.innerHTML = '⏳ Enviando email, aguarde...';
+            
+            try {
+                const formData = new FormData(this);
+                
+                // Converter FormData para JSON
+                const jsonData = {
+                    to: formData.get('to'),
+                    subject: formData.get('subject'),
+                    html: `<h2>${formData.get('subject')}</h2><p>${formData.get('message').replace(/\n/g, '<br>')}</p>`,
+                    text: formData.get('message')
+                };
+                
+                const response = await fetch('/api/send-email-hostinger.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(jsonData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✅ Email enviado com sucesso!</strong><br>
+                        <small>Verifique a caixa de entrada (e spam) do email de destino.</small>
+                    `;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `
+                        <strong>❌ Erro ao enviar email:</strong><br>
+                        ${data.error || 'Erro desconhecido'}
+                    `;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `
+                    <strong>❌ Erro de conexão:</strong><br>
+                    ${error.message}
+                `;
+            } finally {
+                button.textContent = originalText;
+                button.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -31,63 +31,63 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <AdminAuthProvider>
-            <RouteHistoryProvider>
+          <RouteHistoryProvider>
+            <AdminAuthProvider>
               <Routes>
-              {/* Public Routes */}
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/auth/signup" element={<SignUp />} />
-              <Route path="/auth/login" element={<Login />} />
-              <Route path="/auth/forgot-password" element={<ForgotPassword />} />
-              <Route path="/auth/reset-password" element={<ResetPassword />} />
-              <Route path="/auth/callback" element={<AuthCallback />} />
+                {/* Public Routes */}
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/auth/signup" element={<SignUp />} />
+                <Route path="/auth/login" element={<Login />} />
+                <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+                <Route path="/auth/reset-password" element={<ResetPassword />} />
+                <Route path="/auth/callback" element={<AuthCallback />} />
+                
+                {/* Admin Routes */}
+                <Route path="/admin/login" element={<AdminLogin />} />
+                <Route 
+                  path="/admin" 
+                  element={
+                    <AdminRoute>
+                      <AdminPanel />
+                    </AdminRoute>
+                  } 
+                />
+                
+                {/* Protected Routes */}
+                <Route 
+                  path="/app" 
+                  element={
+                    <PrivateRoute>
+                      <Index />
+                    </PrivateRoute>
+                  } 
+                />
               
-              {/* Admin Routes */}
-              <Route path="/admin/login" element={<AdminLogin />} />
-              <Route 
-                path="/admin" 
-                element={
-                  <AdminRoute>
-                    <AdminPanel />
-                  </AdminRoute>
-                } 
-              />
-              
-              {/* Protected Routes */}
-              <Route 
-                path="/app" 
-                element={
-                  <PrivateRoute>
-                    <Index />
-                  </PrivateRoute>
-                } 
-              />
-            
-            {/* Histórico de Rotas */}
-            <Route 
-              path="/history" 
-              element={
-                <PrivateRoute>
-                  <RouteHistoryPage />
-                </PrivateRoute>
-              } 
-            />
-            
-            {/* Assinatura */}
-            <Route 
-              path="/subscription" 
-              element={
-                <PrivateRoute>
-                  <SubscriptionPage />
-                </PrivateRoute>
-              } 
-            />
-            
-              {/* Catch All - Redirect to home instead of NotFound page */}
-              <Route path="*" element={<Navigate to="/" replace />} />
+                {/* Histórico de Rotas */}
+                <Route 
+                  path="/history" 
+                  element={
+                    <PrivateRoute>
+                      <RouteHistoryPage />
+                    </PrivateRoute>
+                  } 
+                />
+                
+                {/* Assinatura */}
+                <Route 
+                  path="/subscription" 
+                  element={
+                    <PrivateRoute>
+                      <SubscriptionPage />
+                    </PrivateRoute>
+                  } 
+                />
+                
+                {/* Catch All - Redirect to home instead of NotFound page */}
+                <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
-            </RouteHistoryProvider>
-          </AdminAuthProvider>
+            </AdminAuthProvider>
+          </RouteHistoryProvider>
         </AuthProvider>
         
         {/* Componente de notificação de atualizações */}

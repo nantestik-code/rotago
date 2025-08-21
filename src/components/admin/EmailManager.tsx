@@ -20,6 +20,7 @@ const EmailManager: React.FC = () => {
     isLoadingLogs,
     statistics,
     emailLogs,
+    sendEmail,
     sendTestEmail,
     resendEmail,
     loadStatistics,
@@ -31,6 +32,7 @@ const EmailManager: React.FC = () => {
   const [testEmail, setTestEmail] = useState('');
   const [testName, setTestName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<'welcome' | 'admin_notification'>('welcome');
+  const [selectedProvider, setSelectedProvider] = useState<'sendgrid' | 'hostinger'>('sendgrid');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showTemplates, setShowTemplates] = useState(false);
@@ -53,7 +55,21 @@ const EmailManager: React.FC = () => {
       return;
     }
 
-    const result = await sendTestEmail(selectedTemplate, testEmail, testName);
+    const emailData = {
+      to: testEmail,
+      name: testName,
+      template: selectedTemplate,
+      provider: selectedProvider,
+      data: {
+        loginUrl: `${window.location.origin}/login`,
+        adminPanelUrl: `${window.location.origin}/admin`,
+        userCpf: '000.000.000-00',
+        registrationDate: new Date().toISOString(),
+        subscriptionPlan: 'trial'
+      }
+    };
+
+    const result = await sendEmail(emailData);
     
     if (result.success) {
       setTestEmail('');
@@ -274,26 +290,59 @@ const EmailManager: React.FC = () => {
                 </div>
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="template-select">Template de Email</Label>
-                <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um template" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="welcome">Boas-vindas</SelectItem>
-                    <SelectItem value="admin_notification">Notificação Admin</SelectItem>
-                    <SelectItem value="password_reset">Reset de Senha</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="template-select">Template de Email</Label>
+                  <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="welcome">Boas-vindas</SelectItem>
+                      <SelectItem value="admin_notification">Notificação Admin</SelectItem>
+                      <SelectItem value="password_reset">Reset de Senha</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="provider-select">Provedor de Email</Label>
+                  <Select value={selectedProvider} onValueChange={setSelectedProvider}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o provedor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sendgrid">SendGrid (Padrão)</SelectItem>
+                      <SelectItem value="hostinger">Hostinger SMTP</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  Este email será enviado imediatamente. Certifique-se de que o endereço está correto.
+                  Este email será enviado imediatamente via {selectedProvider === 'hostinger' ? 'Hostinger SMTP' : 'SendGrid'}. Certifique-se de que o endereço está correto.
                 </AlertDescription>
               </Alert>
+              
+              {selectedProvider === 'hostinger' && (
+                <Alert>
+                  <Shield className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Hostinger SMTP:</strong> Usando servidor SMTP nativo da hospedagem. Limite de 100 emails/dia.
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              {selectedProvider === 'sendgrid' && (
+                <Alert>
+                  <Bell className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>SendGrid:</strong> Serviço profissional com analytics avançados e alta deliverabilidade.
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <Button 
                 onClick={handleSendTestEmail} 

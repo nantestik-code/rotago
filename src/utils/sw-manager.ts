@@ -26,6 +26,23 @@ export class ServiceWorkerManager {
       return;
     }
 
+    // Registrar apenas em produção e em contexto seguro, após o carregamento completo da página
+    if (!((import.meta as any).env?.PROD)) {
+      console.info('ℹ️ [SW-Manager] Ignorando registro do Service Worker em ambiente de desenvolvimento');
+      return;
+    }
+
+    if (!isSecureContext) {
+      console.warn('⚠️ [SW-Manager] Ignorando registro do Service Worker: contexto inseguro');
+      return;
+    }
+
+    if (document.readyState !== 'complete') {
+      await new Promise<void>((resolve) => {
+        window.addEventListener('load', () => resolve(), { once: true });
+      });
+    }
+
     try {
       console.log('🔧 [SW-Manager] Registrando Service Worker...');
 
