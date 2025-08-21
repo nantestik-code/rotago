@@ -19,16 +19,13 @@ export const processFile = async (file: File): Promise<ProcessedFile> => {
       return { deliveries, errors };
     }
 
-    // Log para diagnóstico
-    console.log("Dados importados:", data[0]);
-    console.log("Cabeçalhos detectados:", Object.keys(data[0]));
+
 
     // Map headers to standardized fields
     const headers = Object.keys(data[0]);
     const fieldMapping = mapFields(headers);
     
-    // Log para diagnóstico
-    console.log("Mapeamento de campos:", fieldMapping);
+
 
     // Verificar se campos obrigatórios foram mapeados
     if (!fieldMapping.cliente && !fieldMapping.endereco) {
@@ -37,17 +34,14 @@ export const processFile = async (file: File): Promise<ProcessedFile> => {
         // Usar as duas primeiras colunas como cliente e endereço
         fieldMapping.cliente = headers[0];
         fieldMapping.endereco = headers[1];
-        console.log("Usando mapeamento direto:", fieldMapping);
+
       }
     }
 
     // Process each row
     data.forEach((row, index) => {
       try {
-        // Log para diagnóstico da linha
-        if (index === 0) {
-          console.log("Processando linha 1:", row);
-        }
+
 
         // Se o cliente não existe diretamente, tentar encontrar em outras propriedades
         if (!fieldMapping.cliente || !row[fieldMapping.cliente]) {
@@ -55,7 +49,7 @@ export const processFile = async (file: File): Promise<ProcessedFile> => {
           for (const key of Object.keys(row)) {
             if (row[key] && typeof row[key] === 'string' && row[key].trim() !== '') {
               fieldMapping.cliente = key;
-              console.log(`Usando coluna '${key}' como cliente para linha ${index + 1}`);
+
               break;
             }
           }
@@ -69,7 +63,7 @@ export const processFile = async (file: File): Promise<ProcessedFile> => {
               // Essa é a segunda propriedade
               if (row[key] && typeof row[key] === 'string' && row[key].trim() !== '') {
                 fieldMapping.endereco = key;
-                console.log(`Usando coluna '${key}' como endereço para linha ${index + 1}`);
+
                 break;
               }
             }

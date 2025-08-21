@@ -103,20 +103,15 @@ const SignUp = () => {
     try {
       // VALIDAÇÃO PRÉVIA: Verificar se CPF já existe na tabela profiles
       const cpfClean = formData.cpf.replace(/[^0-9]/g, '');
-      console.log('🔍 Verificando se CPF já existe:', cpfClean);
       
       // Usar função RPC criada no banco para validação de CPF
       const { data: cpfExists, error: checkError } = await supabase
         .rpc('check_cpf_exists', { cpf_input: cpfClean });
       
-      console.log('📊 Resultado da validação de CPF:', { cpfExists, checkError });
-      
       if (checkError) {
-        console.warn('⚠️ Erro ao verificar CPF:', checkError);
         // Se der erro na validação, continua mas com aviso
-        console.warn('⚠️ Continuando cadastro mesmo com erro na validação prévia');
+        console.warn('Erro ao verificar CPF:', checkError);
       } else if (cpfExists === true) {
-        console.error('❌ CPF já existe no banco:', cpfClean);
         smartToast({
           title: "CPF já cadastrado",
           description: "Este CPF já está em uso por outra conta. Use um CPF diferente ou faça login na conta existente.",
@@ -125,8 +120,7 @@ const SignUp = () => {
         setIsLoading(false);
         return;
       }
-      
-      console.log('✅ CPF disponível, prosseguindo com cadastro...');
+
       
       const { data, error } = await supabase.auth.signUp({
         email: formData.email,
@@ -141,7 +135,6 @@ const SignUp = () => {
       });
 
       if (error) {
-        console.error('Erro no cadastro:', error);
         
         // Tratamento específico para usuário já registrado
         if (error.message?.includes('User already registered') || error.message?.includes('already registered')) {
@@ -152,7 +145,6 @@ const SignUp = () => {
           });
         } else if (error.message?.includes('Database error saving new user') || error.status === 500) {
           // Erro 500 geralmente indica problema de constraint no banco (CPF duplicado)
-          console.error('❌ Erro 500 detectado - possível CPF duplicado que passou pela validação prévia');
           smartToast({
             title: "Erro no cadastro",
             description: "Não foi possível completar o cadastro. Verifique se os dados estão corretos e tente novamente.",
@@ -186,14 +178,12 @@ const SignUp = () => {
             // Tratamento específico para CPF duplicado
             if (profileError.code === '23505' || (profileError.message && profileError.message.includes('unique_cpf'))) {
               // CPF duplicado é um erro crítico - precisamos desfazer o cadastro
-              console.error('❌ CPF duplicado detectado - desfazendo cadastro...');
               
               // Tentar remover o usuário criado no auth
               try {
                 await supabase.auth.admin.deleteUser(data.user.id);
-                console.log('✅ Usuário removido do auth devido ao CPF duplicado');
               } catch (deleteError) {
-                console.error('⚠️ Erro ao remover usuário:', deleteError);
+                console.error('Erro ao remover usuário:', deleteError);
               }
               
               smartToast({
@@ -206,11 +196,10 @@ const SignUp = () => {
             }
             
             // Outros erros de perfil também são críticos
-            console.error('❌ Erro crítico ao criar perfil - desfazendo cadastro...');
             try {
               await supabase.auth.admin.deleteUser(data.user.id);
             } catch (deleteError) {
-              console.error('⚠️ Erro ao remover usuário:', deleteError);
+              console.error('Erro ao remover usuário:', deleteError);
             }
             
             smartToast({
@@ -227,28 +216,8 @@ const SignUp = () => {
             const now = new Date();
             const trialEndDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 dias
             
-            // 🔍 LOGS DETALHADOS PARA RASTREAR DUPLICAÇÃO
-            const timestamp = new Date().toISOString();
-            const stackTrace = new Error().stack;
+
             
-            console.log('🔥 =================================');
-            console.log('🔥 [SIGNUP.TSX] CRIANDO ASSINATURA TRIAL');
-            console.log('🔥 =================================');
-            console.log('🔄 [SignUp] Timestamp:', timestamp);
-            console.log('🔄 [SignUp] Usuário ID:', data.user.id);
-            console.log('🔄 [SignUp] Stack Trace:', stackTrace);
-            console.log('📊 [SignUp] Dados do trial:', {
-              user_id: data.user.id,
-              status: 'trialing',
-              is_active: true,
-              is_trial: true,
-              trial_ends_at: trialEndDate.toISOString(),
-              current_period_start: now.toISOString(),
-              current_period_end: trialEndDate.toISOString()
-            });
-            console.log('🔥 =================================');
-            
-            // 🔍 RASTREAMENTO GLOBAL
             const trialData = {
               user_id: data.user.id,
               status: 'trialing',
@@ -267,15 +236,7 @@ const SignUp = () => {
               .select();
 
             if (subscriptionError) {
-              console.error('❌ [SignUp] Erro ao criar assinatura trial:', subscriptionError);
-              console.error('📊 [SignUp] Detalhes do erro:', {
-                code: subscriptionError.code,
-                message: subscriptionError.message,
-                details: subscriptionError.details
-              });
-            } else {
-              console.log('✅ [SignUp] Assinatura trial criada com sucesso!');
-              console.log('📊 [SignUp] Dados salvos no banco:', subscriptionData);
+              console.error('Erro ao criar assinatura trial:', subscriptionError);
             }
           } catch (err) {
             console.error('Erro ao criar assinatura trial:', err);
@@ -299,7 +260,7 @@ const SignUp = () => {
             title: "Cadastro realizado com sucesso!",
             description: "Bem-vindo ao RotaFacil! Você será redirecionado para o app.",
           });
-          console.log('🚀 [SignUp] Redirecionando usuário para /app');
+
           navigate('/app'); // Redireciona direto para o app
         }
       } else {

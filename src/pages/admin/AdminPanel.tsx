@@ -24,7 +24,8 @@ import {
   LogOut,
   Bug,
   Bell,
-  Home
+  Home,
+  Mail
 } from "lucide-react";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import UsersManagement from "@/components/admin/UsersManagement";
@@ -36,6 +37,7 @@ import SystemSettings from "@/components/admin/SystemSettings";
 import ReportsAndExports from "@/components/admin/ReportsAndExports";
 import AuditLogs from "@/components/admin/AuditLogs";
 import LogsViewer from "@/components/admin/LogsViewer";
+import EmailManager from "@/components/admin/EmailManager";
 
 const AdminPanel = () => {
   const { admin, logoutAdmin } = useAdminAuth();
@@ -50,6 +52,7 @@ const AdminPanel = () => {
     { id: 'financial', label: 'Financeiro', icon: DollarSign, color: 'green' },
     { id: 'subscriptions', label: 'Assinaturas', icon: CreditCard, color: 'purple' },
     { id: 'users', label: 'Usuários', icon: Users, color: 'orange' },
+    { id: 'emails', label: 'Emails', icon: Mail, color: 'emerald' },
     { id: 'reports', label: 'Relatórios', icon: FileText, color: 'indigo' },
     { id: 'audit', label: 'Auditoria', icon: Shield, color: 'red' },
     { id: 'logs', label: 'Logs', icon: Bug, color: 'gray' },
@@ -204,6 +207,12 @@ const AdminPanel = () => {
           <TabsContent value="content" className="mt-0">
             <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
               <SiteContent />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="emails" className="mt-0">
+            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+              <EmailManager />
             </div>
           </TabsContent>
 

@@ -59,7 +59,7 @@ const Analytics = () => {
 
   useEffect(() => {
     if (admin) {
-      console.log('🚀 [Analytics] Sessão admin detectada, carregando dados...');
+
       fetchAnalyticsData();
     }
   }, [admin, adminSupabase]);
@@ -72,8 +72,7 @@ const Analytics = () => {
     }
 
     try {
-      console.log('📊 [Analytics] Iniciando busca de dados analíticos...');
-      console.log('🔑 [Analytics] Usando cliente admin para bypass RLS');
+
       
       // Buscar dados básicos usando cliente admin
       const [usersResult, routesResult, deliveriesResult, subscriptionsResult] = await Promise.all([
@@ -88,13 +87,7 @@ const Analytics = () => {
       const deliveries = deliveriesResult.data;
       const subscriptions = subscriptionsResult.data;
 
-      console.log('✅ [Analytics] Dados carregados com sucesso:', {
-        users: users.length,
-        routes: routes.length,
-        deliveries: deliveries.length,
-        subscriptions: subscriptions.length,
-        clientType: adminSupabase === adminSupabase ? 'admin' : 'standard'
-      });
+
 
       // Processar dados para estatísticas
       const totalUsers = users.length;

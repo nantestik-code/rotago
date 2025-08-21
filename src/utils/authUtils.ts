@@ -7,7 +7,7 @@
  * @param patterns Array de padrões para identificar cookies de autenticação
  */
 export const clearAuthCookies = (patterns: string[] = ['supabase', 'sb-', 'auth', 'token']) => {
-  console.log('🍪 Limpando cookies de autenticação...');
+
   
   try {
     // Obter o domínio atual e suas variações
@@ -39,11 +39,11 @@ export const clearAuthCookies = (patterns: string[] = ['supabase', 'sb-', 'auth'
             document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=${path}${domain ? `; domain=${domain}` : ''};`;
           });
         });
-        console.log(`🗑️ Cookie removido: ${name}`);
+  
       }
     });
     
-    console.log('✅ Limpeza de cookies concluída');
+  
   } catch (error) {
     console.error('❌ Erro ao limpar cookies:', error);
   }
@@ -53,7 +53,7 @@ export const clearAuthCookies = (patterns: string[] = ['supabase', 'sb-', 'auth'
  * Limpa todos os dados de autenticação (localStorage, sessionStorage e cookies)
  */
 export const clearAllAuthData = () => {
-  console.log('🧹 Iniciando limpeza completa de dados de autenticação...');
+
   
   try {
     // Limpar localStorage
@@ -63,7 +63,7 @@ export const clearAllAuthData = () => {
     localStorageKeys.forEach(key => {
       if (authLocalStoragePatterns.some(pattern => key.toLowerCase().includes(pattern.toLowerCase()))) {
         localStorage.removeItem(key);
-        console.log(`🗑️ LocalStorage removido: ${key}`);
+  
       }
     });
     
@@ -72,14 +72,14 @@ export const clearAllAuthData = () => {
     sessionStorageKeys.forEach(key => {
       if (authLocalStoragePatterns.some(pattern => key.toLowerCase().includes(pattern.toLowerCase()))) {
         sessionStorage.removeItem(key);
-        console.log(`🗑️ SessionStorage removido: ${key}`);
+  
       }
     });
     
     // Limpar cookies
     clearAuthCookies();
     
-    console.log('✅ Limpeza completa de dados de autenticação concluída');
+  
   } catch (error) {
     console.error('❌ Erro na limpeza de dados de autenticação:', error);
   }

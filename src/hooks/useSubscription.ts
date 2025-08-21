@@ -44,42 +44,18 @@ export const useSubscription = () => {
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
 
-  // Log apenas em desenvolvimento
-  if (process.env.NODE_ENV === 'development') {
-    console.log('🔄 useSubscription:', {
-      hasUser: !!user,
-      hasSubscription: !!subscription,
-      plansCount: plans.length,
-      loading
-    });
-  }
+
 
   // useEffect separado para planos (executa apenas uma vez)
   useEffect(() => {
     if (plans.length === 0) {
-      console.log('📊 [useSubscription] Carregando planos iniciais...');
       fetchPlans();
     }
   }, []);
 
   // useEffect para assinatura do usuário
   useEffect(() => {
-    // 🔍 LOGS DETALHADOS PARA RASTREAR DUPLICAÇÃO
-    const timestamp = new Date().toISOString();
-    const stackTrace = new Error().stack;
-    
-    console.log('🔥 =================================');
-    console.log('🔥 [USESUBSCRIPTION.TS] useEffect EXECUTADO');
-    console.log('🔥 =================================');
-    console.log('🔍 [useSubscription] Timestamp:', timestamp);
-    console.log('🔍 [useSubscription] user?.id:', user?.id);
-    console.log('🔍 [useSubscription] subscription:', subscription);
-    console.log('🔍 [useSubscription] Condição (user && !subscription):', !!(user && !subscription));
-    console.log('🔍 [useSubscription] Stack Trace:', stackTrace);
-    console.log('🔥 =================================');
-    
     if (user && !subscription) {
-      console.log('🔍 [useSubscription] Carregando assinatura do usuário...');
       setLoading(true);
       fetchUserSubscription();
     }
@@ -96,7 +72,6 @@ export const useSubscription = () => {
       new Date(subscription.trial_ends_at) < new Date() &&
       subscription.status !== 'expired'
     ) {
-      console.log('⏰ [useSubscription] Trial expirado, atualizando status...');
       updateSubscriptionStatus('expired');
     }
 
@@ -106,7 +81,6 @@ export const useSubscription = () => {
       subscription.current_period_end &&
       new Date(subscription.current_period_end) < new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
     ) {
-      console.log('💳 [useSubscription] Pagamento pendente expirado, atualizando status...');
       updateSubscriptionStatus('expired');
     }
   }, [subscription?.id, subscription?.status]);
@@ -115,9 +89,8 @@ export const useSubscription = () => {
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (loading && plans.length === 0) {
-        console.warn('⏰ [useSubscription] Timeout para planos - usando mock');
+        console.warn('Timeout para planos - usando mock');
         setPlans(getMockPlans());
-        console.log('📋 [useSubscription] Planos mock carregados por timeout');
       }
     }, 15000); // 15 segundos apenas para planos
 
@@ -134,20 +107,7 @@ export const useSubscription = () => {
   const fetchUserSubscription = async () => {
     if (!user) return;
 
-    // 🔍 LOGS DETALHADOS PARA RASTREAR DUPLICAÇÃO
-    const timestamp = new Date().toISOString();
-    const stackTrace = new Error().stack;
-    
-    console.log('🔥 =================================');
-    console.log('🔥 [USESUBSCRIPTION.TS] fetchUserSubscription CHAMADO');
-    console.log('🔥 =================================');
-    console.log('🔍 fetchUserSubscription: Timestamp:', timestamp);
-    console.log('🔍 fetchUserSubscription: Buscando assinatura para usuário:', user.id);
-    console.log('🔍 fetchUserSubscription: Stack Trace:', stackTrace);
-    console.log('🔥 =================================');
-
     try {
-      console.log('🔍 Consultando user_subscriptions para user_id:', user.id);
       
       let { data, error } = await supabase
         .from('user_subscriptions')
@@ -161,31 +121,16 @@ export const useSubscription = () => {
         .order('created_at', { ascending: false }) // Pegar a mais recente primeiro
         .maybeSingle(); // Usar maybeSingle() ao invés de single()
 
-      console.log('📊 fetchUserSubscription - Resposta:', { data, error });
-
       if (error && error.code !== 'PGRST116') {
-        console.error('❌ fetchUserSubscription - Erro:', error);
+        console.error('Erro ao buscar assinatura:', error);
         // Não definir erro para problemas de RLS - deixar subscription null
         // O sistema vai funcionar normalmente com trial/sem assinatura
         setSubscription(null);
         return;
       }
 
-      if (data) {
-        console.log('✅ fetchUserSubscription: Assinatura válida encontrada:', data);
-        console.log('📊 [fetchUserSubscription] Detalhes da assinatura:', {
-          id: data.id,
-          status: data.status,
-          is_trial: data.is_trial,
-          is_active: data.is_active,
-          trial_ends_at: data.trial_ends_at,
-          created_at: data.created_at
-        });
-      } else {
-        console.log('🆕 fetchUserSubscription: Nenhuma assinatura válida encontrada');
-        
+      if (!data) {
         // 🧹 LIMPEZA PRÉVIA: Remover TODAS as assinaturas inválidas ANTES do fallback
-        console.log('🧹 Executando limpeza prévia de assinaturas inválidas...');
         try {
           const { error: cleanupError } = await supabase
             .from('user_subscriptions')
@@ -196,16 +141,13 @@ export const useSubscription = () => {
             .is('trial_ends_at', null);
             
           if (cleanupError) {
-            console.error('⚠️ Erro na limpeza prévia:', cleanupError);
-          } else {
-            console.log('✅ Limpeza prévia concluída - assinaturas inválidas removidas');
+            console.error('Erro na limpeza prévia:', cleanupError);
           }
         } catch (cleanupErr) {
-          console.error('⚠️ Erro na limpeza prévia:', cleanupErr);
+          console.error('Erro na limpeza prévia:', cleanupErr);
         }
         
         // 🔄 FALLBACK: Buscar novamente após limpeza (deve encontrar apenas assinaturas válidas)
-        console.log('🔄 Tentando fallback após limpeza...');
         const { data: fallbackData, error: fallbackError } = await supabase
           .from('user_subscriptions')
           .select(`
@@ -218,17 +160,14 @@ export const useSubscription = () => {
           .maybeSingle();
           
         if (fallbackData) {
-          console.log('✅ fetchUserSubscription: Assinatura encontrada após limpeza:', fallbackData);
           data = fallbackData;
-        } else {
-          console.log('🆕 fetchUserSubscription: Nenhuma assinatura encontrada (nem após limpeza)');
         }
       }
       
       setSubscription(data);
       setLoading(false); // Definir loading como false após buscar
     } catch (err) {
-      console.error('❌ Erro ao buscar assinatura:', err);
+      console.error('Erro ao buscar assinatura:', err);
       // Não definir erro - deixar sistema funcionar normalmente
       setSubscription(null);
       setLoading(false); // Definir loading como false em caso de erro
@@ -238,11 +177,8 @@ export const useSubscription = () => {
   const fetchPlans = async () => {
     // Não buscar se já temos planos carregados
     if (plans.length > 0) {
-      console.log('📋 fetchPlans: Planos já carregados, pulando...');
       return;
     }
-    
-    console.log('📋 fetchPlans: Iniciando busca de planos...');
     
     try {
       // Buscar planos sem autenticação (dados públicos)
@@ -252,33 +188,26 @@ export const useSubscription = () => {
         .eq('is_active', true)
         .order('price', { ascending: true });
 
-      console.log('📊 fetchPlans - Resposta do Supabase:', { data, error });
-
       if (error) {
-        console.error('❌ Erro ao buscar planos:', error);
+        console.error('Erro ao buscar planos:', error);
         // Se der erro 401, criar planos mock para desenvolvimento
         if (error.code === '401' || error.message?.includes('401')) {
-          console.log('🔄 Usando planos mock devido ao erro de autenticação');
           const mockPlans = getMockPlans();
-          console.log('📦 Planos mock criados:', mockPlans);
           setPlans(mockPlans);
         } else {
           throw error;
         }
       } else {
-        console.log('✅ Planos carregados do Supabase:', data?.length || 0, 'planos');
         setPlans(data || []);
       }
     } catch (err) {
-      console.error('❌ Erro crítico ao buscar planos:', err);
+      console.error('Erro crítico ao buscar planos:', err);
       // Fallback para planos mock
       const mockPlans = getMockPlans();
-      console.log('🔄 Fallback: usando planos mock:', mockPlans);
       setPlans(mockPlans);
       setError('Usando dados de exemplo - configure o Supabase RLS');
     } finally {
       // Sempre definir loading como false após carregar planos
-      console.log('⏹️ fetchPlans: Finalizando (loading = false)');
       setLoading(false);
     }
   };
@@ -317,19 +246,6 @@ export const useSubscription = () => {
     if (!user) throw new Error('Usuário não autenticado');
 
     try {
-      // 🔍 LOGS DETALHADOS PARA RASTREAR DUPLICAÇÃO
-      const timestamp = new Date().toISOString();
-      const stackTrace = new Error().stack;
-      
-      console.log('🔥 =================================');
-      console.log('🔥 [USESUBSCRIPTION.TS] CRIANDO ASSINATURA PAGA');
-      console.log('🔥 =================================');
-      console.log('💳 [createSubscription] Timestamp:', timestamp);
-      console.log('💳 [createSubscription] Usuário ID:', user.id);
-      console.log('💳 [createSubscription] Plano ID:', planId);
-      console.log('💳 [createSubscription] Stack Trace:', stackTrace);
-      console.log('🔥 =================================');
-      
       // 🔍 RASTREAMENTO GLOBAL
       const subscriptionData = {
         user_id: user.id,

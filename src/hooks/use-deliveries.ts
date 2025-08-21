@@ -42,8 +42,6 @@ export function useDeliveries() {
     if (!user || !supabase || !currentRouteId) return;
     
     try {
-      console.log('Sincronizando entregas com Supabase...');
-      
       // Buscar entregas da rota atual no Supabase
       const { data: supabaseDeliveries, error: fetchError } = await supabase
         .from('route_deliveries')
@@ -63,7 +61,6 @@ export function useDeliveries() {
       }
       
       if (!supabaseDeliveries || supabaseDeliveries.length === 0) {
-        console.log('Nenhuma entrega encontrada no Supabase para sincronização');
         return;
       }
       
@@ -84,7 +81,6 @@ export function useDeliveries() {
           // Se o status for diferente e a atualização remota for mais recente
           if (remoteStatus !== localDelivery.status && remoteUpdatedAt > localUpdatedAt) {
             hasUpdates = true;
-            console.log(`Atualizando entrega ${localDelivery.id} de ${localDelivery.status} para ${remoteStatus}`);
             return {
               ...localDelivery,
               status: remoteStatus,
@@ -98,14 +94,12 @@ export function useDeliveries() {
       });
       
       if (hasUpdates) {
-        console.log('Atualizando entregas locais com dados mais recentes do Supabase');
         setDeliveries(updatedDeliveries);
         localStorage.setItem('currentRouteDeliveries', JSON.stringify(updatedDeliveries));
         localStorage.setItem('currentUserId', user?.id || ''); // Salvar ownership
         
         // Atualizar as contagens de status
         const newStatusCounts = getStatusCounts(updatedDeliveries);
-        console.log('Novas contagens de status após sincronização:', newStatusCounts);
       }
       
       // Também tentar enviar mudanças pendentes ao Supabase
@@ -135,7 +129,6 @@ export function useDeliveries() {
               .single();
               
             if (!routeError && routeData) {
-              console.log('Rota encontrada no Supabase, recarregando dados...');
               // Recarregar dados (loadDeliveries já fará isso automaticamente)
             }
           } catch (error) {
@@ -143,8 +136,6 @@ export function useDeliveries() {
           }
         }
       }
-    } else {
-      console.log('Navegador offline, usando dados do localStorage');
     }
   }, [user, deliveries]);
 
@@ -165,7 +156,6 @@ export function useDeliveries() {
           try {
             const savedDeliveries = JSON.parse(savedDeliveriesString);
             if (savedDeliveries && savedDeliveries.length > 0) {
-              console.log('Carregando entregas do localStorage para usuário atual:', savedDeliveries.length);
               setDeliveries(savedDeliveries);
               
               // Selecionar a primeira entrega pendente
@@ -188,7 +178,6 @@ export function useDeliveries() {
           }
         } else if (savedDeliveriesString && savedUserId !== user.id) {
           // Dados pertencem a outro usuário - limpar para evitar vazamento
-          console.log('🧹 Dados do localStorage pertencem a outro usuário - limpando...');
           localStorage.removeItem('currentRouteDeliveries');
           localStorage.removeItem('currentRouteId');
           localStorage.removeItem('currentUserId');
@@ -209,7 +198,6 @@ export function useDeliveries() {
           if (routeError) {
             if (routeError.code === 'PGRST116') {
               // Rota não encontrada, limpar estado local
-              console.log('Rota não encontrada no Supabase, removendo referência local');
               localStorage.removeItem('currentRouteId');
               localStorage.removeItem('currentRouteDeliveries');
               setCurrentRouteId(null);
@@ -228,7 +216,6 @@ export function useDeliveries() {
           const routeUserId = routeData_any?.user_id;
           
           if (routeUserId && user && routeUserId !== user.id) {
-            console.log('Rota pertence a outro usuário, não carregando');
             localStorage.removeItem('currentRouteId');
             localStorage.removeItem('currentRouteDeliveries');
             setCurrentRouteId(null);
@@ -412,15 +399,12 @@ export function useDeliveries() {
             console.error('Erro ao inserir entregas no Supabase:', deliveryError);
             // Não lançar o erro, apenas registrar que não foi possível inserir no Supabase
           } else {
-            console.log('Entregas inseridas com sucesso no Supabase');
             supabaseDeliveriesCreated = true;
           }
         } catch (error) {
           console.error('Erro ao processar entregas para inserção no Supabase:', error);
           // Não lançar o erro, continuar com o fluxo local
         }
-      } else {
-        console.log('Pulando inserção de entregas no Supabase porque a rota não foi criada com sucesso');
       }
       
       // Relacionar entregas com a rota apenas se a rota e as entregas foram criadas com sucesso no Supabase
@@ -438,7 +422,6 @@ export function useDeliveries() {
           
           // Se existirem relações, removê-las primeiro
           if (existingRelations && existingRelations.length > 0) {
-            console.log('Removendo relações existentes para a rota:', routeId);
             const { error: deleteError } = await supabase
               .from('route_deliveries')
               .delete()
@@ -457,14 +440,11 @@ export function useDeliveries() {
             sequence_number: index + 1
           }));
           
-          console.log('Inserindo novas relações para a rota:', routeId);
-          
           // Inserir em lotes menores para evitar problemas com limites de tamanho
           const batchSize = 20; // Reduzindo o tamanho do lote para evitar problemas
           let allBatchesOk = true;
           for (let i = 0; i < routeDeliveries.length; i += batchSize) {
             const batch = routeDeliveries.slice(i, i + batchSize);
-            console.log(`Inserindo lote ${Math.floor(i/batchSize) + 1} de ${Math.ceil(routeDeliveries.length/batchSize)}`);
             
             try {
               const { error: rdError } = await supabase
@@ -486,9 +466,7 @@ export function useDeliveries() {
             await new Promise(resolve => setTimeout(resolve, 100));
           }
           
-          if (allBatchesOk) {
-            console.log('Relações inseridas com sucesso');
-          } else {
+          if (!allBatchesOk) {
             console.warn('Algumas relações de rota não foram inseridas (ex.: delivery_order NOT NULL). Verifique os logs acima.');
           }
         } catch (error) {
@@ -496,8 +474,6 @@ export function useDeliveries() {
           // Não lançar o erro para permitir que o usuário continue usando o app
           // mesmo que haja problemas com as relações
         }
-      } else {
-        console.log('Pulando criação de relações no Supabase porque a rota não foi criada com sucesso');
       }
       
       // Salvar ID da rota atual no localStorage
@@ -557,8 +533,6 @@ export function useDeliveries() {
 
   // Handle status change with animation flag and persistence
   const handleStatusChange = useCallback(async (id: string, status: 'pendente' | 'entregue' | 'ocorrencia') => {
-    console.log(`useDeliveries: Iniciando atualização de status para entrega ${id} para ${status}`);
-    
     // IMPORTANTE: Usar uma função de callback para acessar o estado mais recente
     // Isso evita problemas de closure com valores desatualizados
     setDeliveries(currentDeliveries => {
@@ -573,7 +547,7 @@ export function useDeliveries() {
       const now = new Date();
       const timestamp = now.toISOString();
       
-      console.log(`useDeliveries: Alterando status da entrega ${id} de ${previousStatus} para ${status}`);
+  
       
       // Registrar a alteração de status em um log local para recuperação
       try {
@@ -596,8 +570,6 @@ export function useDeliveries() {
       }
       
       // Atualizar estado local imediatamente para feedback visual rápido
-      console.log(`useDeliveries: Atualizando estado local para entrega ${id} com status ${status}`);
-      
       // Criar uma cópia do array atual de entregas usando map para garantir nova referência
       // Isso é mais seguro que deep clone com JSON.parse/stringify que pode causar problemas
       const updatedDeliveries = currentDeliveries.map(delivery => {
@@ -616,9 +588,7 @@ export function useDeliveries() {
       
       // Verificar se a entrega foi realmente atualizada
       const updatedDelivery = updatedDeliveries.find(d => d.id === id);
-      if (updatedDelivery) {
-        console.log(`useDeliveries: Entrega ${id} atualizada com sucesso para status ${updatedDelivery.status}`);
-      } else {
+      if (!updatedDelivery) {
         console.error(`useDeliveries: Falha ao atualizar entrega ${id} - não encontrada após atualização`);
       }
       
@@ -626,7 +596,6 @@ export function useDeliveries() {
       try {
         localStorage.setItem('currentRouteDeliveries', JSON.stringify(updatedDeliveries));
         localStorage.setItem('currentUserId', user?.id || ''); // Salvar ownership
-        console.log('useDeliveries: Entregas atualizadas salvas no localStorage após mudança de status');
       } catch (error) {
         console.error('Erro ao salvar entregas no localStorage após mudança de status:', error);
       }
@@ -643,8 +612,6 @@ export function useDeliveries() {
         if (checkDelivery && checkDelivery.status !== status) {
           console.error(`useDeliveries: Erro de sincronização: Entrega ${id} deveria ter status ${status} mas tem ${checkDelivery.status}`);
           // Forçar uma nova atualização
-          console.log('useDeliveries: Forçando nova atualização de estado');
-          
           // Criar uma nova cópia com a entrega atualizada
           const forcedUpdate = currentDeliveries.map(d => 
             d.id === id ? { ...d, status, statusChanged: true } : d
@@ -653,14 +620,12 @@ export function useDeliveries() {
           // Salvar no localStorage para garantir persistência
           try {
             localStorage.setItem('currentRouteDeliveries', JSON.stringify(forcedUpdate));
-            console.log('useDeliveries: Entregas atualizadas salvas no localStorage após correção de sincronização');
           } catch (error) {
             console.error('Erro ao salvar entregas no localStorage após correção:', error);
           }
           
           return forcedUpdate;
         } else if (checkDelivery) {
-          console.log(`useDeliveries: Verificação de sincronização: Entrega ${id} tem status ${checkDelivery.status} como esperado`);
           return currentDeliveries; // Sem alterações
         } else {
           console.error(`useDeliveries: Entrega ${id} não encontrada durante verificação de sincronização`);
@@ -699,7 +664,6 @@ export function useDeliveries() {
     
     // Se não for um UUID válido, pular a atualização no Supabase
     if (!isValidUuid) {
-      console.log('ID não é um UUID válido, pulando atualização no Supabase:', id);
       return;
     }
     
@@ -720,8 +684,6 @@ export function useDeliveries() {
     };
     
     try {
-      console.log('Atualizando status da entrega no Supabase:', id, status);
-      
       // Atualizar no Supabase apenas se for um UUID válido
       const { error } = await supabase
         .from('deliveries')
@@ -743,8 +705,6 @@ export function useDeliveries() {
       // Marcar no log que a sincronização foi bem-sucedida
       updateStatusLog(id, true);
       
-      console.log('Status atualizado com sucesso no Supabase');
-      
       // Registrar no histórico
       try {
         const historyEntry = {
@@ -757,7 +717,7 @@ export function useDeliveries() {
           notes: `Status alterado de ${previousStatus} para ${status}`
         };
         
-        console.log('Registrando no histórico:', historyEntry);
+
         
         // Registrar a alteração de status apenas em localStorage para evitar erros de tabela
         try {
@@ -769,7 +729,7 @@ export function useDeliveries() {
             timestamp: new Date().toISOString()
           });
           localStorage.setItem(historyKey, JSON.stringify(existingHistory));
-          console.log('Histórico registrado com sucesso no localStorage');
+
           
           // Tentar registrar em profiles para manter um timestamp da última alteração
           if (user?.id) {
@@ -811,7 +771,7 @@ export function useDeliveries() {
       const pendingChanges = getPendingStatusChanges();
       if (pendingChanges.length === 0) return;
       
-      console.log(`Tentando sincronizar ${pendingChanges.length} alterações de status pendentes`);
+
       
       // Obter o log de alterações de status
       const statusChangesLog = JSON.parse(localStorage.getItem('statusChangesLog') || '[]');
@@ -833,7 +793,6 @@ export function useDeliveries() {
             
             if (changes.length > 0 && changes[0].newStatus !== delivery.status) {
               hasUpdates = true;
-              console.log(`Atualizando entrega ${delivery.id} para status ${changes[0].newStatus} com base no log`);
               return {
                 ...delivery,
                 status: changes[0].newStatus,
@@ -845,7 +804,6 @@ export function useDeliveries() {
           });
           
           if (hasUpdates) {
-            console.log('Atualizando entregas locais com base no log de alterações pendentes');
             localStorage.setItem('currentRouteDeliveries', JSON.stringify(updatedDeliveries));
         localStorage.setItem('currentUserId', user?.id || ''); // Salvar ownership
             setDeliveries(updatedDeliveries);
@@ -862,7 +820,7 @@ export function useDeliveries() {
             continue;
           }
           
-          console.log(`Sincronizando alteração de status: ${change.id} -> ${change.newStatus}`);
+
           
           const { error } = await supabase
             .from('deliveries')
@@ -888,7 +846,7 @@ export function useDeliveries() {
           
           localStorage.setItem('statusChangesLog', JSON.stringify(updatedLog));
           
-          console.log(`Status sincronizado com sucesso para ${change.id}`);
+
         } catch (error) {
           console.error(`Erro ao processar sincronização para ${change.id}:`, error);
         }
@@ -908,10 +866,8 @@ export function useDeliveries() {
       const currentDeliveriesString = localStorage.getItem('currentRouteDeliveries');
       if (currentDeliveriesString && deliveries.length === 0) {
         try {
-          console.log('Verificando entregas salvas no localStorage...');
           const savedDeliveries = JSON.parse(currentDeliveriesString);
           if (savedDeliveries && savedDeliveries.length > 0) {
-            console.log(`Recuperando ${savedDeliveries.length} entregas do localStorage que não foram carregadas inicialmente`);
             setDeliveries(savedDeliveries);
             
             // Selecionar a primeira entrega pendente
@@ -944,7 +900,6 @@ export function useDeliveries() {
   useEffect(() => {
     // Função para verificar estado da conexão e recuperar automaticamente
     const handleOnline = () => {
-      console.log('Conexão restaurada, sincronizando com servidor...');
       smartToast({
         title: 'Conexão restaurada',
         description: 'Sincronizando dados com o servidor...',
@@ -953,7 +908,6 @@ export function useDeliveries() {
     };
     
     const handleOffline = () => {
-      console.log('Conexão perdida, usando dados locais...');
       smartToast({
         title: 'Conexão perdida',
         description: 'Trabalhando offline. Suas alterações serão sincronizadas quando a conexão for restaurada.',
@@ -964,7 +918,6 @@ export function useDeliveries() {
     // Listener para detectar quando a página volta a ficar visível (usuário retorna à aba)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        console.log('Página tornou-se visível, verificando conexão e sincronizando...');
         if (navigator.onLine) {
           checkConnectivityAndRestore();
         }
@@ -1040,7 +993,7 @@ export function useDeliveries() {
           origin.lat = position.coords.latitude;
           origin.lng = position.coords.longitude;
         } catch (error) {
-          console.log('Usando localização padrão para otimização:', error);
+          // Usar localização padrão
         }
       }
 

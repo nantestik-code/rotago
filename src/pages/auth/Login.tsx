@@ -45,7 +45,6 @@ const Login = () => {
     
     // Limpar localStorage e cookies ao carregar a página de login após logout
     if (logoutParam === 'true') {
-      console.log('🔐 Login: Detectado parâmetro logout=true, limpando dados residuais...');
       localStorage.clear();
       
       // Limpar cookies relacionados ao Supabase
@@ -82,10 +81,7 @@ const Login = () => {
       });
     }
     
-    // Log para debugging
-    if (source) {
-      console.log(`🔍 Login: Redirecionado da fonte: ${source}`);
-    }
+
   }, [location.search]);
   
   // Redirect if already authenticated
@@ -123,14 +119,8 @@ const Login = () => {
     try {
       // Verificar se estamos em ambiente de desenvolvimento
       const isDevEnv = isDevelopmentEnv();
-      console.log(`Tentando login em ambiente de ${isDevEnv ? 'desenvolvimento' : 'produção'}:`, { 
-        email: formData.email, 
-        timestamp: new Date().toISOString() 
-      });
       
       try {
-        // Tentar fazer login diretamente
-        console.log('Tentando login com credenciais:', { email: formData.email });
         const { data, error } = await supabase.auth.signInWithPassword({
           email: formData.email,
           password: formData.password,
@@ -138,7 +128,6 @@ const Login = () => {
 
         // Se houver erro no login
         if (error) {
-          console.error('Erro no login:', error.message, error.code);
           
           // Tratar erro de credenciais inválidas
           if (error.code === 'invalid_credentials') {
@@ -158,14 +147,12 @@ const Login = () => {
               });
               
               if (signInError) {
-                console.error('Erro no login:', signInError);
                 smartToast({
                   title: "Erro ao entrar",
                   description: signInError.message || "Ocorreu um erro durante o login. Tente novamente mais tarde.",
                   variant: "destructive"
                 });
               } else if (signInData.user) {
-                console.log('Login bem-sucedido em dev mesmo sem confirmação de email');
                 navigate('/app');
                 return;
               }
@@ -189,7 +176,6 @@ const Login = () => {
           }
         } else if (data.user && data.session) {
           // Login bem-sucedido
-          console.log('Login bem-sucedido:', { userId: data.user.id, email: data.user.email });
 
           // Garantir que existe um perfil para o usuário
           try {
@@ -200,7 +186,7 @@ const Login = () => {
               .maybeSingle();
 
             if (profileError) {
-              console.warn('[Login] Erro ao buscar perfil do usuário:', profileError);
+              console.warn('Erro ao buscar perfil do usuário:', profileError);
             }
 
             if (!profile) {
@@ -212,7 +198,6 @@ const Login = () => {
                 avatar_url: data.user.user_metadata?.avatar_url || '',
                 created_at: new Date().toISOString()
               });
-              console.log('Perfil criado automaticamente para o usuário:', data.user.email);
             }
           } catch (profileError) {
             console.error('Erro ao garantir/criar perfil:', profileError);
@@ -221,7 +206,6 @@ const Login = () => {
           navigate('/app');
         } else {
           // Caso inesperado: sem erro, mas sem usuário ou sessão
-          console.error('Login falhou: Usuário ou sessão ausente');
           smartToast({
             title: "Erro ao entrar",
             description: "Não foi possível iniciar a sessão. Tente novamente.",
@@ -230,7 +214,6 @@ const Login = () => {
         }
       } catch (error) {
         // Erro inesperado durante o processo de login
-        console.error('Erro durante o login:', error);
         smartToast({
           title: "Erro ao entrar",
           description: "Ocorreu um erro ao fazer login. Tente novamente mais tarde.",

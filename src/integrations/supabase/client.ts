@@ -36,7 +36,7 @@ const safeLocalStorage = {
 
 // Função para limpar todos os tokens do Supabase no localStorage
 export const clearSupabaseTokens = () => {
-  console.log('🧹 Limpando todos os tokens do Supabase...');
+
   try {
     // Usar a função de utilitário para limpar todos os dados de autenticação
     clearAllAuthData();
@@ -47,7 +47,7 @@ export const clearSupabaseTokens = () => {
     safeLocalStorage.removeItem('sb-access-token');
     safeLocalStorage.removeItem('supabase-auth-token');
     
-    console.log('✅ Tokens e cookies do Supabase limpos com sucesso');
+  
   } catch (error) {
     console.error('❌ Erro ao limpar tokens do Supabase:', error);
   }
@@ -64,11 +64,11 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, 
     flowType: 'pkce',           // Usar PKCE flow para autenticação mais segura
     storageKey: 'supabase.auth.token', // Chave consistente para armazenamento
     onAuthStateChange: (event, session) => {
-      console.log(`🔔 Supabase Auth Event: ${event}`, { hasSession: !!session });
+    
       
       // Se o evento for SIGNED_OUT, garantir limpeza completa
       if (event === 'SIGNED_OUT') {
-        console.log('🚪 Evento SIGNED_OUT detectado, limpando tokens...');
+    
         clearSupabaseTokens();
       }
     }
