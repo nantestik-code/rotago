@@ -60,16 +60,24 @@ interface SubscriptionPlan {
 interface UserSubscription {
   id: string;
   user_id: string;
-  subscription_plan_id: string;
+  subscription_id?: string;
+  external_id?: string;
+  plan_id?: string;
   is_active: boolean;
   is_trial: boolean;
-  trial_end_date?: string;
-  start_date: string;
-  end_date?: string;
+  trial_ends_at?: string;
+  current_period_start?: string;
+  current_period_end?: string;
+  cancel_at_period_end?: boolean;
+  canceled_at?: string;
   status: string;
   created_at: string;
+  updated_at?: string;
   email?: string;
-  subscription_plans: SubscriptionPlan;
+  metadata?: any;
+  profiles?: {
+    full_name: string;
+  };
 }
 
 const SubscriptionManagement = () => {
@@ -133,14 +141,11 @@ const SubscriptionManagement = () => {
 
       const { data: subscriptionsData, error: subsError } = await supabase
         .from('user_subscriptions')
-        .select(`
-          *,
-          subscription_plans(*)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (subsError) {
-        logger.warn('ADMIN', 'Acesso restrito por RLS - usando dados de demonstração', {
+        logger.error('ADMIN', 'Erro ao buscar assinaturas de usuários', {
           component: 'SubscriptionManagement',
           function: 'fetchData',
           table: 'user_subscriptions',
@@ -148,80 +153,16 @@ const SubscriptionManagement = () => {
           code: subsError.code
         });
 
-        // Fallback para dados de demonstração quando RLS impede acesso
-        const mockSubscriptions = [
-          {
-            id: 'demo-1',
-            user_id: 'demo-user-1',
-            subscription_plan_id: plansData?.[0]?.id || 'demo-plan-1',
-            is_active: true,
-            is_trial: false,
-            status: 'active',
-            email: 'usuario1@exemplo.com',
-            start_date: new Date().toISOString(),
-            end_date: null,
-            created_at: new Date().toISOString(),
-            subscription_plans: plansData?.[0] || {
-              id: 'demo-plan-1',
-              name: 'Plano Básico',
-              price: 29.90,
-              features: ['10 rotas', 'Suporte básico']
-            }
-          },
-          {
-            id: 'demo-2',
-            user_id: 'demo-user-2',
-            subscription_plan_id: plansData?.[1]?.id || 'demo-plan-2',
-            is_active: true,
-            is_trial: true,
-            status: 'active',
-            email: 'usuario2@exemplo.com',
-            start_date: new Date(Date.now() - 86400000).toISOString(),
-            end_date: new Date(Date.now() + 86400000 * 7).toISOString(),
-            created_at: new Date(Date.now() - 86400000).toISOString(),
-            subscription_plans: plansData?.[1] || {
-              id: 'demo-plan-2',
-              name: 'Plano Pro',
-              price: 59.90,
-              features: ['50 rotas', 'Suporte prioritário']
-            }
-          },
-          {
-            id: 'demo-3',
-            user_id: 'demo-user-3',
-            subscription_plan_id: plansData?.[2]?.id || 'demo-plan-3',
-            is_active: false,
-            is_trial: false,
-            status: 'cancelled',
-            email: 'usuario3@exemplo.com',
-            start_date: new Date(Date.now() - 172800000).toISOString(),
-            end_date: new Date(Date.now() - 86400000).toISOString(),
-            created_at: new Date(Date.now() - 172800000).toISOString(),
-            subscription_plans: plansData?.[2] || {
-              id: 'demo-plan-3',
-              name: 'Plano Premium',
-              price: 99.90,
-              features: ['Rotas ilimitadas', 'Suporte 24/7']
-            }
-          }
-        ];
-
-        setSubscriptions(mockSubscriptions);
-        setPlans(plansData || []);
-        setIsDemoMode(true);
-
         toast({
-          title: "Modo Demonstração",
-          description: "Exibindo dados de demonstração devido às políticas de segurança RLS.",
-          variant: "default",
+          title: "Erro ao carregar assinaturas",
+          description: `Erro: ${subsError.message}`,
+          variant: "destructive",
         });
 
-        logger.info('ADMIN', 'Dados de demonstração carregados com sucesso', {
-          component: 'SubscriptionManagement',
-          function: 'fetchData',
-          mode: 'demo',
-          subscriptionsCount: mockSubscriptions.length
-        });
+        // Definir arrays vazios em caso de erro, mas não ativar modo demo
+        setSubscriptions([]);
+        setPlans(plansData || []);
+        setIsDemoMode(false);
         setLoading(false);
         return;
       }
@@ -233,8 +174,73 @@ const SubscriptionManagement = () => {
         count: subscriptionsData?.length || 0
       });
 
+      // Buscar perfis dos usuários separadamente
+      let subscriptionsWithProfiles = subscriptionsData || [];
+      
+      if (subscriptionsData && subscriptionsData.length > 0) {
+        const userIds = subscriptionsData.map(sub => sub.user_id);
+        
+        logger.debug('ADMIN', 'Buscando perfis dos usuários', {
+          component: 'SubscriptionManagement',
+          function: 'fetchData',
+          table: 'profiles',
+          userIds: userIds.length
+        });
+
+        // Buscar apenas perfis (emails serão buscados via função personalizada)
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, full_name, cpf')
+          .in('id', userIds);
+
+        // Buscar emails via função RPC personalizada
+        let emailsData = [];
+        try {
+          const { data: emailsResult, error: emailsError } = await supabase
+            .rpc('get_user_emails', { user_ids: userIds });
+          
+          if (!emailsError && emailsResult) {
+            emailsData = emailsResult;
+          }
+        } catch (error) {
+          logger.warn('ADMIN', 'Função get_user_emails não disponível, usando fallback', {
+            component: 'SubscriptionManagement',
+            function: 'fetchData'
+          });
+        }
+
+        if (!profilesError && profilesData) {
+          // Combinar dados de assinaturas com perfis e emails
+          subscriptionsWithProfiles = subscriptionsData.map(subscription => {
+            const profile = profilesData.find(profile => profile.id === subscription.user_id);
+            const emailData = emailsData.find(email => email.id === subscription.user_id);
+            
+            return {
+              ...subscription,
+              profiles: profile ? {
+                ...profile,
+                email: emailData?.email || null
+              } : null
+            };
+          });
+
+          logger.info('ADMIN', 'Perfis e emails de usuários carregados e combinados', {
+            component: 'SubscriptionManagement',
+            function: 'fetchData',
+            profilesCount: profilesData.length,
+            emailsCount: emailsData.length
+          });
+        } else {
+          logger.warn('ADMIN', 'Erro ao buscar dados dos usuários', {
+            component: 'SubscriptionManagement',
+            function: 'fetchData',
+            profilesError: profilesError?.message
+          });
+        }
+      }
+
       setPlans(plansData || []);
-      setSubscriptions(subscriptionsData || []);
+      setSubscriptions(subscriptionsWithProfiles);
 
       logger.info('ADMIN', 'Dados de assinaturas e planos carregados com sucesso', {
         component: 'SubscriptionManagement',
@@ -478,7 +484,7 @@ const SubscriptionManagement = () => {
   const filteredSubscriptions = subscriptions.filter(sub => {
     const userName = sub.profiles?.full_name || sub.email || sub.user_id || '';
     const userEmail = sub.profiles?.email || sub.email || '';
-    const planName = sub.subscription_plans?.name || '';
+    const planName = sub.plan_id || 'Trial Gratuito';
     
     const matchesSearch = 
       userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -604,18 +610,20 @@ const SubscriptionManagement = () => {
                         <TableCell>
                           <div>
                             <div className="font-medium">
-                              {subscription.profiles?.full_name || subscription.email || 'Usuário Demo'}
+                              {subscription.profiles?.full_name || 'Usuário sem nome'}
                             </div>
                             <div className="text-sm text-muted-foreground">
-                              {subscription.profiles?.email || subscription.email || `ID: ${subscription.user_id}`}
+                              {subscription.profiles?.email || subscription.email || `ID: ${subscription.user_id.substring(0, 8)}...`}
                             </div>
                           </div>
                         </TableCell>
                         <TableCell>
                           <div>
-                            <div className="font-medium">{subscription.subscription_plans?.name || 'Plano Demo'}</div>
+                            <div className="font-medium">
+                              {subscription.plan_id || (subscription.is_trial ? 'Trial Gratuito' : 'Plano Básico')}
+                            </div>
                             <div className="text-sm text-muted-foreground">
-                              {formatCurrency(subscription.subscription_plans?.price || 0)}
+                              {subscription.is_trial ? 'Gratuito' : 'R$ 29,90'}
                             </div>
                           </div>
                         </TableCell>
@@ -629,9 +637,10 @@ const SubscriptionManagement = () => {
                             <Badge variant="default">Pago</Badge>
                           )}
                         </TableCell>
-                        <TableCell>{formatDate(subscription.start_date || subscription.created_at)}</TableCell>
+                        <TableCell>{formatDate(subscription.current_period_start || subscription.created_at)}</TableCell>
                         <TableCell>
-                          {subscription.end_date ? formatDate(subscription.end_date) : '-'}
+                          {subscription.trial_ends_at ? formatDate(subscription.trial_ends_at) : 
+                           subscription.current_period_end ? formatDate(subscription.current_period_end) : '-'}
                         </TableCell>
                         <TableCell>
                           {isDemoMode ? (
