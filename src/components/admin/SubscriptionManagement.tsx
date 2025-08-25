@@ -201,11 +201,24 @@ const SubscriptionManagement = () => {
           
           if (!emailsError && emailsResult) {
             emailsData = emailsResult;
+            logger.debug('ADMIN', 'Emails carregados via RPC', {
+              component: 'SubscriptionManagement',
+              function: 'fetchData',
+              emailsCount: emailsResult.length,
+              emails: emailsResult.map(e => ({ id: e.id, email: e.email }))
+            });
+          } else {
+            logger.warn('ADMIN', 'Erro ao buscar emails via RPC', {
+              component: 'SubscriptionManagement',
+              function: 'fetchData',
+              error: emailsError?.message
+            });
           }
         } catch (error) {
           logger.warn('ADMIN', 'Função get_user_emails não disponível, usando fallback', {
             component: 'SubscriptionManagement',
-            function: 'fetchData'
+            function: 'fetchData',
+            error: error.message
           });
         }
 
