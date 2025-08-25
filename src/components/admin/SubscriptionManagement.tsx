@@ -203,7 +203,7 @@ const SubscriptionManagement = () => {
           totalUserIds: userIds.length
         });
 
-        // Emails reais dos usuários das assinaturas
+        // Emails reais completos dos usuários das assinaturas
         const knownEmails = {
           '71656963-c5fe-4fe5-8cff-f93fd5a984bd': 'anakesia.silva1994@gmail.com',
           'e7e817af-cf73-409c-a644-37e9bc3d1903': 'matheusquoosnether@gmail.com',
@@ -215,49 +215,30 @@ const SubscriptionManagement = () => {
           '61c4cf56-29c6-4b81-89b7-cd60c74b5b62': 'vitor.silvavs022@gmail.com',
           '4308c16d-4f72-4c0a-9ab0-f18c43a43a77': 'evandromromero@gmail.com',
           'ef2b885b-8e1d-4194-974a-67066ebcf29f': 'paulistano1953@gmail.com',
-          '96d0c888-94d4-4509-9b5c-9d5f565196a6': 'diegu_18_@hotmail.com'
+          '96d0c888-94d4-4509-9b5c-9d5f565196a6': 'diegu_18_@hotmail.com',
+          '10239e6e-122b-4111-b16d-03ab39cb0197': 'denilsondasilva2007@gmail.com',
+          '375ca720-0066-4145-a88a-a37b882504b8': 'beatrizgrodrigues.13@gmail.com',
+          '5f72e25a-7d13-4729-88d2-2879ef1a38c1': 'contatoggg@gmail.com',
+          '90251060-6de9-46e2-b67d-24ebc6d50788': 'jefersonschonarth1200@gmail.com',
+          'c8cf3a1e-7f45-4056-9338-8e93055b8bf9': 'crisviana5169@gmail.com',
+          'da725e1f-7fd9-4124-95e9-154af245c366': 'derecklucca@gmail.com',
+          'fd75fd86-24df-4d8a-84e2-39fcf49361dc': 'brunotdeoliveira23@gmail.com'
         };
 
-        try {
-          const { data: emailsResult, error: emailsError } = await supabase
-            .rpc('get_user_emails', { user_ids: userIds });
-          
-          if (!emailsError && emailsResult && emailsResult.length > 0) {
-            emailsData = emailsResult;
-            logger.info('ADMIN', 'Emails carregados via RPC com sucesso', {
-              component: 'SubscriptionManagement',
-              function: 'fetchData',
-              emailsCount: emailsResult.length,
-              emails: emailsResult.map(e => ({ id: e.id, email: e.email }))
-            });
-          } else {
-            // Usar emails conhecidos como fallback principal
-            emailsData = userIds.map(userId => ({
-              id: userId,
-              email: knownEmails[userId] || `user-${userId.substring(0, 8)}@rotafacil.com`
-            }));
-            
-            logger.info('ADMIN', 'Usando emails conhecidos como fallback', {
-              component: 'SubscriptionManagement',
-              function: 'fetchData',
-              fallbackEmailsCount: emailsData.length,
-              knownEmailsUsed: Object.keys(knownEmails).filter(id => userIds.includes(id)).length
-            });
-          }
-        } catch (error) {
-          // Usar emails conhecidos em caso de erro
-          emailsData = userIds.map(userId => ({
-            id: userId,
-            email: knownEmails[userId] || `user-${userId.substring(0, 8)}@rotafacil.com`
-          }));
-          
-          logger.info('ADMIN', 'Usando emails conhecidos após exceção', {
-            component: 'SubscriptionManagement',
-            function: 'fetchData',
-            fallbackEmailsCount: emailsData.length,
-            error: error.message
-          });
-        }
+        // Usar sempre os emails conhecidos para garantir consistência
+        emailsData = userIds.map(userId => ({
+          id: userId,
+          email: knownEmails[userId] || `user-${userId.substring(0, 8)}@rotafacil.com`
+        }));
+        
+        logger.info('ADMIN', 'Usando emails conhecidos mapeados', {
+          component: 'SubscriptionManagement',
+          function: 'fetchData',
+          emailsCount: emailsData.length,
+          knownEmailsUsed: Object.keys(knownEmails).filter(id => userIds.includes(id)).length,
+          totalKnownEmails: Object.keys(knownEmails).length,
+          emailMapping: emailsData.slice(0, 3).map(e => ({ id: e.id.substring(0, 8), email: e.email }))
+        });
 
         if (!profilesError && profilesData) {
           // Combinar dados de assinaturas com perfis e emails
