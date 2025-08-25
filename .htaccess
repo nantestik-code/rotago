@@ -103,6 +103,26 @@ RewriteCond %{REQUEST_URI} !^/api/
 RewriteRule ^(.*)$ /index.html [QSA,L]
 
 # ============================================
+# CONFIGURAÇÕES CORS PARA API
+# ============================================
+
+# CORS para pasta /api/
+<Directory "/api">
+    Header always set Access-Control-Allow-Origin "*"
+    Header always set Access-Control-Allow-Methods "POST, GET, OPTIONS, DELETE, PUT"
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, Accept, Origin, X-Requested-With"
+    Header always set Access-Control-Max-Age "86400"
+</Directory>
+
+# CORS para arquivos PHP da API
+<FilesMatch "^(send-email-hostinger|.*-api)\.php$">
+    Header always set Access-Control-Allow-Origin "*"
+    Header always set Access-Control-Allow-Methods "POST, GET, OPTIONS, DELETE, PUT"
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, Accept, Origin, X-Requested-With"
+    Header always set Access-Control-Max-Age "86400"
+</FilesMatch>
+
+# ============================================
 # CONFIGURAÇÕES ESPECÍFICAS PARA HOSTINGER
 # ============================================
 

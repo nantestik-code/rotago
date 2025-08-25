@@ -32,7 +32,7 @@ const EmailManager: React.FC = () => {
   const [testEmail, setTestEmail] = useState('');
   const [testName, setTestName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<'welcome' | 'admin_notification'>('welcome');
-  const [selectedProvider, setSelectedProvider] = useState<'sendgrid' | 'hostinger'>('sendgrid');
+  const [selectedProvider, setSelectedProvider] = useState<'sendgrid' | 'hostinger'>('hostinger');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showTemplates, setShowTemplates] = useState(false);

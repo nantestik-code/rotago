@@ -1,13 +1,19 @@
 <?php
-// Configuração de CORS
+// Configuração robusta de CORS
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
-header('Content-Type: application/json');
+header('Access-Control-Allow-Methods: POST, OPTIONS, GET');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, Accept, Origin, X-Requested-With');
+header('Access-Control-Max-Age: 86400');
+header('Content-Type: application/json; charset=utf-8');
+
+// Log de debug para verificar requisições
+error_log('[EMAIL API] Método: ' . $_SERVER['REQUEST_METHOD'] . ' | Origin: ' . ($_SERVER['HTTP_ORIGIN'] ?? 'N/A'));
 
 // Responder a requisições OPTIONS (preflight)
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    error_log('[EMAIL API] Respondendo preflight OPTIONS');
     http_response_code(200);
+    echo json_encode(['status' => 'preflight_ok']);
     exit();
 }
 

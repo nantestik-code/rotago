@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 interface EmailRequest {
   to: string;
@@ -19,14 +20,20 @@ interface EmailResponse {
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, accept, origin, x-requested-with',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
+  'Access-Control-Max-Age': '86400',
+  'Content-Type': 'application/json',
 };
 
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    console.log('Handling CORS preflight request');
+    return new Response(JSON.stringify({ status: 'ok' }), { 
+      status: 200,
+      headers: corsHeaders 
+    });
   }
 
   try {
@@ -188,25 +195,36 @@ serve(async (req) => {
       from: emailData.from || 'contato@rotago.site'
     };
 
-    // Fazer requisição para o script PHP da Hostinger
-    const phpResponse = await fetch('https://rotago.site/api/send-email-hostinger.php', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'RotaGo-EdgeFunction/1.0'
+    // Configurar cliente SMTP da Hostinger
+    console.log('Configurando SMTP da Hostinger...');
+    
+    const client = new SMTPClient({
+      connection: {
+        hostname: "smtp.hostinger.com",
+        port: 587,
+        tls: true,
+        auth: {
+          username: "contato@rotago.site",
+          password: Deno.env.get("HOSTINGER_EMAIL_PASSWORD") || "933755ViTor**",
+        },
       },
-      body: JSON.stringify(phpData)
     });
 
-    if (!phpResponse.ok) {
-      throw new Error(`Erro HTTP: ${phpResponse.status}`);
-    }
+    // Enviar email via SMTP
+    console.log('Enviando email via SMTP...');
+    
+    await client.send({
+      from: emailData.from || "contato@rotago.site",
+      to: emailData.to,
+      subject: subject,
+      content: textContent,
+      html: htmlContent,
+    });
 
-    const phpResult = await phpResponse.json();
-
-    if (!phpResult.success) {
-      throw new Error(phpResult.error || 'Erro no envio via PHP');
-    }
+    console.log('Email enviado com sucesso via SMTP');
+    
+    const messageId = `hostinger_smtp_${Date.now()}`;
+    const phpResult = { success: true, messageId };
 
     // Registrar log no banco de dados
     try {

@@ -1,0 +1,14 @@
+# Configuração CORS específica para API
+Header always set Access-Control-Allow-Origin "*"
+Header always set Access-Control-Allow-Methods "POST, GET, OPTIONS, DELETE, PUT"
+Header always set Access-Control-Allow-Headers "Content-Type, Authorization, Accept, Origin, X-Requested-With"
+Header always set Access-Control-Max-Age "86400"
+
+# Garantir que arquivos PHP sejam executados
+<Files "*.php">
+    SetHandler application/x-httpd-php
+</Files>
+
+# Logs de debug habilitados
+php_flag log_errors on
+php_value error_log "/tmp/php_errors.log"

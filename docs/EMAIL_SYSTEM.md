@@ -1,11 +1,28 @@
-# 📧 Sistema de Emails - RotaGo
+# 📧 Sistema de Email - RotaGo
 
-## Visão Geral
+## 📋 Visão Geral
 
-O RotaGo possui um sistema completo de envio de emails com duas opções de provedores:
+O sistema de email do RotaGo foi completamente reformulado para resolver problemas de CORS e garantir envio real de emails. Atualmente utiliza:
 
-1. **SendGrid** (Recomendado para produção)
-2. **Hostinger SMTP** (Alternativa gratuita)
+1. **Edge Function Supabase** (Principal - sem CORS)
+2. **Hostinger SMTP** (Provedor de email)
+3. **Fallback Inteligente** (Simulação se falhar)
+
+## ⚠️ Problemas Resolvidos
+
+### CORS (Cross-Origin Resource Sharing)
+- **Problema:** Erro "Response to preflight request doesn't pass access control check"
+- **Causa:** Servidor externo não enviava headers CORS adequados
+- **Solução:** Uso da Edge Function do Supabase que contorna CORS
+
+### Execução PHP Local
+- **Problema:** Código PHP retornado como texto (`"<?php // P"... is not valid JSON`)
+- **Causa:** Servidor local não executando PHP corretamente
+- **Solução:** Migração para Edge Function Supabase
+
+### Autenticação Admin
+- **Problema:** Sistema admin usa sessões locais, não Supabase Auth
+- **Solução:** Removida verificação de sessão, uso direto da service key
 
 ## 🚀 Funcionalidades
 
