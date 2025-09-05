@@ -29,9 +29,16 @@ const LandingPage = () => {
     <div className="min-h-screen bg-white">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b px-4 py-4 md:px-6 lg:px-8 flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <Truck className="h-7 w-7 text-primary" />
-          <span className="text-xl font-bold">RotaFacil</span>
+        <div className="flex items-center space-x-3">
+          <div className="relative">
+            <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
+              <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                <div className="w-2 h-2 bg-white rounded-full"></div>
+              </div>
+            </div>
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-yellow-400 rounded transform rotate-45"></div>
+          </div>
+          <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">RotaGo</span>
         </div>
         <div className="space-x-2">
           <Button variant="outline" onClick={() => navigate('/auth/login')}>Entrar</Button>
@@ -40,34 +47,54 @@ const LandingPage = () => {
       </header>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-blue-50 to-white py-20 md:py-28">
+      <section className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-green-50 to-white py-16 md:py-20">
         <div className="absolute inset-0 bg-grid-pattern opacity-5 pointer-events-none"></div>
         <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-6xl">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div className="text-center lg:text-left">
-              <span className="inline-block px-3 py-1 text-sm font-medium bg-primary/10 text-primary rounded-full mb-4">
-                Plataforma de gestão de entregas
-              </span>
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight">
-                Entregue <span className="text-primary">mais</span> com <span className="text-primary">menos</span> esforço
+              <div className="bg-gradient-to-r from-green-100 to-blue-100 px-4 py-2 rounded-full inline-block mb-6">
+                <span className="text-sm font-semibold text-green-800">🚀 Revolucione suas entregas por apenas R$ 29,90/mês</span>
+              </div>
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight mb-6">
+                Otimize suas <span className="bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">rotas</span> e <span className="bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">economize</span> tempo
               </h1>
-              <p className="mt-6 text-xl text-gray-600 max-w-lg mx-auto lg:mx-0">
-                Automatize suas rotas, elimine retornos desnecessários e aumente sua produtividade em até 35%.
-              </p>
-              <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                <Button size="lg" onClick={handleGetStarted} className="px-8 py-6 text-base">
-                  Começar Grátis <ChevronRight className="ml-2 h-4 w-4" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+                <div className="flex items-center space-x-3 bg-white/80 backdrop-blur-sm p-4 rounded-xl shadow-sm">
+                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                    <Route className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-900">+35% entregas/dia</p>
+                    <p className="text-sm text-gray-600">Rotas otimizadas</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-3 bg-white/80 backdrop-blur-sm p-4 rounded-xl shadow-sm">
+                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                    <Clock className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-900">-30% combustível</p>
+                    <p className="text-sm text-gray-600">Economia garantida</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+                <Button size="lg" onClick={handleGetStarted} className="px-8 py-6 text-base bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">
+                  Começar Grátis - 7 dias <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
-                <Button size="lg" variant="outline" className="py-6 text-base" onClick={() => toast({
+                <Button size="lg" variant="outline" className="py-6 text-base border-2 border-blue-200 hover:bg-blue-50" onClick={() => toast({
                   title: "Demonstração em vídeo",
                   description: "Recurso em desenvolvimento. Em breve você poderá assistir a um vídeo demonstrativo!",
                 })}>
                   Ver demonstração
                 </Button>
               </div>
-              <p className="mt-4 text-sm text-gray-500">
-                <span className="bg-yellow-100 px-2 py-1 rounded text-yellow-700 font-medium">Grátis</span> durante todo o período de desenvolvimento. Sem cartão de crédito.
-              </p>
+              <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl border border-green-200">
+                <p className="text-sm text-center">
+                  <span className="font-semibold text-green-700">✨ Oferta especial:</span> <span className="text-gray-700">7 dias grátis + apenas</span> <span className="text-2xl font-bold text-green-600">R$ 29,90/mês</span>
+                </p>
+                <p className="text-xs text-gray-600 text-center mt-1">Sem taxas de setup • Cancele quando quiser • Suporte incluído</p>
+              </div>
             </div>
             <div className="relative order-first lg:order-last">
               <div className="relative bg-white p-4 rounded-xl shadow-2xl">
@@ -98,7 +125,7 @@ const LandingPage = () => {
               Benefícios principais
             </span>
             <h2 className="mt-4 text-3xl md:text-4xl font-bold text-gray-900">
-              Por que escolher o RotaFacil?
+              Por que escolher o RotaGo?
             </h2>
             <p className="mt-3 text-xl text-gray-600 max-w-3xl mx-auto">
               Nossos clientes aumentam em até 35% o número de entregas realizadas por dia
@@ -139,6 +166,9 @@ const LandingPage = () => {
           </div>
         </div>
       </section>
+
+      {/* Pricing Section - Movida para cima */}
+      <PricingSection />
 
       {/* Visual Demo Section - NOVO */}
       <section className="py-20 bg-gradient-to-b from-blue-50 to-white">
@@ -390,8 +420,6 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Pricing Section */}
-      <PricingSection />
 
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-r from-primary to-primary/90 text-white">
@@ -426,16 +454,23 @@ const LandingPage = () => {
         <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-6xl">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
             <div className="col-span-1 md:col-span-2">
-              <div className="flex items-center space-x-2 mb-4">
-                <Truck className="h-7 w-7 text-primary" />
-                <span className="text-xl font-bold text-white">RotaFacil</span>
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="relative">
+                  <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <div className="w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
+                      <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                    </div>
+                  </div>
+                  <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-yellow-400 rounded transform rotate-45"></div>
+                </div>
+                <span className="text-xl font-bold text-white">RotaGo</span>
               </div>
               <p className="mb-4 text-gray-400 max-w-md">
-                RotaFacil é uma plataforma completa para gerenciamento e otimização de rotas de entrega,
+                RotaGo é uma plataforma completa para gerenciamento e otimização de rotas de entrega,
                 ajudando empresas de todos os tamanhos a entregar mais com menos recursos.
               </p>
               <p className="text-sm text-gray-500">
-                © {new Date().getFullYear()} RotaFacil. Todos os direitos reservados.
+                © {new Date().getFullYear()} RotaGo. Todos os direitos reservados.
               </p>
             </div>
             <div>

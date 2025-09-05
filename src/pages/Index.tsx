@@ -43,8 +43,9 @@ const Index = () => {
     try {
       const savedState = localStorage.getItem(STORAGE_KEY);
       const savedUserId = localStorage.getItem('currentUserId');
+      const routeFinished = localStorage.getItem('route-finished');
       
-      if (savedState) {
+      if (savedState && !routeFinished) {
         const parsedState = JSON.parse(savedState);
         
         // Validar ownership se usuário estiver logado
@@ -56,15 +57,29 @@ const Index = () => {
         
         // Verificar se os dados salvos são válidos
         if (parsedState.deliveries && Array.isArray(parsedState.deliveries) && parsedState.deliveries.length > 0) {
-          setDeliveries(parsedState.deliveries);
-          setSelectedDeliveryId(parsedState.selectedDeliveryId || null);
-          setShowFileImport(false);
+          // Perguntar ao usuário se quer continuar a rota anterior
+          const continueRoute = window.confirm(
+            `Você tem uma rota em andamento com ${parsedState.deliveries.length} entregas. Deseja continuar?`
+          );
           
-          toast({
-            title: 'Rota restaurada',
-            description: `${parsedState.deliveries.length} entregas foram restauradas da sessão anterior.`,
-          });
+          if (continueRoute) {
+            setDeliveries(parsedState.deliveries);
+            setSelectedDeliveryId(parsedState.selectedDeliveryId || null);
+            setShowFileImport(false);
+            
+            toast({
+              title: 'Rota restaurada',
+              description: `${parsedState.deliveries.length} entregas foram restauradas.`,
+            });
+          } else {
+            // Limpar dados se usuário não quiser continuar
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem('route-finished');
+          }
         }
+      } else if (routeFinished) {
+        // Limpar flag de rota finalizada
+        localStorage.removeItem('route-finished');
       }
     } catch (error) {
       console.error('Erro ao carregar estado salvo:', error);
@@ -130,8 +145,42 @@ const Index = () => {
     // Limpar dados salvos no localStorage
     try {
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem('route-finished');
     } catch (error) {
       console.error('Erro ao limpar estado salvo:', error);
+    }
+  }
+
+  // Handle finish route
+  function handleFinishRoute() {
+    const completedDeliveries = deliveries.filter(d => d.status === 'entregue').length;
+    const totalDeliveries = deliveries.length;
+    
+    const confirmFinish = window.confirm(
+      `Finalizar rota?\n\nResumo:\n• ${completedDeliveries}/${totalDeliveries} entregas concluídas\n• ${totalDeliveries - completedDeliveries} pendentes/ocorrências\n\nEsta ação não pode ser desfeita.`
+    );
+    
+    if (confirmFinish) {
+      // Marcar rota como finalizada
+      localStorage.setItem('route-finished', 'true');
+      
+      // Limpar dados da rota atual
+      setShowFileImport(true);
+      setDeliveries([]);
+      setSelectedDeliveryId(null);
+      stopTracking();
+      
+      // Limpar localStorage
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch (error) {
+        console.error('Erro ao limpar estado salvo:', error);
+      }
+      
+      toast({
+        title: 'Rota finalizada',
+        description: `Rota concluída com ${completedDeliveries}/${totalDeliveries} entregas realizadas.`,
+      });
     }
   }
 
@@ -184,6 +233,7 @@ const Index = () => {
                 setDeliveries([]);
                 setSelectedDeliveryId(null);
               }}
+              onFinishRoute={handleFinishRoute}
             />
           </div>
         )}

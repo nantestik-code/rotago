@@ -40,6 +40,7 @@ interface RouteViewSectionProps {
   processingOptimization: boolean;
   isMobile: boolean;
   onBackToImport?: () => void;
+  onFinishRoute?: () => void;
 }
 
 const RouteViewSection: React.FC<RouteViewSectionProps> = ({
@@ -57,7 +58,8 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
   geocodeProgress,
   processingOptimization,
   isMobile,
-  onBackToImport
+  onBackToImport,
+  onFinishRoute
 }) => {
   // Estado compartilhado para controlar a aba ativa em ambos os layouts (mobile e desktop)
   const [activeTab, setActiveTab] = useState<'pendente' | 'entregue' | 'ocorrencia'>('pendente');
@@ -293,16 +295,29 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
         <div className="mobile-route-view">
           {/* Header Mobile */}
           <div className="mobile-header">
-            {onBackToImport && (
-              <Button
-                onClick={onBackToImport}
-                className="header-back-btn"
-                variant="ghost"
-                size="sm"
-              >
-                <ArrowLeft size={18} />
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {onBackToImport && (
+                <Button
+                  onClick={onBackToImport}
+                  className="header-back-btn"
+                  variant="ghost"
+                  size="sm"
+                >
+                  <ArrowLeft size={18} />
+                </Button>
+              )}
+              
+              {onFinishRoute && (
+                <Button
+                  onClick={onFinishRoute}
+                  className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white"
+                  size="sm"
+                >
+                  <Check size={16} />
+                  <span className="hidden sm:inline">Finalizar</span>
+                </Button>
+              )}
+            </div>
             
             <div className="header-info">
               <span className="route-name">
@@ -620,18 +635,31 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
           <div className="mb-4">
             <div className="flex justify-between items-center mb-2">
               <h2 className="text-2xl font-semibold">Rota Otimizada</h2>
-              {onBackToImport && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={onBackToImport}
-                  className="flex items-center gap-1"
-                >
-                  <ArrowLeft size={16} />
-                  <FileUp size={16} />
-                  Importar Arquivo
-                </Button>
-              )}
+              <div className="flex gap-2">
+                {onFinishRoute && (
+                  <Button 
+                    variant="default" 
+                    size="sm" 
+                    onClick={onFinishRoute}
+                    className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <Check size={16} />
+                    Finalizar Rota
+                  </Button>
+                )}
+                {onBackToImport && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={onBackToImport}
+                    className="flex items-center gap-1"
+                  >
+                    <ArrowLeft size={16} />
+                    <FileUp size={16} />
+                    Nova Rota
+                  </Button>
+                )}
+              </div>
             </div>
             <StatusCounter 
               pendente={statusCounts.pendente} 

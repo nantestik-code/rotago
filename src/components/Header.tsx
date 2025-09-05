@@ -14,6 +14,7 @@ import {
 import { Loader2, User, Settings, LogOut, Shield, History, Crown } from "lucide-react";
 import SyncStatusButton from "./SyncStatusButton";
 import { useDeliveries } from "@/hooks/use-deliveries";
+import Logo from "./Logo";
 
 export function Header({ onNewRouteClick, onExportClick }: { 
   onNewRouteClick?: () => void; 
@@ -37,9 +38,7 @@ export function Header({ onNewRouteClick, onExportClick }: {
   return (
     <header className="bg-white shadow">
       <div className="container max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-        <Link to="/app" className="text-xl font-bold text-primary">
-          RotaFácil
-        </Link>
+        <Logo size="md" variant="default" interactive={true} to="/app" />
 
         {isLoading ? (
           <Loader2 className="h-5 w-5 animate-spin" />
@@ -115,7 +114,7 @@ export function Header({ onNewRouteClick, onExportClick }: {
                       console.log('🔄 Header: Redirecionamento de segurança');
                       localStorage.clear();
                       window.location.replace('/login?source=header');
-                      window.location.reload(true);
+                      window.location.reload();
                     }, 500);
                   }}
                   className="text-red-500 hover:text-red-700 hover:bg-red-50 font-bold"

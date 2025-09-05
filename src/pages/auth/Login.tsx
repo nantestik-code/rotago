@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { smartToast } from '@/hooks/use-smart-toast';
-import { Truck, ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { 
@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import Logo from '@/components/Logo';
 
 // Função auxiliar para verificar se estamos em ambiente de desenvolvimento
 const isDevelopmentEnv = () => {
@@ -68,7 +69,7 @@ const Login = () => {
       smartToast({
         title: "Sessão expirada",
         description: "Sua sessão expirou. Por favor, faça login novamente.",
-        variant: "warning"
+        variant: "destructive"
       });
     }
     
@@ -77,7 +78,7 @@ const Login = () => {
       smartToast({
         title: "Erro durante logout",
         description: "Houve um problema ao sair do sistema, mas você foi redirecionado com sucesso.",
-        variant: "warning"
+        variant: "destructive"
       });
     }
     
@@ -279,9 +280,8 @@ const Login = () => {
         <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para a página inicial
       </Button>
       
-      <div className="flex items-center mb-8">
-        <Truck className="h-10 w-10 text-primary mr-2" />
-        <span className="text-3xl font-bold">RotaFacil</span>
+      <div className="mb-8">
+        <Logo size="lg" variant="default" interactive={false} showIcon={true} showText={true} />
       </div>
       
       <Card className="w-full max-w-md">

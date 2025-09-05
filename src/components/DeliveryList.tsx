@@ -336,7 +336,7 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
                   <div className="p-2 sm:p-3 flex items-center justify-between">
                     <div className="flex-1 min-w-0 mr-2">
                       <div className="flex items-center mb-1">
-                        <span className="font-medium text-sm mr-2">#{orderNumber}</span>
+                        <span className="font-medium text-sm mr-2">#{delivery.sequence_number || orderNumber}</span>
                         {isMultiple && (
                           <span className="text-xs bg-orange-100 text-orange-800 px-1 rounded">
                             Múltipla
@@ -347,7 +347,7 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
                         {delivery.endereco || 'Sem endereço'}
                       </div>
                       <div className="text-xs text-gray-500 truncate">
-                        {delivery.cidade || 'Sem cidade'}
+                        {delivery.bairro ? `${delivery.bairro}${delivery.cidade ? `, ${delivery.cidade}` : ''}` : (delivery.cidade || 'Sem localização')}
                       </div>
                     </div>
                     

@@ -32,40 +32,17 @@ const ColumnMappingDialog: React.FC<ColumnMappingDialogProps> = ({
 
   const [columnOptions, setColumnOptions] = useState<ColumnOption[]>([
     { 
-      id: 'atId', 
-      label: 'AT ID', 
-      description: 'Identificador único da entrega', 
-      examples: sampleData.atId || [], 
-      selected: hasValidData(sampleData.atId || []) 
-    },
-    { 
       id: 'sequence', 
       label: 'Sequence', 
       description: 'Ordem da entrega na rota', 
       examples: sampleData.sequence || [], 
-      // Always select sequence if it has valid data
-      selected: hasValidData(sampleData.sequence || []) || true 
-    },
-    { 
-      id: 'stop', 
-      label: 'Stop', 
-      description: 'Ponto de parada para entrega', 
-      examples: sampleData.stop || [], 
-      selected: hasValidData(sampleData.stop || []) 
-    },
-    { 
-      id: 'spxTn', 
-      label: 'SPX TN', 
-      description: 'Número de rastreamento da remessa', 
-      examples: sampleData.spxTn || [], 
-      selected: hasValidData(sampleData.spxTn || []) 
+      selected: true 
     },
     { 
       id: 'address', 
       label: 'Destination Address', 
       description: 'Endereço completo de entrega', 
       examples: sampleData.address || [], 
-      // Address is always selected
       selected: true 
     },
     { 
@@ -74,20 +51,6 @@ const ColumnMappingDialog: React.FC<ColumnMappingDialogProps> = ({
       description: 'Bairro da entrega', 
       examples: sampleData.neighborhood || [], 
       selected: hasValidData(sampleData.neighborhood || []) 
-    },
-    { 
-      id: 'city', 
-      label: 'City', 
-      description: 'Cidade da entrega', 
-      examples: sampleData.city || [], 
-      selected: hasValidData(sampleData.city || []) 
-    },
-    { 
-      id: 'zipcode', 
-      label: 'Zipcode/Postal code', 
-      description: 'CEP ou código postal', 
-      examples: sampleData.zipcode || [], 
-      selected: hasValidData(sampleData.zipcode || []) 
     },
   ]);
 

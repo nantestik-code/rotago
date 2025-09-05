@@ -139,13 +139,15 @@ const mapFields = (headers: string[]) => {
               'empresa', 'company', 'destinatário', 'destinatario', 'pessoa', 'pessoa física', 'pessoa fisica',
               'contato', 'contact', 'cliente id', 'id cliente', 'identificação', 'identificacao'],
     endereco: ['endereco', 'endereço', 'address', 'logradouro', 'rua', 'avenida', 'av', 'travessa', 
-               'local', 'location', 'destino', 'destination'],
+               'local', 'location', 'destino', 'destination', 'destination address'],
     cidade: ['cidade', 'city', 'municipio', 'município', 'localidade', 'locale'],
     estado: ['estado', 'state', 'uf', 'província', 'provincia', 'region', 'região', 'regiao'],
-    cep: ['cep', 'zip', 'zipcode', 'zip code', 'código postal', 'codigo postal', 'postal', 'postal code'],
+    cep: ['cep', 'zip', 'zipcode', 'zip code', 'código postal', 'codigo postal', 'postal', 'postal code', 'zipcode/postal code'],
     telefone: ['telefone', 'phone', 'tel', 'fone', 'celular', 'mobile', 'contato', 'whatsapp', 'numero'],
     observacoes: ['observacoes', 'observações', 'notes', 'obs', 'observacao', 'observação', 
-                  'comentários', 'comentarios', 'descrição', 'descricao', 'description']
+                  'comentários', 'comentarios', 'descrição', 'descricao', 'description'],
+    sequence: ['sequence', 'sequencia', 'sequência', 'ordem', 'order', 'numero', 'número', 'seq', 'stop'],
+    bairro: ['bairro', 'neighborhood', 'district', 'zona', 'area']
   };
 
   // Converte todos os cabeçalhos para minúsculo para comparação
@@ -180,7 +182,16 @@ const createDeliveryFromRow = (
     throw new Error('Campo endereço é obrigatório');
   }
   
-  // Calcular o número da ordem (rowIndex + 1)
+  // Usar sequence da planilha se disponível, caso contrário usar rowIndex + 1
+  let sequenceNumber = rowIndex + 1;
+  if (fieldMapping.sequence && row[fieldMapping.sequence]) {
+    const sequenceValue = parseInt(row[fieldMapping.sequence].toString());
+    if (!isNaN(sequenceValue)) {
+      sequenceNumber = sequenceValue;
+    }
+  }
+  
+  // Calcular o número da ordem (rowIndex + 1 para manter ordem original)
   const orderNumber = rowIndex + 1;
   
   // Criar um ID que inclui o número da ordem para facilitar a identificação
@@ -188,7 +199,8 @@ const createDeliveryFromRow = (
 
   return {
     id: orderId,
-    orderNumber: orderNumber, // Adicionar o número da ordem como propriedade
+    orderNumber: orderNumber, // Número da linha na planilha
+    sequence_number: sequenceNumber, // Número da sequência para ordenação
     cliente: row[fieldMapping.cliente] || '',
     endereco: row[fieldMapping.endereco] || '',
     cidade: fieldMapping.cidade && row[fieldMapping.cidade] ? row[fieldMapping.cidade] : '',
@@ -196,6 +208,7 @@ const createDeliveryFromRow = (
     cep: fieldMapping.cep && row[fieldMapping.cep] ? row[fieldMapping.cep].toString() : '',
     telefone: fieldMapping.telefone && row[fieldMapping.telefone] ? row[fieldMapping.telefone].toString() : '',
     observacoes: fieldMapping.observacoes && row[fieldMapping.observacoes] ? row[fieldMapping.observacoes] : '',
+    bairro: fieldMapping.bairro && row[fieldMapping.bairro] ? row[fieldMapping.bairro] : '',
     status: 'pendente',
   };
 };

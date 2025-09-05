@@ -131,19 +131,8 @@ const ImportSection: React.FC<ImportSectionProps> = ({
   };
   
   // Verificar se o usuário pode acessar as funcionalidades de importação
-  // Verificar diretamente o status da assinatura para maior confiabilidade
-  const isTrialActiveManual = subscription?.is_trial && 
-                             subscription?.trial_ends_at && 
-                             new Date(subscription.trial_ends_at) > new Date();
-                             
-  const isSubscriptionActiveManual = subscription?.status === 'active' && subscription?.is_active;
-  
-  // Permitir acesso se estiver carregando, ou se o trial estiver ativo, ou se a assinatura estiver ativa
-  const canAccessImport = subscriptionLoading || 
-                         isTrialActiveManual || 
-                         isSubscriptionActiveManual || 
-                         (typeof isSubscriptionActive === 'function' && isSubscriptionActive()) || 
-                         (typeof isTrialActive === 'function' && isTrialActive());
+  // Usar a função isSubscriptionActive que já tem toda a lógica correta
+  const canAccessImport = subscriptionLoading || isSubscriptionActive;
   
   // Log apenas em desenvolvimento e com menos frequência
   if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {

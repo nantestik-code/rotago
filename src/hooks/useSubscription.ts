@@ -108,7 +108,7 @@ export const useSubscription = () => {
     if (!user) return;
 
     try {
-      
+      // 🔍 BUSCA PRINCIPAL: Buscar assinatura ativa (trial ou paga)
       let { data, error } = await supabase
         .from('user_subscriptions')
         .select(`
@@ -117,60 +117,78 @@ export const useSubscription = () => {
         `)
         .eq('user_id', user.id)
         .eq('is_active', true)
-        .not('trial_ends_at', 'is', null) // ✅ PRIORIZAR ASSINATURAS COM TRIAL_ENDS_AT VÁLIDO
-        .order('created_at', { ascending: false }) // Pegar a mais recente primeiro
-        .maybeSingle(); // Usar maybeSingle() ao invés de single()
+        .order('created_at', { ascending: false })
+        .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
         console.error('Erro ao buscar assinatura:', error);
-        // Não definir erro para problemas de RLS - deixar subscription null
-        // O sistema vai funcionar normalmente com trial/sem assinatura
         setSubscription(null);
+        setLoading(false);
         return;
       }
 
-      if (!data) {
-        // 🧹 LIMPEZA PRÉVIA: Remover TODAS as assinaturas inválidas ANTES do fallback
-        try {
-          const { error: cleanupError } = await supabase
-            .from('user_subscriptions')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('is_active', true)
-            .eq('is_trial', true)
-            .is('trial_ends_at', null);
-            
-          if (cleanupError) {
-            console.error('Erro na limpeza prévia:', cleanupError);
-          }
-        } catch (cleanupErr) {
-          console.error('Erro na limpeza prévia:', cleanupErr);
+      // Se encontrou uma assinatura, validar se ainda está válida
+      if (data) {
+        const now = new Date();
+        let isValid = false;
+
+        // Verificar se é trial ativo
+        if (data.is_trial && data.trial_ends_at) {
+          isValid = new Date(data.trial_ends_at) > now;
         }
         
-        // 🔄 FALLBACK: Buscar novamente após limpeza (deve encontrar apenas assinaturas válidas)
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from('user_subscriptions')
-          .select(`
-            *,
-            plan:subscription_plans(*)
-          `)
-          .eq('user_id', user.id)
-          .eq('is_active', true)
-          .order('created_at', { ascending: false }) // Mais recente primeiro
-          .maybeSingle();
-          
-        if (fallbackData) {
-          data = fallbackData;
+        // Verificar se é assinatura paga ativa
+        if (data.status === 'active' && !data.is_trial) {
+          // Para assinaturas pagas, verificar se não expirou
+          if (data.current_period_end) {
+            isValid = new Date(data.current_period_end) > now;
+          } else {
+            // Se não tem data de fim, considerar válida (assinatura manual)
+            isValid = true;
+          }
         }
+
+        // Se a assinatura não é mais válida, desativá-la
+        if (!isValid && (data.status !== 'expired' || data.is_active)) {
+          try {
+            await supabase
+              .from('user_subscriptions')
+              .update({
+                status: 'expired',
+                is_active: false,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', data.id);
+            
+            // Buscar novamente após atualização
+            const { data: updatedData } = await supabase
+              .from('user_subscriptions')
+              .select(`
+                *,
+                plan:subscription_plans(*)
+              `)
+              .eq('user_id', user.id)
+              .eq('is_active', true)
+              .order('created_at', { ascending: false })
+              .maybeSingle();
+              
+            setSubscription(updatedData);
+          } catch (updateError) {
+            console.error('Erro ao atualizar status da assinatura:', updateError);
+            setSubscription(data); // Manter dados originais em caso de erro
+          }
+        } else {
+          setSubscription(data);
+        }
+      } else {
+        setSubscription(null);
       }
       
-      setSubscription(data);
-      setLoading(false); // Definir loading como false após buscar
+      setLoading(false);
     } catch (err) {
       console.error('Erro ao buscar assinatura:', err);
-      // Não definir erro - deixar sistema funcionar normalmente
       setSubscription(null);
-      setLoading(false); // Definir loading como false em caso de erro
+      setLoading(false);
     }
   };
 
@@ -228,8 +246,24 @@ export const useSubscription = () => {
 
   const isSubscriptionActive = () => {
     if (!subscription) return false;
-    if (subscription.is_trial && isTrialActive()) return true;
-    return subscription.status === 'active' && subscription.is_active;
+    
+    const now = new Date();
+    
+    // Verificar trial ativo
+    if (subscription.is_trial && subscription.trial_ends_at) {
+      return new Date(subscription.trial_ends_at) > now;
+    }
+    
+    // Verificar assinatura paga ativa
+    if (subscription.status === 'active' && subscription.is_active) {
+      // Se não tem data de fim, considerar válida (ativação manual)
+      if (!subscription.current_period_end) return true;
+      
+      // Verificar se não expirou
+      return new Date(subscription.current_period_end) > now;
+    }
+    
+    return false;
   };
 
   const canAccessFeatures = () => {

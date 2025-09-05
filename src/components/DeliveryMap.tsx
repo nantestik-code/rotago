@@ -328,24 +328,27 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       
       coordinateGroups[coordKey].deliveryIds.push(delivery.id);
       
-      // Usar o número da ordem diretamente da propriedade orderNumber se disponível
-      let orderNumber;
+      // Usar sequence_number (ordem otimizada) em vez de orderNumber (ordem original da planilha)
+      let sequenceNumber;
       
-      if (delivery.orderNumber) {
-        // Usar o número da ordem definido na propriedade orderNumber
-        orderNumber = delivery.orderNumber;
+      if (delivery.sequence_number) {
+        // Usar o número de sequência otimizado
+        sequenceNumber = delivery.sequence_number;
+      } else if (delivery.orderNumber) {
+        // Fallback para orderNumber se sequence_number não existir
+        sequenceNumber = delivery.orderNumber;
       } else {
         // Tentar extrair o número da ordem do ID
         const orderMatch = delivery.id.match(/ordem[\s-]*(\d+)/i);
         if (orderMatch) {
-          orderNumber = parseInt(orderMatch[1]);
+          sequenceNumber = parseInt(orderMatch[1]);
         } else {
           // Fallback para o índice + 1
-          orderNumber = index + 1;
+          sequenceNumber = index + 1;
         }
       }
       
-      coordinateGroups[coordKey].orderIndices.push(orderNumber);
+      coordinateGroups[coordKey].orderIndices.push(sequenceNumber);
       coordinateGroups[coordKey].statuses.push(delivery.status);
     });
     
@@ -372,35 +375,35 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       
       console.log(`Marker for coordinate ${coordKey} with orders ${group.orderIndices.join(', ')} set to status: ${markerStatus}`);
       
-      // Find the delivery with the correct order number for this marker
-      // Usar orderNumber para manter o número original do pedido
-      let orderNumberToDisplay;
+      // Find the delivery with the correct sequence number for this marker
+      // Usar sequence_number para mostrar a ordem otimizada
+      let sequenceNumberToDisplay;
       
-      // If this is a multiple delivery location, find the lowest order number
+      // If this is a multiple delivery location, find the lowest sequence number
       if (isMultiple) {
         const deliveriesAtLocation = group.deliveryIds.map(id => deliveries.find(d => d.id === id));
-        const validDeliveries = deliveriesAtLocation.filter(d => d && d.orderNumber) as DeliveryItem[];
+        const validDeliveries = deliveriesAtLocation.filter(d => d && (d.sequence_number || d.orderNumber)) as DeliveryItem[];
         
         if (validDeliveries.length > 0) {
-          // Sort by order number and get the lowest
+          // Sort by sequence number (or orderNumber as fallback) and get the lowest
           validDeliveries.sort((a, b) => {
-            const orderA = typeof a.orderNumber === 'number' ? a.orderNumber : 0;
-            const orderB = typeof b.orderNumber === 'number' ? b.orderNumber : 0;
-            return orderA - orderB;
+            const seqA = Number(a.sequence_number || a.orderNumber || 0);
+            const seqB = Number(b.sequence_number || b.orderNumber || 0);
+            return seqA - seqB;
           });
-          orderNumberToDisplay = validDeliveries[0].orderNumber;
+          sequenceNumberToDisplay = validDeliveries[0].sequence_number || validDeliveries[0].orderNumber;
         } else {
           // Fallback to the first order index if no valid deliveries found
-          orderNumberToDisplay = group.orderIndices[0];
+          sequenceNumberToDisplay = group.orderIndices[0];
         }
       } else {
-        // For single delivery locations, use the delivery's order number
-        orderNumberToDisplay = delivery.orderNumber || index + 1;
+        // For single delivery locations, use the delivery's sequence number
+        sequenceNumberToDisplay = delivery.sequence_number || delivery.orderNumber || index + 1;
       }
       
       // Create the marker
       const marker = createDeliveryMarker(
-        orderNumberToDisplay,
+        sequenceNumberToDisplay,
         delivery.lat,
         delivery.lng,
         markerStatus,
@@ -476,16 +479,52 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       
       // Add click handler
       marker.getElement().addEventListener('click', () => {
-        // Then select the first delivery in this group to trigger list view updates
-        const groupDeliveries = Object.values(addressMarkersRef.current)
-          .find(markerData => markerData.marker === marker)?.deliveryIds || [];
-          
+        // Find the delivery with the lowest sequence number in this group
+        const groupDeliveries = deliveryIds.map(id => deliveries.find(d => d.id === id)).filter(d => d) as DeliveryItem[];
+        
         if (groupDeliveries.length > 0) {
-          onSelectDelivery(groupDeliveries[0]);
+          // Sort by sequence_number to get the first delivery in the optimized order
+          groupDeliveries.sort((a, b) => {
+            const seqA = Number(a.sequence_number || a.orderNumber || 0);
+            const seqB = Number(b.sequence_number || b.orderNumber || 0);
+            return seqA - seqB;
+          });
+          
+          // Select the first delivery in the optimized sequence
+          onSelectDelivery(groupDeliveries[0].id);
         }
       });
     });
   }, [deliveries, selectedDeliveryId, mapLoaded, onSelectDelivery, currentLocation, geocodedCoordinates]);
+
+  // Update marker selection when selectedDeliveryId changes
+  useEffect(() => {
+    if (!mapLoaded || !mapboxMapRef.current) return;
+    
+    // Remove selection from all markers
+    Object.values(addressMarkersRef.current).forEach(markerInfo => {
+      const markerEl = markerInfo.marker.getElement().querySelector('.delivery-marker');
+      if (markerEl) {
+        markerEl.classList.remove('marker-selected');
+      }
+    });
+    
+    // Add selection to the marker containing the selected delivery
+    if (selectedDeliveryId) {
+      const selectedDelivery = deliveries.find(d => d.id === selectedDeliveryId);
+      if (selectedDelivery && selectedDelivery.lat && selectedDelivery.lng) {
+        const coordKey = `${selectedDelivery.lat.toFixed(6)},${selectedDelivery.lng.toFixed(6)}`;
+        const markerInfo = addressMarkersRef.current[coordKey];
+        
+        if (markerInfo) {
+          const markerEl = markerInfo.marker.getElement().querySelector('.delivery-marker');
+          if (markerEl) {
+            markerEl.classList.add('marker-selected');
+          }
+        }
+      }
+    }
+  }, [selectedDeliveryId, deliveries, mapLoaded]);
   
   // useEffect separado para processar os cliques nos marcadores após o mapa ser renderizado
   useEffect(() => {
