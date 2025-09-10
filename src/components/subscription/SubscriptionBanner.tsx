@@ -117,26 +117,35 @@ const SubscriptionBanner = () => {
     if (isTrialActive && trialDaysRemaining > 0) {
       // Trial realmente ativo, mostrar banner de trial
       return (
-        <Alert className="border-blue-200 bg-blue-50 mb-4">
-          <Gift className="h-4 w-4 text-blue-600" />
-          <AlertDescription className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-blue-800">
-                <strong>Período gratuito ativo!</strong> {trialDaysRemaining} dias restantes para aproveitar todos os recursos premium.
-              </span>
-              <Badge className="bg-blue-100 text-blue-800 ml-2">
-                Grátis
-              </Badge>
+        <Alert className="border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100 mb-4 p-4">
+          <div className="flex items-start gap-3 w-full">
+            <Gift className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-blue-800 font-semibold text-sm">
+                      Período gratuito ativo!
+                    </span>
+                    <Badge className="bg-blue-100 text-blue-800 text-xs px-2 py-1">
+                      Grátis
+                    </Badge>
+                  </div>
+                  <p className="text-blue-700 text-sm leading-relaxed">
+                    {trialDaysRemaining} dias restantes para aproveitar todos os recursos premium.
+                  </p>
+                </div>
+                <Button 
+                  size="sm" 
+                  onClick={() => navigate('/subscription')}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm font-medium whitespace-nowrap"
+                >
+                  Ver Planos
+                  <ArrowRight className="w-3 h-3 ml-1" />
+                </Button>
+              </div>
             </div>
-            <Button 
-              size="sm" 
-              onClick={() => navigate('/subscription')}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              Ver Planos
-              <ArrowRight className="w-3 h-3 ml-1" />
-            </Button>
-          </AlertDescription>
+          </div>
         </Alert>
       );
     }
@@ -170,26 +179,35 @@ const SubscriptionBanner = () => {
   if (!subscription) {
     console.log('🆕 SubscriptionBanner: Usuário sem assinatura - mostrando banner de trial');
     return (
-      <Alert className="border-blue-200 bg-blue-50 mb-4">
-        <Gift className="h-4 w-4 text-blue-600" />
-        <AlertDescription className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-blue-800">
-              <strong>Comece seu período gratuito!</strong> 7 dias grátis para testar todos os recursos premium.
-            </span>
-            <Badge className="bg-blue-100 text-blue-800 ml-2">
-              7 dias grátis
-            </Badge>
+      <Alert className="border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100 mb-4 p-4">
+        <div className="flex items-start gap-3 w-full">
+          <Gift className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-blue-800 font-semibold text-sm">
+                    Período gratuito ativo!
+                  </span>
+                  <Badge className="bg-blue-100 text-blue-800 text-xs px-2 py-1">
+                    7 dias restantes para aproveitar todos os recursos premium.
+                  </Badge>
+                </div>
+                <p className="text-blue-700 text-sm leading-relaxed">
+                  Comece seu período gratuito! 7 dias grátis para testar todos os recursos premium.
+                </p>
+              </div>
+              <Button 
+                size="sm" 
+                onClick={handleStartTrial}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm font-medium whitespace-nowrap"
+              >
+                Escolher Plano
+                <ArrowRight className="w-3 h-3 ml-1" />
+              </Button>
+            </div>
           </div>
-          <Button 
-            size="sm" 
-            onClick={handleStartTrial}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            Começar Grátis
-            <ArrowRight className="w-3 h-3 ml-1" />
-          </Button>
-        </AlertDescription>
+        </div>
       </Alert>
     );
   }
@@ -197,26 +215,35 @@ const SubscriptionBanner = () => {
   // Banner para trial ativo
   if (isTrialActive && trialDaysRemaining > 0) {
     return (
-      <Alert className="border-blue-200 bg-blue-50 mb-4">
-        <Gift className="h-4 w-4 text-blue-600" />
-        <AlertDescription className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-blue-800">
-              <strong>Período gratuito ativo!</strong> {trialDaysRemaining} dias restantes para aproveitar todos os recursos premium.
-            </span>
-            <Badge className="bg-blue-100 text-blue-800 ml-2">
-              Grátis
-            </Badge>
+      <Alert className="border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100 mb-4 p-4">
+        <div className="flex items-start gap-3 w-full">
+          <Gift className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-blue-800 font-semibold text-sm">
+                    Período gratuito ativo!
+                  </span>
+                  <Badge className="bg-blue-100 text-blue-800 text-xs px-2 py-1">
+                    Grátis
+                  </Badge>
+                </div>
+                <p className="text-blue-700 text-sm leading-relaxed">
+                  {trialDaysRemaining} dias restantes para aproveitar todos os recursos premium.
+                </p>
+              </div>
+              <Button 
+                size="sm" 
+                onClick={() => navigate('/subscription')}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm font-medium whitespace-nowrap"
+              >
+                Escolher Plano
+                <ArrowRight className="w-3 h-3 ml-1" />
+              </Button>
+            </div>
           </div>
-          <Button 
-            size="sm" 
-            onClick={() => navigate('/subscription')}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            Escolher Plano
-            <ArrowRight className="w-3 h-3 ml-1" />
-          </Button>
-        </AlertDescription>
+        </div>
       </Alert>
     );
   }

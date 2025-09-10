@@ -5,8 +5,7 @@ const config: CapacitorConfig = {
   appName: 'RotaFacil Turbo',
   webDir: 'dist',
   server: {
-    androidScheme: 'https',
-    url: 'http://localhost:8080/auth/login'
+    androidScheme: 'https'
   },
   plugins: {
     Geolocation: {

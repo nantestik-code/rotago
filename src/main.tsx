@@ -1,10 +1,15 @@
-
 import { createRoot } from 'react-dom/client'
-import { HelmetProvider } from 'react-helmet-async'
-import App from './App.tsx'
-import './index.css'
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App.tsx";
+import "./index.css";
+import { initializeNativeApp } from "./utils/capacitorUtils";
 import 'mapbox-gl/dist/mapbox-gl.css'
 import './utils/testLogs'
+import { HelmetProvider } from 'react-helmet-async';
+
+// Inicializar configurações nativas
+initializeNativeApp();
 
 // Teste das variáveis de ambiente
 console.log('=== TESTE VARIÁVEIS DE AMBIENTE ===');

@@ -3,6 +3,33 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Configurações específicas para apps nativos */
+@supports (padding: max(0px)) {
+  .native-app-container {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* Garantir que o conteúdo não fique atrás da status bar */
+.app-content {
+  min-height: 100vh;
+  min-height: 100dvh; /* Dynamic viewport height para mobile */
+}
+
+/* Correção para viewport em apps nativos */
+html, body {
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

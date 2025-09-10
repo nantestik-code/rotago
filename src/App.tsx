@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { shouldRedirectToApp } from "@/utils/platformUtils";
 import Index from "./pages/Index";
 import LandingPage from "./pages/LandingPage";
 import SignUp from "./pages/auth/SignUp";
@@ -35,7 +36,8 @@ const App = () => (
             <AdminAuthProvider>
               <Routes>
                 {/* Public Routes */}
-                <Route path="/" element={<LandingPage />} />
+                <Route path="/" element={shouldRedirectToApp() ? <Navigate to="/app" replace /> : <LandingPage />} />
+                <Route path="/landing" element={<LandingPage />} />
                 <Route path="/auth/signup" element={<SignUp />} />
                 <Route path="/auth/login" element={<Login />} />
                 <Route path="/auth/forgot-password" element={<ForgotPassword />} />
