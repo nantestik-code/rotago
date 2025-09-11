@@ -36,7 +36,7 @@ export function Header({ onNewRouteClick, onExportClick }: {
   }, [user, profile]);
 
   return (
-    <header className="bg-white shadow">
+    <header className="bg-white shadow native-header">
       <div className="container max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
         <Logo size="md" variant="default" interactive={true} to="/app" />
 

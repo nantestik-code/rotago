@@ -3,7 +3,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Configurações específicas para apps nativos */
+/* Configurações específicas para apps nativos - Safe Area Insets */
 @supports (padding: max(0px)) {
   .native-app-container {
     padding-top: env(safe-area-inset-top);
@@ -11,6 +11,50 @@
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
   }
+  
+  /* Header específico para não ficar atrás da status bar */
+  .native-header {
+    padding-top: calc(env(safe-area-inset-top) + 0.5rem);
+    margin-top: env(safe-area-inset-top);
+  }
+  
+  /* Container principal com safe area */
+  .native-main-container {
+    padding-top: env(safe-area-inset-top);
+    min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+}
+
+/* Fallback para Android - padding fixo quando safe-area não funciona */
+@media (max-width: 768px) {
+  .native-header {
+    padding-top: 2.5rem; /* ~40px para status bar Android */
+  }
+  
+  .native-main-container {
+    padding-top: 2.5rem; /* ~40px para status bar Android */
+    min-height: calc(100vh - 2.5rem);
+  }
+}
+
+/* Fallback para web */
+@media (min-width: 769px) {
+  .native-header {
+    padding-top: 0.5rem;
+  }
+  
+  .native-main-container {
+    min-height: 100vh;
+  }
+}
+
+/* Específico para Capacitor - detecta se é app nativo */
+.capacitor-app .native-header {
+  padding-top: 3rem !important; /* Força padding maior para apps nativos */
+}
+
+.capacitor-app .native-main-container {
+  padding-top: 3rem !important; /* Força padding maior para apps nativos */
 }
 
 /* Garantir que o conteúdo não fique atrás da status bar */
@@ -23,6 +67,15 @@
 html, body {
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  /* Prevenir zoom no iOS */
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+}
+
+/* Específico para Capacitor/Cordova */
+.capacitor-app {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 #root {

@@ -15,6 +15,7 @@ import AuthCallback from "./pages/auth/AuthCallback";
 import { AuthProvider } from "@/hooks/use-auth";
 import { AdminAuthProvider } from "@/hooks/use-admin-auth";
 import { RouteHistoryProvider } from "@/hooks/use-route-history-provider";
+import { useCapacitor } from "@/hooks/use-capacitor";
 import PrivateRoute from "./components/PrivateRoute";
 import AdminRoute from "./components/auth/AdminRoute";
 import AdminPanel from "./pages/admin/AdminPanel";
@@ -25,6 +26,68 @@ import UpdateNotification from "./components/UpdateNotification";
 
 const queryClient = new QueryClient();
 
+const AppContent = () => {
+  // Detectar se é Capacitor para aplicar estilos específicos
+  useCapacitor();
+  
+  return (
+    <Routes>
+      {/* Public Routes */}
+      <Route path="/" element={shouldRedirectToApp() ? <Navigate to="/app" replace /> : <LandingPage />} />
+      <Route path="/landing" element={<LandingPage />} />
+      <Route path="/auth/signup" element={<SignUp />} />
+      <Route path="/auth/login" element={<Login />} />
+      <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+      <Route path="/auth/reset-password" element={<ResetPassword />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
+      
+      {/* Admin Routes */}
+      <Route path="/admin/login" element={<AdminLogin />} />
+      <Route 
+        path="/admin" 
+        element={
+          <AdminRoute>
+            <AdminPanel />
+          </AdminRoute>
+        } 
+      />
+      
+      {/* Protected Routes */}
+      <Route 
+        path="/app" 
+        element={
+          <PrivateRoute>
+            <Index />
+          </PrivateRoute>
+        } 
+      />
+    
+      {/* Histórico de Rotas */}
+      <Route 
+        path="/history" 
+        element={
+          <PrivateRoute>
+            <RouteHistoryPage />
+          </PrivateRoute>
+        } 
+      />
+      
+      {/* Assinatura */}
+      <Route 
+        path="/subscription" 
+        element={
+          <PrivateRoute>
+            <SubscriptionPage />
+          </PrivateRoute>
+        } 
+      />
+      
+      {/* Catch All - Redirect to home instead of NotFound page */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -34,60 +97,7 @@ const App = () => (
         <AuthProvider>
           <RouteHistoryProvider>
             <AdminAuthProvider>
-              <Routes>
-                {/* Public Routes */}
-                <Route path="/" element={shouldRedirectToApp() ? <Navigate to="/app" replace /> : <LandingPage />} />
-                <Route path="/landing" element={<LandingPage />} />
-                <Route path="/auth/signup" element={<SignUp />} />
-                <Route path="/auth/login" element={<Login />} />
-                <Route path="/auth/forgot-password" element={<ForgotPassword />} />
-                <Route path="/auth/reset-password" element={<ResetPassword />} />
-                <Route path="/auth/callback" element={<AuthCallback />} />
-                
-                {/* Admin Routes */}
-                <Route path="/admin/login" element={<AdminLogin />} />
-                <Route 
-                  path="/admin" 
-                  element={
-                    <AdminRoute>
-                      <AdminPanel />
-                    </AdminRoute>
-                  } 
-                />
-                
-                {/* Protected Routes */}
-                <Route 
-                  path="/app" 
-                  element={
-                    <PrivateRoute>
-                      <Index />
-                    </PrivateRoute>
-                  } 
-                />
-              
-                {/* Histórico de Rotas */}
-                <Route 
-                  path="/history" 
-                  element={
-                    <PrivateRoute>
-                      <RouteHistoryPage />
-                    </PrivateRoute>
-                  } 
-                />
-                
-                {/* Assinatura */}
-                <Route 
-                  path="/subscription" 
-                  element={
-                    <PrivateRoute>
-                      <SubscriptionPage />
-                    </PrivateRoute>
-                  } 
-                />
-                
-                {/* Catch All - Redirect to home instead of NotFound page */}
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
+              <AppContent />
             </AdminAuthProvider>
           </RouteHistoryProvider>
         </AuthProvider>

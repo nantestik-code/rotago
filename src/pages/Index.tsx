@@ -191,16 +191,11 @@ const Index = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen">
-      <Header 
-        onNewRouteClick={handleNewRoute} 
-        onExportClick={handleExport} 
-      />
+    <div className="min-h-screen bg-gray-50 native-main-container">
+      <Header />
+      <SubscriptionBanner />
       
-      <div className="flex-1 p-4 bg-gray-50 overflow-y-auto">
-        {/* Banner de Status da Assinatura */}
-        <SubscriptionBanner />
-        
+      <main className="container max-w-7xl mx-auto px-4 py-6">
         {showFileImport && (
           <ImportSection 
             onImportComplete={handleImport}
@@ -210,34 +205,31 @@ const Index = () => {
         )}
 
         {!showFileImport && (
-          <div className="route-view-container">
-            <RouteViewSection 
-              deliveries={deliveries}
-              selectedDeliveryId={selectedDeliveryId}
-              onSelectDelivery={setSelectedDeliveryId}
-              onStatusChange={handleStatusChange}
-              currentLocation={currentLocation}
-              isTrackingActive={isTrackingActive}
-              onStartTracking={startTracking}
-              onStopTracking={stopTracking}
-              onOptimizeRoute={handleOptimizeRoute}
-              statusCounts={statusCounts}
-              processingGeocode={processingGeocode}
-              geocodeProgress={geocodeProgress}
-              processingOptimization={processingOptimization}
-              isMobile={isMobile}
-              onBackToImport={() => {
-                // Parar o rastreamento e voltar para a tela de importação
-                stopTracking();
-                setShowFileImport(true);
-                setDeliveries([]);
-                setSelectedDeliveryId(null);
-              }}
-              onFinishRoute={handleFinishRoute}
-            />
-          </div>
+          <RouteViewSection 
+            deliveries={deliveries}
+            selectedDeliveryId={selectedDeliveryId}
+            onSelectDelivery={setSelectedDeliveryId}
+            onStatusChange={handleStatusChange}
+            currentLocation={currentLocation}
+            isTrackingActive={isTrackingActive}
+            onStartTracking={startTracking}
+            onStopTracking={stopTracking}
+            onOptimizeRoute={handleOptimizeRoute}
+            statusCounts={statusCounts}
+            processingGeocode={processingGeocode}
+            geocodeProgress={geocodeProgress}
+            processingOptimization={processingOptimization}
+            isMobile={isMobile}
+            onBackToImport={() => {
+              stopTracking();
+              setShowFileImport(true);
+              setDeliveries([]);
+              setSelectedDeliveryId(null);
+            }}
+            onFinishRoute={handleFinishRoute}
+          />
         )}
-      </div>
+      </main>
     </div>
   );
 };
