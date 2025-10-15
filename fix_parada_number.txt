@@ -1,0 +1,18 @@
+CORREÇÃO NECESSÁRIA:
+
+Na linha que contém:
+#{index + 1}
+
+O problema é que quando você clica na parada 34, a lista vai para a posição correta, mas o círculo azul mostra #48 em vez de #34.
+
+Isso significa que o `index` está baseado na ordem da planilha, não na posição da parada.
+
+SOLUÇÃO:
+Trocar #{index + 1} por #{pendingDeliveries.findIndex(d => d.id === delivery.id) + 1}
+
+Isso fará com que o círculo azul mostre o número correto da parada (34) em vez do número da ordem (48).
+
+LOCALIZAÇÃO:
+Procure por: #{index + 1}
+Na seção que tem: className="flex-none w-full snap-start"
+E troque por: #{pendingDeliveries.findIndex(d => d.id === delivery.id) + 1}

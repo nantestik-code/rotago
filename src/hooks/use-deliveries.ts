@@ -462,8 +462,8 @@ export function useDeliveries() {
               // Continuar mesmo com erro para tentar inserir o máximo possível
             }
             
-            // Pequena pausa entre lotes para evitar sobrecarga
-            await new Promise(resolve => setTimeout(resolve, 100));
+            // Pequena pausa entre lotes reduzida para melhor performance
+            await new Promise(resolve => setTimeout(resolve, 50));
           }
           
           if (!allBatchesOk) {

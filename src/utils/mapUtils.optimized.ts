@@ -1,4 +1,3 @@
-
 import { DeliveryItem } from './deliveryUtils';
 import mapboxgl from 'mapbox-gl';
 
@@ -57,7 +56,7 @@ export const getCurrentPosition = (): Promise<MapPosition> => {
     const timeoutId = setTimeout(() => {
       console.warn('Timeout ao obter localização, usando posição padrão');
       resolve(defaultMapCenter);
-    }, 10000); // 10 segundos de timeout
+    }, 5000); // Reduzido para 5 segundos
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -76,7 +75,7 @@ export const getCurrentPosition = (): Promise<MapPosition> => {
       },
       { 
         enableHighAccuracy: true,
-        timeout: 10000,
+        timeout: 5000, // Reduzido para 5 segundos
         maximumAge: 60000 // Aceita posições de até 1 minuto atrás
       }
     );
@@ -110,7 +109,7 @@ export const watchPosition = (
     },
     { 
       enableHighAccuracy: true,
-      timeout: 10000,
+      timeout: 5000, // Reduzido para 5 segundos
       maximumAge: 60000 // Aceita posições de até 1 minuto atrás
     }
   );
@@ -130,7 +129,7 @@ export const watchPosition = (
     },
     { 
       enableHighAccuracy: true,
-      timeout: 15000,
+      timeout: 10000, // Reduzido para 10 segundos
       maximumAge: 60000 // Aceita posições de até 1 minuto atrás
     }
   );
@@ -178,12 +177,6 @@ export const geocodeAddress = async (address: string, retryCount = 0): Promise<M
     
     if (data.features && data.features.length > 0) {
       const [lng, lat] = data.features[0].center;
-      const relevance = data.features[0].relevance || 0;
-      
-      // Verificar se a relevância do resultado é alta o suficiente
-      if (relevance < 0.5) {
-        console.warn(`Baixa relevância (${relevance}) para o endereço: ${address}`);
-      }
       
       // Criar a chave de endereço para cache
       const addressKey = address.toLowerCase().trim();
@@ -205,19 +198,16 @@ export const geocodeAddress = async (address: string, retryCount = 0): Promise<M
         .trim();
       
       if (simplifiedAddress !== address) {
-        console.log(`Tentando geocodificar com endereço simplificado: ${simplifiedAddress}`);
         return geocodeAddress(simplifiedAddress, retryCount + 1);
       }
     }
     
     // Se não encontrou resultados e já tentou com endereço simplificado, tentar novamente após um delay
     if (retryCount < MAX_RETRIES) {
-      console.log(`Tentativa ${retryCount + 1} falhou, tentando novamente em ${RETRY_DELAY}ms...`);
       await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
       return geocodeAddress(address, retryCount + 1);
     }
     
-    console.error(`Não foi possível geocodificar o endereço após ${MAX_RETRIES} tentativas: ${address}`);
     return null;
   } catch (error) {
     // Se for um erro de timeout ou de rede, tentar novamente
@@ -226,13 +216,11 @@ export const geocodeAddress = async (address: string, retryCount = 0): Promise<M
       (error.name === 'AbortError' || error.message.includes('network') || error.message.includes('timeout'))
     ) {
       if (retryCount < MAX_RETRIES) {
-        console.log(`Erro de rede/timeout, tentando novamente em ${RETRY_DELAY}ms...`);
         await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
         return geocodeAddress(address, retryCount + 1);
       }
     }
     
-    console.error('Erro ao geocodificar endereço:', error);
     return null;
   }
 };
@@ -468,7 +456,7 @@ const backgroundGeocode = async (
     
     // Pequena pausa entre lotes para não sobrecarregar
     if (i + BATCH_SIZE < addressesToGeocode.length) {
-      await new Promise(resolve => setTimeout(resolve, 200)); // Reduzido de 300ms para 200ms
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
   }
   

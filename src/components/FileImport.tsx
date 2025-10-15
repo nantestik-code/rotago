@@ -222,11 +222,9 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete, routeName = '
       description: `${processedDeliveries.length} entregas importadas com sucesso.`,
     });
     
-    // Limpar estados
-    setTimeout(() => {
-      setProgress(0);
-      setFile(null);
-    }, 1000);
+    // Limpar estados imediatamente
+    setProgress(0);
+    setFile(null);
     
     // Passar as entregas para o componente pai
     onImportComplete(processedDeliveries);

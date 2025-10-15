@@ -299,8 +299,8 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
         {filteredDeliveries.length > 0 ? (
           <div className="py-2 px-1 lg:px-2">
             {filteredDeliveries.map((delivery, index) => {
-              const realIndex = deliveries.findIndex(d => d.id === delivery.id);
-              const orderNumber = realIndex + 1;
+              // Usar o orderNumber original da planilha, não o índice calculado
+              const orderNumber = delivery.orderNumber || delivery.sequence_number || (index + 1);
               const { isMultiple, indices } = hasMultipleDeliveries(delivery);
               
               return (
@@ -336,7 +336,7 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
                   <div className="p-2 sm:p-3 flex items-center justify-between">
                     <div className="flex-1 min-w-0 mr-2">
                       <div className="flex items-center mb-1">
-                        <span className="font-medium text-sm mr-2">#{delivery.sequence_number || orderNumber}</span>
+                        <span className="font-medium text-sm mr-2">#{orderNumber}</span>
                         {isMultiple && (
                           <span className="text-xs bg-orange-100 text-orange-800 px-1 rounded">
                             Múltipla

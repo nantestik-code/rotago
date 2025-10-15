@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import DeliveryList from '@/components/DeliveryList';
@@ -117,11 +117,52 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
   const [currentDeliveryId, setCurrentDeliveryId] = useState<string | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState('');
   const [showFeedback, setShowFeedback] = useState(false);
+  const [currentDeliveryIndex, setCurrentDeliveryIndex] = useState(0);
+
+  // Sincronizar lista horizontal quando entrega for selecionada no mapa
+  useEffect(() => {
+    if (selectedDeliveryId && deliveries.length > 0) {
+      const selectedIndex = deliveries.findIndex(d => d.id === selectedDeliveryId);
+      if (selectedIndex !== -1) {
+        setCurrentDeliveryIndex(selectedIndex);
+        
+        // Scroll automático para a parada correta na lista horizontal
+        const container = document.querySelector('.flex.overflow-x-auto.snap-x');
+        if (container) {
+          const cardWidth = container.clientWidth;
+          container.scrollTo({
+            left: selectedIndex * cardWidth,
+            behavior: 'smooth'
+          });
+        }
+      }
+    }
+  }, [selectedDeliveryId, deliveries]);
 
   // Filtrar entregas por status
   const pendingDeliveries = deliveries.filter(d => d.status === 'pendente');
   const deliveredDeliveries = deliveries.filter(d => d.status === 'entregue');
   const occurrenceDeliveries = deliveries.filter(d => d.status === 'ocorrencia');
+
+  // Agrupar entregas pendentes por localização (mesmo endereço/coordenadas)
+  const groupedPendingDeliveries = useMemo(() => {
+    const groups: { [key: string]: DeliveryItem[] } = {};
+    
+    pendingDeliveries.forEach(delivery => {
+      // Criar chave única baseada no endereço completo
+      const locationKey = `${delivery.endereco}-${delivery.cidade}-${delivery.cep}`.toLowerCase().trim();
+      
+      if (!groups[locationKey]) {
+        groups[locationKey] = [];
+      }
+      groups[locationKey].push(delivery);
+    });
+    
+    // Converter grupos em array e ordenar por sequence_number
+    return Object.values(groups).map(group => {
+      return group.sort((a, b) => (a.sequence_number || 0) - (b.sequence_number || 0));
+    }).sort((a, b) => (a[0].sequence_number || 0) - (b[0].sequence_number || 0));
+  }, [pendingDeliveries]);
 
   // Próxima entrega (primeira pendente)
   const nextDelivery = pendingDeliveries[0];
@@ -293,8 +334,8 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
       {isMobile ? (
         /* Layout Mobile */
         <div className="mobile-route-view">
-          {/* Header Mobile */}
-          <div className="mobile-header">
+          {/* Header Mobile Fixo */}
+          <div className="fixed top-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-sm shadow-sm mobile-header">
             <div className="flex items-center gap-2">
               {onBackToImport && (
                 <Button
@@ -341,7 +382,7 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
           </div>
 
           {/* Layout para mobile com mapa e lista suspensa arrastável */}
-          <div className="flex flex-col h-[calc(100vh-120px)] relative">
+          <div className="flex flex-col h-screen pt-20 relative">
             {/* Mapa em tela cheia */}
             <div className="h-full rounded-md overflow-hidden">
               <DeliveryMap
@@ -511,62 +552,102 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
               <div className="flex-1 overflow-y-auto p-1 touch-auto overscroll-contain">
                 {/* Renderizar apenas a lista ativa selecionada */}
                 {activeTab === 'pendente' && (
-                    <div className="delivery-cards space-y-2">
-                      {pendingDeliveries.length > 0 ? pendingDeliveries.map((delivery, index) => (
-                        <div key={delivery.id} className="mobile-delivery-card bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden text-sm">
-                          <div className="card-header p-2 flex">
-                            <div className="delivery-number w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-medium mr-2">{index + 1}</div>
-                            <div className="delivery-info flex-1 min-w-0">
-                              <h3 className="truncate font-medium">{delivery.endereco}</h3>
-                              <p className="truncate text-xs text-gray-500">
-                                {delivery.bairro && <span className="mr-1">{delivery.bairro},</span>}
-                                {delivery.cidade || 'Sem cidade'}
-                                {delivery.complemento && <span className="ml-1">- {delivery.complemento}</span>}
-                              </p>
-                              {delivery.observacoes && (
-                                <p className="truncate text-xs text-gray-400 italic">Obs: {delivery.observacoes}</p>
-                              )}
-                              <div className="flex items-center mt-0.5">
-                                <span className="status-label text-xs bg-blue-50 text-blue-700 px-1 py-0.5 rounded">Pendente</span>
-                                {delivery.isMultiple && (
-                                  <span className="text-xs bg-orange-100 text-orange-800 px-1 py-0.5 rounded ml-1 flex items-center">
-                                    <span className="font-medium">#{index + 1}</span>
-                                    <span className="mx-0.5">múltipla</span>
-                                  </span>
+                  <div className="relative">
+                    <div 
+                      className="flex overflow-x-auto snap-x snap-mandatory" 
+                      style={{ 
+                        scrollbarWidth: 'none', 
+                        msOverflowStyle: 'none',
+                        WebkitOverflowScrolling: 'touch'
+                      }}
+                    >
+                      {pendingDeliveries.map((delivery, index) => (
+                        <div key={delivery.id} className="flex-none w-full snap-start">
+                          <div className="p-4">
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold relative ${
+                                    delivery.id === selectedDeliveryId ? 'bg-blue-500 text-white ring-2 ring-blue-200' : 'bg-blue-100 text-blue-700'
+                                  }`}>
+                                    #{delivery.sequence_number || index + 1}
+                                    {/* Verificar se há entregas múltiplas no mesmo endereço */}
+                                    {pendingDeliveries.filter(d => d.lat === delivery.lat && d.lng === delivery.lng).length > 1 && (
+                                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs">
+                                        {pendingDeliveries.filter(d => d.lat === delivery.lat && d.lng === delivery.lng).length}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <h3 className="font-semibold text-gray-900 truncate text-sm">{delivery.endereco}</h3>
+                                    <p className="text-xs text-gray-500 truncate">{delivery.bairro && `${delivery.bairro}, `}{delivery.cidade}</p>
+                                    {/* Sempre mostrar o número da ordem */}
+                                    <p className="text-xs text-blue-600 font-medium">
+                                      📦 Ordem: #{delivery.orderNumber || delivery.sequence_number || deliveries.findIndex(del => del.id === delivery.id) + 1}
+                                    </p>
+                                    {/* Mostrar outras ordens no mesmo endereço se houver múltiplas */}
+                                    {pendingDeliveries.filter(d => d.lat === delivery.lat && d.lng === delivery.lng).length > 1 && (
+                                      <p className="text-xs text-orange-600 font-medium">
+                                        📍 Entregas múltiplas: {pendingDeliveries
+                                          .filter(d => d.lat === delivery.lat && d.lng === delivery.lng)
+                                          .map(d => `#${d.orderNumber || d.sequence_number || deliveries.findIndex(del => del.id === d.id) + 1}`)
+                                          .join(', ')}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                {delivery.observacoes && (
+                                  <p className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded mt-1 truncate">💬 {delivery.observacoes}</p>
                                 )}
                               </div>
                             </div>
-                          </div>
-                          <div className="card-actions p-1 flex border-t border-gray-100">
-                            <Button
-                              className="action-btn nav-btn flex-1 flex items-center justify-center gap-1 h-8 rounded-sm"
-                              onClick={() => openNavigation(delivery)}
-                              size="sm"
-                              disabled={!delivery.lat || !delivery.lng}
-                            >
-                              <MapPin size={14} />
-                            </Button>
-                            <Button
-                              className="action-btn done-btn flex-1 flex items-center justify-center gap-1 bg-green-600 hover:bg-green-700 text-white h-8 rounded-sm"
-                              onClick={() => handleStatusChange(delivery.id, 'entregue')}
-                              size="sm"
-                            >
-                              <Check size={14} />
-                            </Button>
-                            <Button
-                              className="action-btn issue-btn flex-1 flex items-center justify-center gap-1 bg-red-600 hover:bg-red-700 text-white h-8 rounded-sm"
-                              onClick={() => handleOcorrenciaClick(delivery.id)}
-                              size="sm"
-                            >
-                              <AlertTriangle size={14} />
-                            </Button>
+                            <div className="grid grid-cols-3 gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="flex items-center justify-center space-x-1 h-10 text-xs bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                                onClick={(e) => { e.stopPropagation(); openNavigation(delivery); }}
+                                disabled={!delivery.lat || !delivery.lng}
+                              >
+                                <Navigation size={14} />
+                                <span>Navegar</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                className="flex items-center justify-center space-x-1 h-10 text-xs bg-green-500 hover:bg-green-600 text-white"
+                                onClick={(e) => { e.stopPropagation(); handleStatusChange(delivery.id, 'entregue'); setTimeout(() => onOptimizeRoute(), 1000); }}
+                              >
+                                <Check size={14} />
+                                <span>Entregue</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="flex items-center justify-center space-x-1 h-10 text-xs bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
+                                onClick={(e) => { e.stopPropagation(); handleOcorrenciaClick(delivery.id); }}
+                              >
+                                <AlertTriangle size={14} />
+                                <span>Problema</span>
+                              </Button>
+                            </div>
                           </div>
                         </div>
-                      )) : (
-                        <div className="empty-list-message p-4 text-center text-gray-500 italic">Nenhuma entrega pendente</div>
-                      )}
+                      ))}
                     </div>
-                  )}
+                    {pendingDeliveries.length > 1 && (
+                      <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex space-x-1">
+                        {pendingDeliveries.map((delivery, index) => (
+                          <div 
+                            key={index} 
+                            className={`w-2 h-2 rounded-full transition-colors ${
+                              delivery.id === selectedDeliveryId ? 'bg-blue-500' : 'bg-gray-300'
+                            }`} 
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {activeTab === 'entregue' && (
                   <div className="delivery-cards space-y-3">
@@ -723,43 +804,102 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                 
                 {/* Conteúdo da aba ativa */}
                 <div className="flex-1 overflow-hidden">
-                  {/* Removido código de debug não funcional */}
-                  
-                  {activeTab === 'pendente' && (
-                    <div className="h-full">
-                      <DeliveryList
-                        deliveries={deliveries} /* Sempre passamos todas as entregas */
-                        onStatusChange={onStatusChange}
-                        onSelectDelivery={onSelectDelivery}
-                        selectedDeliveryId={selectedDeliveryId}
-                        status="pendente"
-                      />
+                  {/* Interface Horizontal Moderna com Swipe */}
+                  <div className="relative">
+                    <div 
+                      className="flex overflow-x-auto snap-x snap-mandatory" 
+                      style={{ 
+                        scrollbarWidth: 'none', 
+                        msOverflowStyle: 'none',
+                        WebkitOverflowScrolling: 'touch'
+                      }}
+                    >
+                      {pendingDeliveries.map((delivery, index) => (
+                        <div key={delivery.id} className="flex-none w-full snap-start">
+                          <div className="p-4">
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold relative ${
+                                    delivery.id === selectedDeliveryId ? 'bg-blue-500 text-white ring-2 ring-blue-200' : 'bg-blue-100 text-blue-700'
+                                  }`}>
+                                    #{delivery.sequence_number || index + 1}
+                                    {/* Verificar se há entregas múltiplas no mesmo endereço */}
+                                    {pendingDeliveries.filter(d => d.lat === delivery.lat && d.lng === delivery.lng).length > 1 && (
+                                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs">
+                                        {pendingDeliveries.filter(d => d.lat === delivery.lat && d.lng === delivery.lng).length}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <h3 className="font-semibold text-gray-900 truncate text-sm">{delivery.endereco}</h3>
+                                    <p className="text-xs text-gray-500 truncate">{delivery.bairro && `${delivery.bairro}, `}{delivery.cidade}</p>
+                                    {/* Sempre mostrar o número da ordem */}
+                                    <p className="text-xs text-blue-600 font-medium">
+                                      📦 Ordem: #{delivery.orderNumber || delivery.sequence_number || deliveries.findIndex(del => del.id === delivery.id) + 1}
+                                    </p>
+                                    {/* Mostrar outras ordens no mesmo endereço se houver múltiplas */}
+                                    {pendingDeliveries.filter(d => d.lat === delivery.lat && d.lng === delivery.lng).length > 1 && (
+                                      <p className="text-xs text-orange-600 font-medium">
+                                        📍 Entregas múltiplas: {pendingDeliveries
+                                          .filter(d => d.lat === delivery.lat && d.lng === delivery.lng)
+                                          .map(d => `#${d.orderNumber || d.sequence_number || deliveries.findIndex(del => del.id === d.id) + 1}`)
+                                          .join(', ')}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                {delivery.observacoes && (
+                                  <p className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded mt-1 truncate">💬 {delivery.observacoes}</p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="flex items-center justify-center space-x-1 h-10 text-xs bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                                onClick={(e) => { e.stopPropagation(); openNavigation(delivery); }}
+                                disabled={!delivery.lat || !delivery.lng}
+                              >
+                                <Navigation size={14} />
+                                <span>Navegar</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                className="flex items-center justify-center space-x-1 h-10 text-xs bg-green-500 hover:bg-green-600 text-white"
+                                onClick={(e) => { e.stopPropagation(); handleStatusChange(delivery.id, 'entregue'); setTimeout(() => onOptimizeRoute(), 1000); }}
+                              >
+                                <Check size={14} />
+                                <span>Entregue</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="flex items-center justify-center space-x-1 h-10 text-xs bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
+                                onClick={(e) => { e.stopPropagation(); handleOcorrenciaClick(delivery.id); }}
+                              >
+                                <AlertTriangle size={14} />
+                                <span>Problema</span>
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  )}
-                  
-                  {activeTab === 'entregue' && (
-                    <div className="h-full">
-                      <DeliveryList
-                        deliveries={deliveries} /* Sempre passamos todas as entregas */
-                        onStatusChange={onStatusChange}
-                        onSelectDelivery={onSelectDelivery}
-                        selectedDeliveryId={selectedDeliveryId}
-                        status="entregue"
-                      />
-                    </div>
-                  )}
-                  
-                  {activeTab === 'ocorrencia' && (
-                    <div className="h-full">
-                      <DeliveryList
-                        deliveries={deliveries} /* Sempre passamos todas as entregas */
-                        onStatusChange={onStatusChange}
-                        onSelectDelivery={onSelectDelivery}
-                        selectedDeliveryId={selectedDeliveryId}
-                        status="ocorrencia"
-                      />
-                    </div>
-                  )}
+                    {pendingDeliveries.length > 1 && (
+                      <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex space-x-1">
+                        {pendingDeliveries.map((delivery, index) => (
+                          <div 
+                            key={index} 
+                            className={`w-2 h-2 rounded-full transition-colors ${
+                              delivery.id === selectedDeliveryId ? 'bg-blue-500' : 'bg-gray-300'
+                            }`} 
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
