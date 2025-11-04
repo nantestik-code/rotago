@@ -33,7 +33,7 @@ const AppContent = () => {
   return (
     <Routes>
       {/* Public Routes */}
-      <Route path="/" element={shouldRedirectToApp() ? <Navigate to="/app" replace /> : <LandingPage />} />
+      <Route path="/" element={<LandingPage />} />
       <Route path="/landing" element={<LandingPage />} />
       <Route path="/auth/signup" element={<SignUp />} />
       <Route path="/auth/login" element={<Login />} />
