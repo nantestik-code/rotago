@@ -28,6 +28,23 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
   const deliveryItemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [filter, setFilter] = useState<'todos' | 'pendente' | 'entregue' | 'ocorrencia'>('todos');
   const [searchQuery, setSearchQuery] = useState('');
+  const [displayFields, setDisplayFields] = useState<Record<string, boolean>>({ order: true, address: true, city: true, bairro: false, zipcode: false });
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('delivery-display-fields');
+      if (saved) {
+        const arr: string[] = JSON.parse(saved);
+        setDisplayFields({
+          order: arr.includes('order'),
+          address: arr.includes('address'),
+          city: arr.includes('city'),
+          bairro: arr.includes('bairro'),
+          zipcode: arr.includes('zipcode'),
+        });
+      }
+    } catch {}
+  }, []);
 
   // Group deliveries by exact coordinates for multiple delivery detection
   const coordinateGroups = useMemo(() => {
@@ -105,10 +122,10 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
     // Adicionar log para debug
     console.log(`DeliveryList - entregas filtradas: ${filtered.length}`);
     
-    // Ordenar por número de sequência
+    // Ordenar por número de sequência (usando a mesma lógica do hook)
     return filtered.sort((a, b) => {
-      const seqA = a.sequence_number || 999999;
-      const seqB = b.sequence_number || 999999;
+      const seqA = Number(a.sequence_number || a.orderNumber || 999999);
+      const seqB = Number(b.sequence_number || b.orderNumber || 999999);
       return seqA - seqB;
     });
   }, [deliveries, filter, searchQuery, status]);
@@ -301,6 +318,10 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
             {filteredDeliveries.map((delivery, index) => {
               // Usar o orderNumber original da planilha, não o índice calculado
               const orderNumber = delivery.orderNumber || delivery.sequence_number || (index + 1);
+              const subtitleParts: string[] = [];
+              if (displayFields.bairro && delivery.bairro) subtitleParts.push(delivery.bairro);
+              if (displayFields.city && delivery.cidade) subtitleParts.push(delivery.cidade);
+              if (displayFields.zipcode && delivery.cep) subtitleParts.push(delivery.cep);
               const { isMultiple, indices } = hasMultipleDeliveries(delivery);
               
               return (
@@ -336,19 +357,25 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
                   <div className="p-2 sm:p-3 flex items-center justify-between">
                     <div className="flex-1 min-w-0 mr-2">
                       <div className="flex items-center mb-1">
-                        <span className="font-medium text-sm mr-2">#{orderNumber}</span>
+                        {displayFields.order && (
+                          <span className="font-medium text-sm mr-2">#{orderNumber}</span>
+                        )}
                         {isMultiple && (
                           <span className="text-xs bg-orange-100 text-orange-800 px-1 rounded">
                             Múltipla
                           </span>
                         )}
                       </div>
-                      <div className="text-sm truncate font-medium">
-                        {delivery.endereco || 'Sem endereço'}
-                      </div>
-                      <div className="text-xs text-gray-500 truncate">
-                        {delivery.bairro ? `${delivery.bairro}${delivery.cidade ? `, ${delivery.cidade}` : ''}` : (delivery.cidade || 'Sem localização')}
-                      </div>
+                      {displayFields.address && (
+                        <div className="text-sm truncate font-medium">
+                          {delivery.endereco || 'Sem endereço'}
+                        </div>
+                      )}
+                      {(subtitleParts.length > 0) && (
+                        <div className="text-xs text-gray-500 truncate">
+                          {subtitleParts.join(' • ')}
+                        </div>
+                      )}
                     </div>
                     
                     <div className="flex space-x-1 sm:space-x-2">

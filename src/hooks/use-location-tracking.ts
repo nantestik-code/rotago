@@ -12,27 +12,8 @@ export function useLocationTracking(
   const [isTrackingActive, setIsTrackingActive] = useState(false);
   const [watchId, setWatchId] = useState<number | null>(null);
 
-  // Initialize location
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const position = await getCurrentPosition();
-        setCurrentLocation(position);
-      } catch (error) {
-        console.error('Error getting current position:', error);
-        toast({
-          title: 'Erro de localização',
-          description: 'Não foi possível obter sua localização atual.',
-          variant: 'destructive',
-        });
-      }
-    };
-
-    init();
-  }, []);
-
-  // Start location tracking
-  const startTracking = useCallback(() => {
+  // Função interna para iniciar rastreamento sem toast
+  const startTrackingInternal = useCallback(() => {
     if (isTrackingActive) return;
     
     const id = watchPosition(
@@ -79,11 +60,6 @@ export function useLocationTracking(
       },
       (error) => {
         console.error('Error watching position:', error);
-        toast({
-          title: 'Erro de rastreamento',
-          description: 'Ocorreu um erro ao rastrear sua localização.',
-          variant: 'destructive',
-        });
         setIsTrackingActive(false);
       }
     );
@@ -91,12 +67,46 @@ export function useLocationTracking(
     if (id !== null) {
       setWatchId(id);
       setIsTrackingActive(true);
+    }
+  }, [deliveries, isTrackingActive, onDeliveryProximity]);
+
+  // Initialize location and start automatic tracking
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const position = await getCurrentPosition();
+        setCurrentLocation(position);
+        
+        // Iniciar rastreamento automaticamente após obter a localização inicial
+        if (!isTrackingActive) {
+          startTrackingInternal();
+        }
+      } catch (error) {
+        console.error('Error getting current position:', error);
+        toast({
+          title: 'Erro de localização',
+          description: 'Não foi possível obter sua localização atual.',
+          variant: 'destructive',
+        });
+      }
+    };
+
+    init();
+  }, [startTrackingInternal, isTrackingActive]);
+
+  // Start location tracking (now just calls internal function with toast)
+  const startTracking = useCallback(() => {
+    if (isTrackingActive) return;
+    
+    startTrackingInternal();
+    
+    if (!isTrackingActive) {
       toast({
         title: 'Rastreamento iniciado',
         description: 'Sua localização está sendo monitorada em tempo real.',
       });
     }
-  }, [deliveries, isTrackingActive, onDeliveryProximity]);
+  }, [startTrackingInternal, isTrackingActive]);
 
   // Stop location tracking
   const stopTracking = useCallback(() => {

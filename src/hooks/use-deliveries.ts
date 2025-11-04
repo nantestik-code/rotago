@@ -362,6 +362,7 @@ export function useDeliveries() {
         return {
           ...delivery,
           id: deliveryId
+          // Manter sequence_number e orderNumber originais do fileUtils.ts
         };
       });
       
@@ -532,7 +533,9 @@ export function useDeliveries() {
   }, [user, getCurrentDateFormatted]);
 
   // Handle status change with animation flag and persistence
-  const handleStatusChange = useCallback(async (id: string, status: 'pendente' | 'entregue' | 'ocorrencia') => {
+  const handleStatusChange = useCallback(async (id: string, status: 'pendente' | 'entregue' | 'ocorrencia', onDeliveryCompleted?: (nextDeliveryId: string | null) => void) => {
+    // Gerar timestamp consistente para toda a operação
+    const timestamp = new Date().toISOString();
     // IMPORTANTE: Usar uma função de callback para acessar o estado mais recente
     // Isso evita problemas de closure com valores desatualizados
     setDeliveries(currentDeliveries => {
@@ -544,8 +547,6 @@ export function useDeliveries() {
       }
       
       const previousStatus = currentDelivery.status;
-      const now = new Date();
-      const timestamp = now.toISOString();
       
   
       
@@ -598,6 +599,40 @@ export function useDeliveries() {
         localStorage.setItem('currentUserId', user?.id || ''); // Salvar ownership
       } catch (error) {
         console.error('Erro ao salvar entregas no localStorage após mudança de status:', error);
+      }
+      
+      // Se a entrega foi marcada como entregue, encontrar a próxima entrega pendente
+      if (status === 'entregue' && onDeliveryCompleted) {
+        // Encontrar a entrega que acabou de ser marcada como entregue
+        const completedDelivery = updatedDeliveries.find(d => d.id === id);
+        const completedSequence = Number(completedDelivery?.sequence_number || completedDelivery?.orderNumber || 0);
+        
+        console.log(`🎯 Entrega concluída: Sequência ${completedSequence}`);
+        
+        // Encontrar entregas pendentes ordenadas por sequence_number
+        const pendingDeliveries = updatedDeliveries
+          .filter(d => d.status === 'pendente')
+          .sort((a, b) => {
+            const seqA = Number(a.sequence_number || a.orderNumber || 0);
+            const seqB = Number(b.sequence_number || b.orderNumber || 0);
+            return seqA - seqB;
+          });
+        
+        // Encontrar a próxima entrega pendente com sequência maior que a atual
+        const nextDelivery = pendingDeliveries.find(d => {
+          const seq = Number(d.sequence_number || d.orderNumber || 0);
+          return seq > completedSequence;
+        }) || pendingDeliveries[0]; // Fallback para a primeira pendente se não houver próxima sequencial
+        
+        if (nextDelivery) {
+          const nextSequence = Number(nextDelivery.sequence_number || nextDelivery.orderNumber || 0);
+          console.log(`🚚 Próxima entrega encontrada: Sequência ${nextSequence}`);
+        }
+        
+        // Chamar o callback com o ID da próxima entrega (ou null se não houver)
+        setTimeout(() => {
+          onDeliveryCompleted(nextDelivery?.id || null);
+        }, 500); // Pequeno delay para garantir que a UI seja atualizada
       }
       
       // Retornar o novo array de entregas para atualizar o estado
@@ -710,11 +745,11 @@ export function useDeliveries() {
         const historyEntry = {
           id: uuidv4(),
           delivery_id: id,
-          previous_status: previousStatus,
+          previous_status: null,
           new_status: status,
           changed_at: new Date().toISOString(),
           changed_by: 'app_user',
-          notes: `Status alterado de ${previousStatus} para ${status}`
+          notes: `Status alterado para ${status}`
         };
         
 
@@ -1000,12 +1035,10 @@ export function useDeliveries() {
       // Obter a rota otimizada
       const optimizedRoute = await optimizeRoute(origin, deliveries);
       
-      // Adicionar a propriedade sequence_number para controlar a ordem de entrega
-      // mas manter o orderNumber original que representa o número do pedido
-      const updatedOptimizedRoute = optimizedRoute.map((delivery, index) => ({
-        ...delivery,
-        sequence_number: index + 1 // Adiciona número de sequência para a ordem de entrega
-        // Mantém o orderNumber original que representa o número do pedido
+      // NÃO alterar sequence_number (PARADA) importado da planilha.
+      // Apenas reordenar o array conforme a rota otimizada e preservar números originais.
+      const updatedOptimizedRoute = optimizedRoute.map((delivery) => ({
+        ...delivery
       }));
       
       // Atualizar o estado

@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/use-toast';
-import { processFile, ProcessedFile } from '@/utils/fileUtils';
+import { processFile, ProcessedFile, createDeliveryFromRow } from '@/utils/fileUtils';
 import { DeliveryItem } from '@/utils/deliveryUtils';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -30,7 +30,9 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete, routeName = '
   const [showColumnMappingDialog, setShowColumnMappingDialog] = useState<boolean>(false);
   const [processedDeliveries, setProcessedDeliveries] = useState<DeliveryItem[]>([]);
   const [sampleData, setSampleData] = useState<Record<string, string[]>>({});
-  const [selectedColumns, setSelectedColumns] = useState<Record<string, boolean>>({});
+  const [selectedMapping, setSelectedMapping] = useState<Record<string, string>>({});
+  const [rawRows, setRawRows] = useState<any[]>([]);
+  const [headers, setHeaders] = useState<string[]>([]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setImportError(null);
@@ -159,6 +161,8 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete, routeName = '
         
         setSampleData(sampleData);
         setProcessedDeliveries(result.deliveries);
+        setRawRows(result.rawRows || []);
+        setHeaders(result.headers || Object.keys(result.deliveries[0] || {}));
         
         // Mostrar o diálogo de ajuda na importação
         setShowHelpDialog(true);
@@ -212,14 +216,42 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete, routeName = '
     setShowHelpDialog(true);
   };
   
-  const handleColumnMappingContinue = (selectedColumns: Record<string, boolean>) => {
-    setSelectedColumns(selectedColumns);
+  const handleColumnMappingContinue = (mapping: Record<string, string>) => {
+    setSelectedMapping(mapping);
     setShowColumnMappingDialog(false);
+    
+    // Converter o mapeamento externo (order, city, zipcode, etc.) para os nomes internos
+    const internalMapping: Record<string, string> = {};
+    if (mapping['address']) internalMapping['endereco'] = mapping['address'];
+    if (mapping['endereco']) internalMapping['endereco'] = mapping['endereco'];
+    if (mapping['bairro']) internalMapping['bairro'] = mapping['bairro'];
+    if (mapping['city']) internalMapping['cidade'] = mapping['city'];
+    if (mapping['cidade']) internalMapping['cidade'] = mapping['cidade'];
+    if (mapping['zipcode']) internalMapping['cep'] = mapping['zipcode'];
+    if (mapping['cep']) internalMapping['cep'] = mapping['cep'];
+    if (mapping['sequence']) internalMapping['sequence'] = mapping['sequence'];
+    if (mapping['stop']) internalMapping['stop'] = mapping['stop'];
+    if (mapping['order']) internalMapping['order'] = mapping['order'];
+    if (mapping['latitude']) internalMapping['latitude'] = mapping['latitude'];
+    if (mapping['longitude']) internalMapping['longitude'] = mapping['longitude'];
+    if (mapping['cliente']) internalMapping['cliente'] = mapping['cliente'];
+
+    // Recriar as entregas a partir das linhas brutas com o mapeamento escolhido
+    let finalDeliveries: DeliveryItem[] = [];
+    try {
+      finalDeliveries = (rawRows && rawRows.length > 0 ? rawRows : processedDeliveries).map((row, idx) =>
+        createDeliveryFromRow(row, internalMapping, idx)
+      );
+    } catch (e) {
+      console.error('Erro ao aplicar mapeamento personalizado, usando parse prévio.', e);
+      finalDeliveries = processedDeliveries;
+    }
+    setProcessedDeliveries(finalDeliveries);
     
     // Finalizar a importação e passar as entregas para o componente pai
     toast({
       title: "Importação concluída",
-      description: `${processedDeliveries.length} entregas importadas com sucesso.`,
+      description: `${finalDeliveries.length} entregas importadas com sucesso.`,
     });
     
     // Limpar estados imediatamente
@@ -227,7 +259,7 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete, routeName = '
     setFile(null);
     
     // Passar as entregas para o componente pai
-    onImportComplete(processedDeliveries);
+    onImportComplete(finalDeliveries);
   };
 
   return (
@@ -245,6 +277,7 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete, routeName = '
         onBack={handleColumnMappingBack}
         onContinue={handleColumnMappingContinue}
         sampleData={sampleData}
+        headers={headers}
       />
       
       <Card className="w-full">

@@ -111,6 +111,33 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
   
   // Referência para controlar notificações de múltiplas entregas
   const lastMultipleDeliveryNotificationRef = useRef<number>(0);
+
+  // Otimiza a rota e navega para a parada pendente mais próxima
+  const handleOptimizeAndNavigate = () => {
+    try {
+      onOptimizeRoute && onOptimizeRoute();
+    } catch {}
+    // Encontrar pendente mais próxima da localização atual
+    const pendentes = deliveries.filter(d => d.status === 'pendente' && d.lat && d.lng);
+    const origin = currentLocation?.lat && currentLocation?.lng
+      ? { lat: currentLocation.lat, lng: currentLocation.lng }
+      : { lat: defaultMapCenter.lat, lng: defaultMapCenter.lng };
+    if (pendentes.length === 0) {
+      toast({ title: 'Sem entregas pendentes', description: 'Não há entregas pendentes com coordenadas válidas.' });
+      return;
+    }
+    let nearest = pendentes[0];
+    let minDist = Number.MAX_VALUE;
+    pendentes.forEach(d => {
+      const dist = calculateDistance(origin.lat, origin.lng, d.lat!, d.lng!);
+      if (dist < minDist) { minDist = dist; nearest = d; }
+    });
+    // Selecionar no mapa/lista e abrir navegação
+    onSelectDelivery(nearest.id);
+    if (nearest.lat && nearest.lng) {
+      openExternalNavigation(nearest.lat, nearest.lng);
+    }
+  };
   
   // Show alerts for multiple deliveries gradually when approaching
   useEffect(() => {
@@ -282,20 +309,8 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       console.log('Detectada mudança de status, atualizando marcadores com animação');
     }
     
-    // Sort deliveries by status and distance
-    const sortedDeliveries = [...deliveries].sort((a, b) => {
-      // Prioriza entregas pendentes primeiro
-      if (a.status === 'pendente' && b.status !== 'pendente') return -1;
-      if (a.status !== 'pendente' && b.status === 'pendente') return 1;
-      
-      // Depois ordena por distância
-      if (currentLocation && a.lat && a.lng && b.lat && b.lng) {
-        const distA = calculateDistance(currentLocation.lat, currentLocation.lng, a.lat, a.lng);
-        const distB = calculateDistance(currentLocation.lat, currentLocation.lng, b.lat, b.lng);
-        return distA - distB;
-      }
-      return 0;
-    });
+    // Usar as entregas na ordem original para manter numeração consistente
+    const sortedDeliveries = [...deliveries];
     
     // Track markers by coordinates
     const addressMarkers: Record<string, {
@@ -309,11 +324,12 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
     const coordinateGroups: Record<string, {
       deliveryIds: string[], 
       orderIndices: number[], 
-      statuses: string[]
+      statuses: string[],
+      deliveries: DeliveryItem[]
     }> = {};
     
     // First pass - group deliveries by coordinates
-    sortedDeliveries.forEach((delivery, index) => {
+    sortedDeliveries.forEach((delivery) => {
       if (!delivery.lat || !delivery.lng) return;
       
       const coordKey = `${delivery.lat.toFixed(6)},${delivery.lng.toFixed(6)}`;
@@ -322,38 +338,21 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         coordinateGroups[coordKey] = {
           deliveryIds: [],
           orderIndices: [],
-          statuses: []
+          statuses: [],
+          deliveries: []
         };
       }
       
       coordinateGroups[coordKey].deliveryIds.push(delivery.id);
       
-      // Usar sequence_number (ordem otimizada) em vez de orderNumber (ordem original da planilha)
-      let sequenceNumber;
-      
-      if (delivery.sequence_number) {
-        // Usar o número de sequência otimizado
-        sequenceNumber = delivery.sequence_number;
-      } else if (delivery.orderNumber) {
-        // Fallback para orderNumber se sequence_number não existir
-        sequenceNumber = delivery.orderNumber;
-      } else {
-        // Tentar extrair o número da ordem do ID
-        const orderMatch = delivery.id.match(/ordem[\s-]*(\d+)/i);
-        if (orderMatch) {
-          sequenceNumber = parseInt(orderMatch[1]);
-        } else {
-          // Fallback para o índice + 1
-          sequenceNumber = index + 1;
-        }
-      }
-      
-      coordinateGroups[coordKey].orderIndices.push(sequenceNumber);
+      // Armazenar a entrega completa para preservar todos os dados
+      coordinateGroups[coordKey].deliveries = coordinateGroups[coordKey].deliveries || [];
+      coordinateGroups[coordKey].deliveries.push(delivery);
       coordinateGroups[coordKey].statuses.push(delivery.status);
     });
     
     // Second pass - create markers for each coordinate group
-    sortedDeliveries.forEach((delivery, index) => {
+    sortedDeliveries.forEach((delivery) => {
       if (!delivery.lat || !delivery.lng) return;
       
       const coordKey = `${delivery.lat.toFixed(6)},${delivery.lng.toFixed(6)}`;
@@ -373,37 +372,31 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         markerStatus = 'pendente';
       }
       
-      console.log(`Marker for coordinate ${coordKey} with orders ${group.orderIndices.join(', ')} set to status: ${markerStatus}`);
+      // Selecionar entrega para rótulo SEMPRE pela menor Parada (orderNumber) do grupo, independente do status
+      // Isso mantém o rótulo do marcador estável para cada coordenada
+      const labelCandidate = [...group.deliveries].sort((a, b) => {
+        const stopA = Number(a.orderNumber || 999999);
+        const stopB = Number(b.orderNumber || 999999);
+        return stopA - stopB;
+      })[0];
       
-      // Find the delivery with the correct sequence number for this marker
-      // Usar sequence_number para mostrar a ordem otimizada
-      let sequenceNumberToDisplay;
+      // stopNumber = número da parada (orderNumber da planilha)
+      const stopNumber = Number(labelCandidate.orderNumber || (deliveries.findIndex(d => d.id === labelCandidate.id) + 1));
+      // orderNumber = ordem de execução (sequence_number da planilha)
+      const orderNumber = labelCandidate.sequence_number || stopNumber;
+      const numericOrder = Number(orderNumber);
       
-      // If this is a multiple delivery location, find the lowest sequence number
-      if (isMultiple) {
-        const deliveriesAtLocation = group.deliveryIds.map(id => deliveries.find(d => d.id === id));
-        const validDeliveries = deliveriesAtLocation.filter(d => d && (d.sequence_number || d.orderNumber)) as DeliveryItem[];
-        
-        if (validDeliveries.length > 0) {
-          // Sort by sequence number (or orderNumber as fallback) and get the lowest
-          validDeliveries.sort((a, b) => {
-            const seqA = Number(a.sequence_number || a.orderNumber || 0);
-            const seqB = Number(b.sequence_number || b.orderNumber || 0);
-            return seqA - seqB;
-          });
-          sequenceNumberToDisplay = validDeliveries[0].sequence_number || validDeliveries[0].orderNumber;
-        } else {
-          // Fallback to the first order index if no valid deliveries found
-          sequenceNumberToDisplay = group.orderIndices[0];
-        }
-      } else {
-        // For single delivery locations, use the delivery's sequence number
-        sequenceNumberToDisplay = delivery.sequence_number || delivery.orderNumber || index + 1;
-      }
+      // Logs mais claros: Paradas (orderNumber) e Ordens (sequence_number)
+      const stopNumbersLog = group.deliveries.map(d => d.orderNumber ?? 'N/A').join(', ');
+      const sequenceNumbersLog = group.deliveries.map(d => d.sequence_number ?? 'N/A').join(', ');
+      console.log(
+        `Marker for coordinate ${coordKey} | Paradas [${stopNumbersLog}] | Ordens [${sequenceNumbersLog}] | status: ${markerStatus}`
+      );
       
-      // Create the marker
+      // Create the marker com Parada e Ordem
       const marker = createDeliveryMarker(
-        sequenceNumberToDisplay,
+        stopNumber,
+        Number.isFinite(numericOrder) ? numericOrder : Number(stopNumber),
         delivery.lat,
         delivery.lng,
         markerStatus,
@@ -436,7 +429,26 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       const firstDelivery = deliveries.find(d => d.id === deliveryIds[0]);
       if (!firstDelivery) return;
       
-      const ordersText = orderIndices.sort((a, b) => a - b).join(', ');
+      // Usar as entregas do grupo de coordenadas
+      const groupData = coordinateGroups[coordKey];
+      const deliveriesAtLocation = groupData ? groupData.deliveries : [firstDelivery];
+      
+      let popupInfo = '';
+      if (deliveriesAtLocation.length > 1) {
+        // Múltiplas entregas - mostrar todas as paradas e ordens
+        const infos = deliveriesAtLocation.map(d => {
+          const stop = d.orderNumber || (deliveries.findIndex(del => del.id === d.id) + 1);
+          const order = d.sequence_number || 'N/A';
+          return `Parada ${stop} - Ordem ${order}`;
+        }).join('<br>');
+        popupInfo = `<div class="text-xs mb-2">${infos}</div>`;
+      } else {
+        // Entrega única - mostrar parada e ordem
+        const d = deliveriesAtLocation[0];
+        const stop = d.orderNumber || (deliveries.findIndex(del => del.id === d.id) + 1);
+        const order = d.sequence_number || 'N/A';
+        popupInfo = `<div class="text-xs mb-2">Parada ${stop} - Ordem ${order}</div>`;
+      }
       
       const hasOcorrencia = deliveryIds.some(id => 
         deliveries.find(d => d.id === id)?.status === 'ocorrencia'
@@ -457,9 +469,9 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       })
       .setHTML(`
         <div class="popup-content">
-          <h3 class="font-medium">${deliveryIds.length > 1 ? 'Ordens ' + ordersText : 'Ordem ' + ordersText}</h3>
-          <p class="text-sm">${firstDelivery.endereco}</p>
+          <h3 class="font-medium">${firstDelivery.endereco}</h3>
           <p class="text-xs">${firstDelivery.cidade}, ${firstDelivery.estado}</p>
+          ${popupInfo}
           <div class="flex items-center gap-1 my-1">
             <span class="status-badge ${statusClass}">
               ${hasOcorrencia ? 'OCORRÊNCIA' : hasPendente ? 'PENDENTE' : 'ENTREGUE'}
@@ -479,20 +491,26 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       
       // Add click handler
       marker.getElement().addEventListener('click', () => {
-        // Find the delivery with the lowest sequence number in this group
-        const groupDeliveries = deliveryIds.map(id => deliveries.find(d => d.id === id)).filter(d => d) as DeliveryItem[];
-        
-        if (groupDeliveries.length > 0) {
-          // Sort by sequence_number to get the first delivery in the optimized order
-          groupDeliveries.sort((a, b) => {
-            const seqA = Number(a.sequence_number || a.orderNumber || 0);
-            const seqB = Number(b.sequence_number || b.orderNumber || 0);
-            return seqA - seqB;
-          });
-          
-          // Select the first delivery in the optimized sequence
-          onSelectDelivery(groupDeliveries[0].id);
-        }
+        // Coletar entregas deste ponto
+        const groupDeliveries = deliveryIds
+          .map(id => deliveries.find(d => d.id === id))
+          .filter(d => d) as DeliveryItem[];
+        if (groupDeliveries.length === 0) return;
+
+        // Separar por status
+        const pendentes = groupDeliveries.filter(d => d.status === 'pendente');
+        const entregues = groupDeliveries.filter(d => d.status === 'entregue');
+
+        // Critério: se houver pendente neste ponto, selecionar a menor Parada (orderNumber) entre pendentes
+        // Caso contrário (somente entregues), selecionar a menor Parada entre entregues
+        const candidates = pendentes.length > 0 ? pendentes : entregues.length > 0 ? entregues : groupDeliveries;
+        candidates.sort((a, b) => {
+          const orderA = Number(a.orderNumber || 0);
+          const orderB = Number(b.orderNumber || 0);
+          return orderA - orderB;
+        });
+
+        onSelectDelivery(candidates[0].id);
       });
     });
   }, [deliveries, selectedDeliveryId, mapLoaded, onSelectDelivery, currentLocation, geocodedCoordinates]);
@@ -772,14 +790,14 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       marker.addTo(mapboxMapRef.current);
       currentLocationMarkerRef.current = marker;
       
-      // Centralizar o mapa na localização atual se o rastreamento estiver ativo
-      if (isTrackingActive) {
-        mapboxMapRef.current.flyTo({
-          center: [currentLocation.lng, currentLocation.lat],
-          zoom: 15,
-          essential: true
-        });
-      }
+      // Sempre centralizar o mapa na localização atual quando ela muda
+      // Isso garante que o usuário sempre veja onde está no mapa
+      mapboxMapRef.current.flyTo({
+        center: [currentLocation.lng, currentLocation.lat],
+        zoom: 16, // Zoom um pouco maior para melhor visualização
+        essential: true,
+        duration: 1000 // Animação suave de 1 segundo
+      });
       
       // Exibir mensagem de localização atual apenas na primeira vez que o rastreamento é ativado
       const now = Date.now();
@@ -1273,17 +1291,6 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           z-index: 100;
         }
         
-        /* Estilos para diferentes status */
-        .status-entregue {
-          background-color: #10B981; /* Verde para entregue */
-        }
-        
-        .status-pendente {
-          background-color: #3b82f6; /* Azul para pendente */
-        
-        .status-ocorrencia {
-          background-color: #EF4444; /* Vermelho para ocorrência */
-        }
         /* Animação de pulso para marcador de localização atual */
         .current-location-marker {
           position: relative;
@@ -1435,6 +1442,19 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           background-color: #F97316;
         }
         
+        /* Estilos para diferentes status */
+        .status-entregue {
+          background-color: #10B981; /* Verde para entregue */
+        }
+        
+        .status-pendente {
+          background-color: #3b82f6; /* Azul para pendente */
+        }
+        
+        .status-ocorrencia {
+          background-color: #EF4444; /* Vermelho para ocorrência */
+        }
+        
         /* Botão de navegação */
         .nav-button {
           display: flex;
@@ -1519,35 +1539,9 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         `}
       </style>
       
-      {/* Botões de controle (desktop) */}
-      {!isMobileView && (
-        <div className="absolute bottom-4 right-4 flex flex-col gap-2">
-          <Button onClick={onOptimizeRoute} className="bg-primary flex items-center gap-1">
-            <Navigation size={16} />
-            Otimizar Rota
-          </Button>
-          <Button
-            onClick={isTrackingActive ? onStopTracking : onStartTracking}
-            variant={isTrackingActive ? "destructive" : "default"}
-            className="flex items-center gap-1"
-          >
-            <MapPin size={16} />
-            {isTrackingActive ? 'Parar Rastreamento' : 'Iniciar Rastreamento'}
-          </Button>
-        </div>
-      )}
+      {/* Botões de controle removidos - rastreamento agora é automático */}
       
-      {/* Controles de rastreamento para mobile (fixo no canto superior direito) */}
-      {isMobileView && (
-        <Button
-          onClick={isTrackingActive ? onStopTracking : onStartTracking}
-          variant={isTrackingActive ? "destructive" : "default"}
-          size="sm"
-          className="absolute top-14 right-2 z-20 h-8 w-8 p-0 shadow-md"
-        >
-          <MapPin size={16} />
-        </Button>
-      )}
+      {/* Controles removidos - rastreamento agora é automático */}
       
       
       {/* Legenda do mapa - apenas no desktop */}

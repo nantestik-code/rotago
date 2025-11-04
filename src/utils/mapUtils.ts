@@ -265,21 +265,23 @@ export const getMarkerColorByStatus = (status: string): string => {
 
 // Função melhorada para criar marcadores visuais modernos
 export const createDeliveryMarker = (
-  orderNumber: number, 
-  lat: number, 
-  lng: number, 
-  status: string, 
-  isMultiple: boolean, 
+  stopNumber: number,
+  orderNumber: number,
+  lat: number,
+  lng: number,
+  status: string,
+  isMultiple: boolean,
   isSelected: boolean
 ): mapboxgl.Marker => {
   // Criar o elemento do marcador
   const markerEl = document.createElement('div');
   markerEl.className = `delivery-marker ${getMarkerCssClassByStatus(status)}`;
   
-  // Criar o elemento do conteúdo do marcador (número da ordem)
+  // Criar o elemento do conteúdo do marcador (Parada e Ordem)
   const contentEl = document.createElement('div');
   contentEl.className = 'delivery-marker-content';
-  contentEl.innerText = orderNumber.toString();
+  // Exibir os dois números de forma compacta: P{parada}/O{ordem}
+  contentEl.innerText = `P${stopNumber}/O${orderNumber}`;
   markerEl.appendChild(contentEl);
   
   // Adicionar classe para múltiplas entregas
@@ -359,10 +361,19 @@ export const geocodeAddresses = async (
       
       // Aplicar cache imediatamente para entregas
       updatedDeliveries.forEach(delivery => {
+        // Criar chave mais específica incluindo o ID da entrega para evitar agrupamento indevido
         const addressKey = `${delivery.endereco}, ${delivery.cidade}, ${delivery.estado}, ${delivery.cep}`.toLowerCase().trim();
         if (geocodeCache[addressKey]) {
-          delivery.lat = geocodeCache[addressKey].lat;
-          delivery.lng = geocodeCache[addressKey].lng;
+          // Adicionar pequena variação nas coordenadas para entregas no mesmo endereço
+          // mas com IDs diferentes, para evitar sobreposição total
+          const baseCoords = geocodeCache[addressKey];
+          const variation = 0.0001; // ~11 metros de variação
+          const deliveryIndex = updatedDeliveries.indexOf(delivery);
+          const offsetLat = (deliveryIndex % 5) * variation * 0.1;
+          const offsetLng = (Math.floor(deliveryIndex / 5) % 5) * variation * 0.1;
+          
+          delivery.lat = baseCoords.lat + offsetLat;
+          delivery.lng = baseCoords.lng + offsetLng;
         }
       });
     }
@@ -438,11 +449,16 @@ const backgroundGeocode = async (
           };
           
           // Atualizar entregas com esse endereço
-          deliveries.forEach(delivery => {
+          deliveries.forEach((delivery, deliveryIndex) => {
             const deliveryAddressKey = `${delivery.endereco}, ${delivery.cidade}, ${delivery.estado}, ${delivery.cep}`.toLowerCase().trim();
             if (deliveryAddressKey === addressKey) {
-              delivery.lat = location.lat;
-              delivery.lng = location.lng;
+              // Aplicar pequena variação para evitar sobreposição total
+              const variation = 0.0001; // ~11 metros de variação
+              const offsetLat = (deliveryIndex % 5) * variation * 0.1;
+              const offsetLng = (Math.floor(deliveryIndex / 5) % 5) * variation * 0.1;
+              
+              delivery.lat = location.lat + offsetLat;
+              delivery.lng = location.lng + offsetLng;
             }
           });
         }
