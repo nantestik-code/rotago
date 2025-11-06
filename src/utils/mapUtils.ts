@@ -280,8 +280,8 @@ export const createDeliveryMarker = (
   // Criar o elemento do conteúdo do marcador (Parada e Ordem)
   const contentEl = document.createElement('div');
   contentEl.className = 'delivery-marker-content';
-  // Exibir os dois números de forma compacta: P{parada}/O{ordem}
-  contentEl.innerText = `P${stopNumber}/O${orderNumber}`;
+  // Exibir em duas linhas para não extrapolar o quadrado
+  contentEl.innerHTML = `<div class="marker-row">P${stopNumber}</div><div class="marker-row">O${orderNumber}</div>`;
   markerEl.appendChild(contentEl);
   
   // Adicionar classe para múltiplas entregas

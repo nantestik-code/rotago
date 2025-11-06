@@ -164,8 +164,17 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
     if (status !== activeTab) setActiveTab(status);
   }, [selectedDeliveryId, deliveries]);
 
-  // Filtrar entregas por status
-  const pendingDeliveries = deliveries.filter(d => d.status === 'pendente');
+  // Filtrar e ordenar pendentes por sequência (fallback: ordem da parada)
+  const pendingDeliveries = useMemo(() => {
+    return deliveries
+      .filter(d => d.status === 'pendente')
+      .slice()
+      .sort((a, b) => {
+        const seqA = Number(a.sequence_number || a.orderNumber || 999999);
+        const seqB = Number(b.sequence_number || b.orderNumber || 999999);
+        return seqA - seqB;
+      });
+  }, [deliveries]);
   const deliveredDeliveries = deliveries.filter(d => d.status === 'entregue');
   const occurrenceDeliveries = deliveries.filter(d => d.status === 'ocorrencia');
 
@@ -221,11 +230,9 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
     // IMPORTANTE: Primeiro mostrar feedback para melhor UX
     let message = 'Status atualizado!';
     if (status === 'entregue') {
-      // Encontrar a entrega e seu número de ordem real
+      // Encontrar a entrega e seu número de ordem real (sem usar índice do array)
       const delivery = deliveries.find(d => d.id === id);
-      // Usar o orderNumber se disponível, ou o índice + 1 como fallback
-      const orderNum = delivery?.orderNumber || 
-                     (delivery ? deliveries.findIndex(d => d.id === delivery.id) + 1 : '?');
+      const orderNum = delivery?.orderNumber ?? delivery?.sequence_number ?? '?';
       message = `Entrega concluída, ordem ${orderNum}`;
     }
     setFeedbackMessage(message);
@@ -604,7 +611,7 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold relative ${
                                     delivery.id === selectedDeliveryId ? 'bg-blue-500 text-white ring-2 ring-blue-200' : 'bg-blue-100 text-blue-700'
                                   }`}>
-                                    #{delivery.sequence_number || index + 1}
+                                    #{delivery.sequence_number || delivery.orderNumber || '?'}
                                     {/* Verificar se há entregas múltiplas no mesmo endereço */}
                                     {pendingDeliveries.filter(d => d.lat === delivery.lat && d.lng === delivery.lng).length > 1 && (
                                       <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs">
@@ -617,14 +624,14 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                                     <p className="text-xs text-gray-500 truncate">{delivery.bairro && `${delivery.bairro}, `}{delivery.cidade}</p>
                                     {/* Sempre mostrar o número da ordem */}
                                     <p className="text-xs text-blue-600 font-medium">
-                                      📦 Ordem: #{delivery.sequence_number || delivery.orderNumber || deliveries.findIndex(del => del.id === delivery.id) + 1} | 🚩 Parada: #{delivery.orderNumber || delivery.sequence_number || deliveries.findIndex(del => del.id === delivery.id) + 1}
+                                      📦 Ordem: #{delivery.sequence_number || delivery.orderNumber || '?'} | 🚩 Parada: #{delivery.orderNumber || delivery.sequence_number || '?'}
                                     </p>
                                     {/* Mostrar outras ordens no mesmo endereço se houver múltiplas */}
                                     {pendingDeliveries.filter(d => d.lat === delivery.lat && d.lng === delivery.lng).length > 1 && (
                                       <p className="text-xs text-orange-600 font-medium">
                                         📍 Entregas múltiplas: {pendingDeliveries
                                           .filter(d => d.lat === delivery.lat && d.lng === delivery.lng)
-                                          .map(d => `#${d.orderNumber || d.sequence_number || deliveries.findIndex(del => del.id === d.id) + 1}`)
+                                          .map(d => `#${d.sequence_number || d.orderNumber || '?'}`)
                                           .join(', ')}
                                       </p>
                                     )}
@@ -688,11 +695,11 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                     {deliveredDeliveries.length > 0 ? deliveredDeliveries.map((delivery, index) => (
                         <div key={delivery.id} className="mobile-delivery-card delivered bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                           <div className="card-header">
-                            <div className="delivery-number delivered w-6 h-6 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-sm font-medium mr-2">{delivery.sequence_number || delivery.orderNumber || (index + 1)}</div>
+                            <div className="delivery-number delivered w-6 h-6 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-sm font-medium mr-2">{delivery.sequence_number || delivery.orderNumber || '?'}</div>
                             <div className="delivery-info">
                               <h3 className="truncate">{delivery.endereco.split(',')[0]}</h3>
                               <p className="truncate">{delivery.cidade}</p>
-                              <p className="truncate text-xs text-blue-600">Ordem: {delivery.sequence_number || '?'} • Parada: #{delivery.orderNumber || delivery.sequence_number || (index + 1)}</p>
+                              <p className="truncate text-xs text-blue-600">Ordem: {delivery.sequence_number || delivery.orderNumber || '?'} • Parada: #{delivery.orderNumber || delivery.sequence_number || '?'}</p>
                               <span className="status-label">Entregue</span>
                             </div>
                           </div>
@@ -718,11 +725,11 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                     {occurrenceDeliveries.length > 0 ? occurrenceDeliveries.map((delivery, index) => (
                         <div key={delivery.id} className="mobile-delivery-card occurrence bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                           <div className="card-header">
-                            <div className="delivery-number occurrence w-6 h-6 rounded-full bg-red-100 text-red-700 flex items-center justify-center text-sm font-medium mr-2">{delivery.sequence_number || delivery.orderNumber || (index + 1)}</div>
+                            <div className="delivery-number occurrence w-6 h-6 rounded-full bg-red-100 text-red-700 flex items-center justify-center text-sm font-medium mr-2">{delivery.sequence_number || delivery.orderNumber || '?'}</div>
                             <div className="delivery-info">
                               <h3 className="truncate">{delivery.endereco.split(',')[0]}</h3>
                               <p className="truncate">{delivery.cidade}</p>
-                              <p className="truncate text-xs text-blue-600">Ordem: {delivery.sequence_number || '?'} • Parada: #{delivery.orderNumber || delivery.sequence_number || (index + 1)}</p>
+                              <p className="truncate text-xs text-blue-600">Ordem: {delivery.sequence_number || delivery.orderNumber || '?'} • Parada: #{delivery.orderNumber || delivery.sequence_number || '?'}</p>
                               <span className="status-label">Ocorrência</span>
                             </div>
                           </div>
@@ -853,7 +860,7 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center space-x-2 mb-1">
                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold relative ${delivery.id === selectedDeliveryId ? 'bg-blue-500 text-white ring-2 ring-blue-200' : 'bg-blue-100 text-blue-700'}`}>
-                                      #{delivery.sequence_number || index + 1}
+                                      #{delivery.sequence_number || delivery.orderNumber}
                                       {pendingDeliveries.filter(d => d.lat === delivery.lat && d.lng === delivery.lng).length > 1 && (
                                         <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs">
                                           {pendingDeliveries.filter(d => d.lat === delivery.lat && d.lng === delivery.lng).length}
@@ -863,12 +870,12 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                                     <div className="flex-1 min-w-0">
                                       <h3 className="font-semibold text-gray-900 truncate text-sm">{delivery.endereco}</h3>
                                       <p className="text-xs text-gray-500 truncate">{delivery.bairro && `${delivery.bairro}, `}{delivery.cidade}</p>
-                                      <p className="text-xs text-blue-600 font-medium">📦 Ordem: #{delivery.sequence_number || delivery.orderNumber || deliveries.findIndex(del => del.id === delivery.id) + 1} | 🚩 Parada: #{delivery.orderNumber || delivery.sequence_number || deliveries.findIndex(del => del.id === delivery.id) + 1}</p>
+                                      <p className="text-xs text-blue-600 font-medium">📦 Ordem: #{delivery.sequence_number} | 🚩 Parada: #{delivery.orderNumber}</p>
                                       {pendingDeliveries.filter(d => d.lat === delivery.lat && d.lng === delivery.lng).length > 1 && (
                                         <p className="text-xs text-orange-600 font-medium">
                                           📍 Entregas múltiplas: {pendingDeliveries
                                             .filter(d => d.lat === delivery.lat && d.lng === delivery.lng)
-                                            .map(d => `#${d.orderNumber || d.sequence_number || deliveries.findIndex(del => del.id === d.id) + 1}`)
+                                            .map(d => `#${d.sequence_number}`)
                                             .join(', ')}
                                         </p>
                                       )}

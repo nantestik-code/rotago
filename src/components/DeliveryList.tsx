@@ -46,25 +46,29 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
     } catch {}
   }, []);
 
-  // Group deliveries by exact coordinates for multiple delivery detection
-  const coordinateGroups = useMemo(() => {
+  // Group deliveries by stop number for multiple delivery detection
+  const stopGroups = useMemo(() => {
     const groups: Record<string, {items: DeliveryItem[], indices: number[]}> = {};
     
     deliveries.forEach((delivery, index) => {
-      if (!delivery.lat || !delivery.lng) return;
+      // Usar orderNumber como número da parada (Stop da planilha)
+      const stopNumber = delivery.orderNumber || delivery.sequence_number || undefined;
+      const stopKey = `stop_${stopNumber}`;
       
-      const coordKey = `${delivery.lat.toFixed(6)},${delivery.lng.toFixed(6)}`;
-      
-      if (!groups[coordKey]) {
-        groups[coordKey] = { items: [], indices: [] };
+      if (!groups[stopKey]) {
+        groups[stopKey] = { items: [], indices: [] };
       }
-      groups[coordKey].items.push(delivery);
-      groups[coordKey].indices.push(index + 1);
+      groups[stopKey].items.push(delivery);
+      // Usar sequence_number como ordem real da entrega (Sequence da planilha)
+      const realSequenceNumber = Number(delivery.sequence_number || delivery.orderNumber || 999999);
+      groups[stopKey].indices.push(realSequenceNumber);
     });
     
     return Object.entries(groups)
       .filter(([_, data]) => data.items.length > 1)
       .reduce((acc, [key, data]) => {
+        // Ordenar os índices em ordem crescente para exibição consistente
+        data.indices.sort((a, b) => a - b);
         acc[key] = data;
         return acc;
       }, {} as Record<string, {items: DeliveryItem[], indices: number[]}>);
@@ -130,12 +134,13 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
     });
   }, [deliveries, filter, searchQuery, status]);
 
-  // Function to check if a delivery has multiple deliveries at the same location
+  // Function to check if a delivery has multiple deliveries at the same stop
   const hasMultipleDeliveries = (delivery: DeliveryItem): {isMultiple: boolean, indices: number[]} => {
-    if (!delivery.lat || !delivery.lng) return {isMultiple: false, indices: []};
+    const stopNumber = delivery.orderNumber || delivery.sequence_number;
+    if (!stopNumber) return {isMultiple: false, indices: []};
     
-    const coordKey = `${delivery.lat.toFixed(6)},${delivery.lng.toFixed(6)}`;
-    const group = coordinateGroups[coordKey];
+    const stopKey = `stop_${stopNumber}`;
+    const group = stopGroups[stopKey];
     
     if (group && group.items.length > 1) {
       return {isMultiple: true, indices: group.indices};
@@ -317,7 +322,7 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
           <div className="py-2 px-1 lg:px-2">
             {filteredDeliveries.map((delivery, index) => {
               // Usar o orderNumber original da planilha, não o índice calculado
-              const orderNumber = delivery.orderNumber || delivery.sequence_number || (index + 1);
+              const orderNumber = delivery.orderNumber || delivery.sequence_number || '?';
               const subtitleParts: string[] = [];
               if (displayFields.bairro && delivery.bairro) subtitleParts.push(delivery.bairro);
               if (displayFields.city && delivery.cidade) subtitleParts.push(delivery.cidade);
@@ -333,11 +338,11 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
                     // Verificar se o clique foi em um botão ou em seus filhos
                     const target = e.target as HTMLElement;
                     const isButtonClick = target.tagName === 'BUTTON' || 
-                                          target.tagName === 'svg' || 
-                                          target.tagName === 'path' || 
-                                          target.tagName === 'polyline' || 
-                                          target.tagName === 'circle' ||
-                                          target.closest('button');
+                                         target.tagName === 'svg' || 
+                                         target.tagName === 'path' || 
+                                         target.tagName === 'polyline' || 
+                                         target.tagName === 'circle' ||
+                                         target.closest('button');
                     
                     // Se não for um clique em botão, selecionar a entrega
                     if (!isButtonClick) {
@@ -358,10 +363,17 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
                     <div className="flex-1 min-w-0 mr-2">
                       <div className="flex items-center mb-1">
                         {displayFields.order && (
-                          <span className="font-medium text-sm mr-2">#{orderNumber}</span>
+                          <span className="font-medium text-sm mr-2">
+                            {isMultiple ? (
+                              // Mostrar todas as ordens quando há múltiplas entregas
+                              `#${indices.join(', #')}`
+                            ) : (
+                              `#${orderNumber}`
+                            )}
+                          </span>
                         )}
                         {isMultiple && (
-                          <span className="text-xs bg-orange-100 text-orange-800 px-1 rounded">
+                          <span className="text-xs bg-orange-100 text-orange-800 px-1 rounded ml-1">
                             Múltipla
                           </span>
                         )}

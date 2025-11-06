@@ -243,39 +243,48 @@ export function useDeliveries() {
             if (dError) throw dError;
             
             if (deliveriesData && deliveriesData.length > 0) {
-              // Converter para o formato DeliveryItem
-              const formattedDeliveries: DeliveryItem[] = deliveriesData.map(d => ({
-                id: d.id,
-                orderNumber: d.order_number || '',
-                // Campos originais
-                cliente: d.client_name || '',
-                endereco: d.address || '',
-                cidade: d.city || '',
-                estado: d.state || '',
-                cep: d.postal_code || '',  // Usando postal_code do banco
-                telefone: '',
-                observacoes: d.notes || '',
-                // Campos para compatibilidade com Supabase
-                client: d.client_name || '',
-                address: d.address || '',
-                city: d.city || '',
-                state: d.state || '',
-                zipCode: d.postal_code || '',  // Usando postal_code do banco
-                notes: d.notes || '',
-                // Campos de posição
-                lat: d.lat || undefined,  // Usando lat do banco
-                lng: d.lng || undefined,  // Usando lng do banco
-                position: d.lat && d.lng ? { lat: d.lat, lng: d.lng } : null,
-                // Campos de status
-                status: (d.status as 'pendente' | 'entregue' | 'ocorrencia') || 'pendente',
-                statusChanged: false
-              }));
+              // Converter para o formato DeliveryItem, preservando a sequência da rota
+              const formattedDeliveries: DeliveryItem[] = deliveriesData.map(d => {
+                const rd = routeDeliveries.find(rd => rd.delivery_id === d.id);
+                const seq = rd?.sequence_number ?? undefined;
+                return {
+                  id: d.id,
+                  orderNumber: d.order_number || '',
+                  sequence_number: seq,
+                  // Campos originais
+                  cliente: d.client_name || '',
+                  endereco: d.address || '',
+                  cidade: d.city || '',
+                  estado: d.state || '',
+                  cep: d.postal_code || '',  // Usando postal_code do banco
+                  telefone: '',
+                  observacoes: d.notes || '',
+                  // Campos para compatibilidade com Supabase
+                  client: d.client_name || '',
+                  address: d.address || '',
+                  city: d.city || '',
+                  state: d.state || '',
+                  zipCode: d.postal_code || '',  // Usando postal_code do banco
+                  notes: d.notes || '',
+                  // Campos de posição
+                  lat: d.lat || undefined,  // Usando lat do banco
+                  lng: d.lng || undefined,  // Usando lng do banco
+                  position: d.lat && d.lng ? { lat: d.lat, lng: d.lng } : null,
+                  // Campos de status
+                  status: (d.status as 'pendente' | 'entregue' | 'ocorrencia') || 'pendente',
+                  statusChanged: false
+                };
+              });
               
-              // Ordenar entregas conforme a sequência
-              const orderedDeliveries = formattedDeliveries.sort((a, b) => {
-                const aIndex = routeDeliveries.findIndex(rd => rd.delivery_id === a.id);
-                const bIndex = routeDeliveries.findIndex(rd => rd.delivery_id === b.id);
-                return aIndex - bIndex;
+              // Ordenar entregas conforme a sequência (estável, sem findIndex e sem mutar o array original)
+              const sequenceMap = new Map<string, number>();
+              routeDeliveries.forEach((rd: any) => {
+                sequenceMap.set(rd.delivery_id, Number(rd.sequence_number ?? 999999));
+              });
+              const orderedDeliveries = [...formattedDeliveries].sort((a, b) => {
+                const seqA = sequenceMap.get(a.id) ?? 999999;
+                const seqB = sequenceMap.get(b.id) ?? 999999;
+                return seqA - seqB;
               });
               
               setDeliveries(orderedDeliveries);
@@ -433,12 +442,15 @@ export function useDeliveries() {
             }
           }
           
-          // Criar novos relacionamentos
+          // Criar novos relacionamentos preservando sequência e parada originais
           const routeDeliveries = deliveriesWithIds.map((delivery, index) => ({
             route_id: routeId,
             delivery_id: delivery.id,
-            delivery_order: index + 1,
-            sequence_number: index + 1
+            delivery_order: Number(delivery.orderNumber ?? index + 1),
+            sequence_number: Number(
+              (delivery.sequence_number as number | undefined) ??
+              (typeof delivery.orderNumber === 'number' ? delivery.orderNumber : parseInt(String(delivery.orderNumber || '')) || (index + 1))
+            )
           }));
           
           // Inserir em lotes menores para evitar problemas com limites de tamanho
@@ -548,18 +560,40 @@ export function useDeliveries() {
       
       const previousStatus = currentDelivery.status;
       
-  
+      // Encontrar a entrega que está sendo alterada para verificar se há múltiplas entregas na mesma parada
+      const targetDelivery = currentDeliveries.find(d => d.id === id);
+      let deliveriesToUpdate = [id]; // IDs das entregas que serão atualizadas
+      
+      // Se há múltiplas entregas na mesma parada (mesmo orderNumber), atualizar todas
+      if (targetDelivery && targetDelivery.orderNumber) {
+        const sameStopDeliveries = currentDeliveries.filter(d => 
+          d.orderNumber === targetDelivery.orderNumber && 
+          d.lat === targetDelivery.lat && 
+          d.lng === targetDelivery.lng
+        );
+        
+        if (sameStopDeliveries.length > 1) {
+          deliveriesToUpdate = sameStopDeliveries.map(d => d.id);
+          console.log(`🚚 Múltiplas entregas na parada ${targetDelivery.orderNumber}: atualizando ${deliveriesToUpdate.length} entregas`);
+        }
+      }
       
       // Registrar a alteração de status em um log local para recuperação
       try {
         const statusChangesLog = JSON.parse(localStorage.getItem('statusChangesLog') || '[]');
-        statusChangesLog.push({
-          id,
-          previousStatus,
-          newStatus: status,
-          timestamp,
-          synced: false // Indica que ainda não foi sincronizado com o Supabase
+        
+        // Registrar log para todas as entregas que serão atualizadas
+        deliveriesToUpdate.forEach(deliveryId => {
+          const delivery = currentDeliveries.find(d => d.id === deliveryId);
+          statusChangesLog.push({
+            id: deliveryId,
+            previousStatus: delivery?.status || 'pendente',
+            newStatus: status,
+            timestamp,
+            synced: false // Indica que ainda não foi sincronizado com o Supabase
+          });
         });
+        
         // Limitar o tamanho do log para evitar problemas de armazenamento
         if (statusChangesLog.length > 1000) {
           statusChangesLog.splice(0, statusChangesLog.length - 1000);
@@ -574,8 +608,8 @@ export function useDeliveries() {
       // Criar uma cópia do array atual de entregas usando map para garantir nova referência
       // Isso é mais seguro que deep clone com JSON.parse/stringify que pode causar problemas
       const updatedDeliveries = currentDeliveries.map(delivery => {
-        if (delivery.id === id) {
-          // Atualizar apenas a entrega com o ID correspondente
+        if (deliveriesToUpdate.includes(delivery.id)) {
+          // Atualizar todas as entregas da mesma parada
           return {
             ...delivery,
             status,

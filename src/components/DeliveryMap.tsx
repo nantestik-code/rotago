@@ -68,19 +68,17 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
   const [showGpsSearch, setShowGpsSearch] = useState(false);
   const [customHouseAddress, setCustomHouseAddress] = useState('');
 
-  // Filter to pending deliveries for mobile view
+  // Filter to pending deliveries for mobile view (stable by sequence_number -> orderNumber)
   const pendingDeliveries = useMemo(() => {
     return deliveries
       .filter(delivery => delivery.status === 'pendente')
+      .slice()
       .sort((a, b) => {
-        if (currentLocation && a.lat && a.lng && b.lat && b.lng) {
-          const distA = calculateDistance(currentLocation.lat, currentLocation.lng, a.lat, a.lng);
-          const distB = calculateDistance(currentLocation.lat, currentLocation.lng, b.lat, b.lng);
-          return distA - distB;
-        }
-        return 0;
+        const seqA = Number(a.sequence_number ?? a.orderNumber ?? 999999);
+        const seqB = Number(b.sequence_number ?? b.orderNumber ?? 999999);
+        return seqA - seqB;
       });
-  }, [deliveries, currentLocation]);
+  }, [deliveries]);
 
   // Group deliveries by exact coordinates for multiple delivery detection
   const addressGroups = useMemo(() => {
@@ -235,6 +233,11 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
             if (content) {
               const fontSize = Math.max(Math.round(11 * zoomFactor), 9);
               (content as HTMLElement).style.fontSize = `${fontSize}px`;
+              // Ajustar cada linha individualmente para manter dentro do quadrado
+              const rows = marker.querySelectorAll('.delivery-marker-content .marker-row');
+              rows.forEach(row => {
+                (row as HTMLElement).style.fontSize = `${Math.max(fontSize - 1, 8)}px`;
+              });
             }
           });
         });
@@ -381,9 +384,9 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       })[0];
       
       // stopNumber = número da parada (orderNumber da planilha)
-      const stopNumber = Number(labelCandidate.orderNumber || (deliveries.findIndex(d => d.id === labelCandidate.id) + 1));
+      const stopNumber = Number(labelCandidate.orderNumber);
       // orderNumber = ordem de execução (sequence_number da planilha)
-      const orderNumber = labelCandidate.sequence_number || stopNumber;
+      const orderNumber = labelCandidate.sequence_number;
       const numericOrder = Number(orderNumber);
       
       // Logs mais claros: Paradas (orderNumber) e Ordens (sequence_number)
@@ -437,16 +440,16 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
       if (deliveriesAtLocation.length > 1) {
         // Múltiplas entregas - mostrar todas as paradas e ordens
         const infos = deliveriesAtLocation.map(d => {
-          const stop = d.orderNumber || (deliveries.findIndex(del => del.id === d.id) + 1);
-          const order = d.sequence_number || 'N/A';
+          const stop = d.orderNumber ?? '?';
+          const order = d.sequence_number ?? 'N/A';
           return `Parada ${stop} - Ordem ${order}`;
         }).join('<br>');
         popupInfo = `<div class="text-xs mb-2">${infos}</div>`;
       } else {
         // Entrega única - mostrar parada e ordem
         const d = deliveriesAtLocation[0];
-        const stop = d.orderNumber || (deliveries.findIndex(del => del.id === d.id) + 1);
-        const order = d.sequence_number || 'N/A';
+        const stop = d.orderNumber ?? '?';
+        const order = d.sequence_number ?? 'N/A';
         popupInfo = `<div class="text-xs mb-2">Parada ${stop} - Ordem ${order}</div>`;
       }
       
@@ -1271,11 +1274,28 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         .delivery-marker-content {
           transform: rotate(-45deg);
           display: flex;
+          flex-direction: column;
           align-items: center;
           justify-content: center;
           width: 100%;
           height: 100%;
+          padding: 1px;
+          gap: 0;
+          line-height: 1;
+          box-sizing: border-box;
           font-weight: 700;
+        }
+
+        /* Linhas do rótulo (Parada e Ordem) */
+        .delivery-marker-content .marker-row {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 50%;
+          width: 100%;
+          line-height: 1;
+          margin: 0;
+          padding: 0;
         }
         
         /* Marcador para múltiplas entregas - contorno laranja */

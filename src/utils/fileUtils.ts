@@ -164,9 +164,9 @@ export const mapFields = (headers: string[]) => {
     telefone: ['telefone', 'phone', 'tel', 'fone', 'celular', 'mobile', 'contato', 'whatsapp', 'numero', 'spx tn'],
     observacoes: ['observacoes', 'observações', 'notes', 'obs', 'observacao', 'observação', 
                   'comentários', 'comentarios', 'descrição', 'descricao', 'description'],
-    // Sequence (ordem) - incluindo variações específicas da planilha
-    sequence: ['sequence', 'sequencia', 'sequência', 'seq', 'sequence stop', 'ordem', 'order'],
-    // Stop (parada) - incluindo variações específicas da planilha
+    // Sequence (ordem) - NÃO incluir 'sequence stop' aqui para não confundir com 'stop'
+    sequence: ['sequence', 'sequencia', 'sequência', 'seq', 'ordem', 'order'],
+    // Stop (parada) - incluir 'sequence stop' como sinônimo
     stop: ['stop', 'parada', 'stp', 'sequence stop'],
     // Order synonyms (fallback)
     order: ['ordem', 'order', 'numero', 'número'],
@@ -205,8 +205,8 @@ export const mapFields = (headers: string[]) => {
       // Stop = número da parada
       mapping['stop'] = header;
     } else if (lowerHeader === 'sequence stop') {
-      // Fallback para planilhas antigas que usam "Sequence Stop"
-      mapping['sequence'] = header;
+      // Em planilhas com "Sequence Stop", tratar como número da parada (stop)
+      // Não mapear para 'sequence' para evitar duplicar o valor no campo de ordem
       mapping['stop'] = header;
     } else if (lowerHeader === 'spx tn') {
       mapping['telefone'] = header;
@@ -318,9 +318,8 @@ export const createDeliveryFromRow = (
   }
   
   // Se sequence_number não foi definido mas temos orderNumber, usar orderNumber
-  if (sequenceNumber === rowIndex + 1 && orderNumber !== rowIndex + 1) {
-    sequenceNumber = orderNumber;
-  }
+  // Removido ajuste que copiava orderNumber para sequenceNumber quando ausente,
+  // preservando a sequência real (ou fallback para índice da linha)
   
   // Criar um ID que inclui o número da ordem para facilitar a identificação
   const orderId = `ordem-${orderNumber}-${generateId()}`;
