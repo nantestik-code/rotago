@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.grok
+.claude
+.env
+.env.production
+.env.local
+*.zip
+image*.png
+"image copy.png"
+"image copy 2.png"
+"image copy 3.png"
+supabase/.temp
