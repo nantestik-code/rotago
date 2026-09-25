@@ -5,7 +5,7 @@ import {
   corsHeaders,
   getAuthenticatedContext,
   jsonResponse,
-} from '../_shared/mercadopago.ts';
+} from '../_shared/core.ts';
 import {
   activatePaidSubscription,
   asaasBaseUrl,
@@ -197,7 +197,7 @@ serve(async (req) => {
       }
 
       case 'get_admin_settings': {
-        await assertAdmin(user.id, user.email);
+        await assertAdmin(user.id);
         const settings = await getAsaasSettings();
         return jsonResponse({
           asaas_sandbox: settings.sandbox ? 'true' : 'false',
@@ -208,7 +208,7 @@ serve(async (req) => {
       }
 
       case 'save_admin_settings': {
-        await assertAdmin(user.id, user.email);
+        await assertAdmin(user.id);
         const upserts = [
           { key: 'asaas_sandbox', value: body.asaas_sandbox === 'false' ? 'false' : 'true' },
         ];
@@ -233,7 +233,7 @@ serve(async (req) => {
       }
 
       case 'test_admin_connection': {
-        await assertAdmin(user.id, user.email);
+        await assertAdmin(user.id);
         const settings = await getAsaasSettings();
         const apiKey = body.asaas_api_key || settings.apiKey;
         if (!apiKey) return jsonResponse({ error: 'API Key ausente' }, 400);
@@ -253,7 +253,7 @@ serve(async (req) => {
       }
 
       case 'admin_activate': {
-        await assertAdmin(user.id, user.email);
+        await assertAdmin(user.id);
         if (!body.subscriptionId) return jsonResponse({ error: 'subscriptionId obrigatorio' }, 400);
         const updated = await activatePaidSubscription({
           subscriptionId: body.subscriptionId,
@@ -263,7 +263,7 @@ serve(async (req) => {
       }
 
       case 'admin_sync': {
-        await assertAdmin(user.id, user.email);
+        await assertAdmin(user.id);
         if (!body.subscriptionId) return jsonResponse({ error: 'subscriptionId obrigatorio' }, 400);
         const { data: subscription } = await adminClient
           .from('user_subscriptions')

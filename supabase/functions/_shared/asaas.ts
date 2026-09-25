@@ -2,7 +2,7 @@ import {
   adminClient,
   calculatePeriodEnd,
   createPendingSubscription,
-} from './mercadopago.ts';
+} from './core.ts';
 
 export interface AsaasSettings {
   apiKey: string;

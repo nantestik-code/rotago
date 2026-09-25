@@ -79,7 +79,7 @@ export const generateTestLogs = () => {
 
   // Logs de pagamento
   logger.info('PAYMENT', 'Pagamento processado com sucesso', {
-    component: 'MercadoPagoService',
+    component: 'AsaasService',
     function: 'processSubscription',
     paymentId: 'mp_12345',
     amount: 29.90,
@@ -87,7 +87,7 @@ export const generateTestLogs = () => {
   });
 
   logger.error('PAYMENT', 'Falha no processamento do pagamento', {
-    component: 'MercadoPagoService',
+    component: 'AsaasService',
     function: 'processSubscription',
     error: 'Card declined',
     paymentId: 'mp_67890',

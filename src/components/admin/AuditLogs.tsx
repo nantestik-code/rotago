@@ -184,7 +184,7 @@ const AuditLogs = () => {
         details: { 
           amount: 49.90,
           method: 'credit_card',
-          gateway: 'mercado_pago' 
+          gateway: 'asaas' 
         },
         ip_address: '10.0.0.1',
         user_agent: 'System/1.0',

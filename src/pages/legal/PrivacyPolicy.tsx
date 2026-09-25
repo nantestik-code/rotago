@@ -82,7 +82,7 @@ const PrivacyPolicy = () => (
         items={[
           <><strong>Supabase</strong> — hospedagem do banco de dados e autenticação.</>,
           <><strong>Mapbox</strong> — mapas, geocodificação de endereços e cálculo de rotas.</>,
-          <><strong>Asaas</strong> e <strong>Mercado Pago</strong> — processamento de pagamentos e assinaturas.</>,
+          <><strong>Asaas</strong> — processamento de pagamentos e assinaturas.</>,
           <><strong>Resend</strong> — envio de e-mails transacionais.</>,
           <>Provedores de mensageria para o envio de notificações por <strong>WhatsApp</strong>.</>,
         ]}

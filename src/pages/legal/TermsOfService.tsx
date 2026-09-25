@@ -38,7 +38,7 @@ const TermsOfService = () => (
           'Oferecemos um período de teste gratuito de 7 dias, sem cobrança e sem necessidade de cartão para iniciar.',
           'Ao fim do teste, o acesso às funções pagas só continua com a contratação de um plano.',
           'A assinatura é mensal e renova automaticamente até que você cancele.',
-          'Os pagamentos são processados por Asaas e Mercado Pago. O RotaGo não armazena dados de cartão.',
+          'Os pagamentos são processados pela Asaas. O RotaGo não armazena dados de cartão.',
           'Preços podem mudar. Qualquer reajuste será comunicado com pelo menos 30 dias de antecedência e só vale para os ciclos seguintes.',
         ]}
       />

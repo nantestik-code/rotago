@@ -5,6 +5,17 @@ project_id = "dsmbytaxyknrmrxcjsww"
 verify_jwt = false
 
 [auth]
-# Site URL for redirects
-site_url = "http://localhost:3000"
+# URL base dos links de confirmacao de email e redefinicao de senha.
+# Estava em localhost:3000, o que quebrava esses links em producao.
+# Atencao: este arquivo vale para o ambiente local. Em producao o valor que
+# manda e o "Site URL" no painel do Supabase (Authentication > URL
+# Configuration), que precisa ser https://rotago.site.
+site_url = "https://rotago.site"
+additional_redirect_urls = [
+  "https://rotago.site/auth/callback",
+  "https://rotago.site/auth/reset-password",
+  "http://localhost:8080",
+  "http://localhost:8080/auth/callback",
+  "http://localhost:8080/auth/reset-password",
+]
 

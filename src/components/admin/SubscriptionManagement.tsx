@@ -65,7 +65,7 @@ interface SubscriptionPlan {
   features: string[];
   is_active: boolean;
   created_at: string;
-  mercadopago_plan_id?: string;
+  gateway_plan_id?: string;
 }
 
 interface UserSubscription {
@@ -1387,7 +1387,7 @@ const PlanDialog = ({
     duration_months: plan?.duration_months || 1,
     features: plan?.features?.join('\n') || '',
     is_active: plan?.is_active ?? true,
-    mercadopago_plan_id: plan?.mercadopago_plan_id || ''
+    gateway_plan_id: plan?.gateway_plan_id || ''
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1467,11 +1467,11 @@ const PlanDialog = ({
         </div>
         
         <div>
-          <Label htmlFor="mercadopago_plan_id">ID externo do plano (opcional)</Label>
+          <Label htmlFor="gateway_plan_id">ID externo do plano (opcional)</Label>
           <Input
-            id="mercadopago_plan_id"
-            value={formData.mercadopago_plan_id}
-            onChange={(e) => setFormData({ ...formData, mercadopago_plan_id: e.target.value })}
+            id="gateway_plan_id"
+            value={formData.gateway_plan_id}
+            onChange={(e) => setFormData({ ...formData, gateway_plan_id: e.target.value })}
           />
         </div>
 

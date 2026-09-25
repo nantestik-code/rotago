@@ -320,9 +320,9 @@ const SystemSettings = () => {
         },
         {
           id: '5',
-          key: 'mp_webhook_url',
-          value: 'https://rotago.site/api/webhooks/mercadopago',
-          description: 'URL do webhook do Mercado Pago',
+          key: 'asaas_webhook_url',
+          value: 'https://dsmbytaxyknrmrxcjsww.supabase.co/functions/v1/asaas-webhook',
+          description: 'URL do webhook da Asaas',
           category: 'payment',
           is_active: true
         },
@@ -421,7 +421,7 @@ const SystemSettings = () => {
           await new Promise(resolve => setTimeout(resolve, 3000));
           toast({
             title: "Pagamentos sincronizados",
-            description: "Sincronização com Mercado Pago concluída.",
+            description: "Sincronização com a Asaas concluída.",
           });
           break;
       }

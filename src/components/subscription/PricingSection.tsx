@@ -17,7 +17,7 @@ interface SubscriptionPlan {
   discount: number;
   total: string;
   is_active: boolean;
-  mercadopago_plan_id: string;
+  gateway_plan_id: string;
 }
 
 const PricingSection = () => {
@@ -96,7 +96,7 @@ const PricingSection = () => {
       discount: 0,
       total: '29.90',
       is_active: true,
-      mercadopago_plan_id: '2c9380849788f4e40197a261c7eb08c9'
+      gateway_plan_id: '2c9380849788f4e40197a261c7eb08c9'
     },
     {
       id: 'trimestral',
@@ -108,7 +108,7 @@ const PricingSection = () => {
       discount: 10,
       total: '80.70',
       is_active: true,
-      mercadopago_plan_id: '2c9380849788f4e40197a2f0374c090d'
+      gateway_plan_id: '2c9380849788f4e40197a2f0374c090d'
     },
     {
       id: 'semestral',
@@ -120,7 +120,7 @@ const PricingSection = () => {
       discount: 20,
       total: '143.40',
       is_active: true,
-      mercadopago_plan_id: '2c9380849788f4e40197a2f29a4c090e'
+      gateway_plan_id: '2c9380849788f4e40197a2f29a4c090e'
     },
     {
       id: 'anual',
@@ -132,7 +132,7 @@ const PricingSection = () => {
       discount: 33,
       total: '238.80',
       is_active: true,
-      mercadopago_plan_id: '2c938084979341770197a2f36199055c'
+      gateway_plan_id: '2c938084979341770197a2f36199055c'
     }
   ];
 

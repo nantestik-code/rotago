@@ -1,5 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { adminClient, corsHeaders, jsonResponse } from '../_shared/mercadopago.ts';
+import { adminClient, corsHeaders, jsonResponse } from '../_shared/core.ts';
 import { activatePaidSubscription, getAsaasSettings } from '../_shared/asaas.ts';
 
 // Comparacao em tempo constante, para o endpoint nao virar um oraculo que
