@@ -63,7 +63,7 @@ serve(async (req) => {
 
         const { data: plan, error: planError } = await adminClient
           .from('subscription_plans')
-          .select('id, name, description, total, price, frequency, frequency_type, is_active')
+          .select('id, name, description, total, price, promo_price, promo_cycles, frequency, frequency_type, is_active')
           .eq('id', body.planId)
           .eq('is_active', true)
           .maybeSingle();
@@ -85,10 +85,22 @@ serve(async (req) => {
           email: body.payerEmail || user.email || '',
         });
 
-        const value = Number(plan.total ?? plan.price ?? 0);
+        // Preco promocional nos primeiros ciclos. Quando o promo_cycles-esimo
+        // pagamento for confirmado, o webhook sobe o valor da assinatura na
+        // Asaas para o preco cheio.
+        const fullValue = Number(plan.total ?? plan.price ?? 0);
+        const promoCycles = Number(plan.promo_cycles ?? 0);
+        const promoValue = plan.promo_price != null ? Number(plan.promo_price) : null;
+        const usesPromo = promoCycles > 0 && promoValue != null && promoValue > 0;
+        const value = usesPromo ? promoValue : fullValue;
+
         const nextDue = new Date();
         nextDue.setDate(nextDue.getDate() + 1);
         const nextDueDate = nextDue.toISOString().slice(0, 10);
+
+        const itemDescription = usesPromo
+          ? `${plan.name} - RotaGo. R$ ${promoValue.toFixed(2)} nos ${promoCycles} primeiros meses, depois R$ ${fullValue.toFixed(2)}/mes.`
+          : (plan.description ?? plan.name);
 
         const checkout = await asaasFetch('/checkouts', {
           method: 'POST',
@@ -107,7 +119,7 @@ serve(async (req) => {
             items: [
               {
                 name: `${plan.name} - RotaGo`,
-                description: plan.description ?? plan.name,
+                description: itemDescription,
                 quantity: 1,
                 value,
               },

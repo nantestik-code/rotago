@@ -118,6 +118,44 @@ export async function deactivateOtherSubscriptions(userId: string, keepId: strin
     .eq('is_active', true);
 }
 
+/**
+ * Encerra o preco promocional quando os ciclos de promocao acabam.
+ *
+ * O plano cobra promo_price nos primeiros promo_cycles ciclos e depois o
+ * preco cheio. A Asaas nao tem "desconto nos N primeiros ciclos", entao a
+ * assinatura e criada no valor promocional e o valor e atualizado por aqui
+ * assim que o ultimo pagamento promocional e confirmado.
+ */
+async function endPromoIfDue(params: {
+  asaasSubscriptionId: string | null;
+  paidCycles: number;
+  promoCycles: number;
+  fullValue: number;
+  promoValue: number | null;
+}) {
+  const { asaasSubscriptionId, paidCycles, promoCycles, fullValue, promoValue } = params;
+
+  if (!asaasSubscriptionId) return;
+  if (promoCycles <= 0 || promoValue == null) return;
+  if (paidCycles < promoCycles) return;
+  if (!(fullValue > 0) || fullValue === promoValue) return;
+
+  try {
+    await asaasFetch(`/subscriptions/${asaasSubscriptionId}`, {
+      method: 'POST',
+      body: JSON.stringify({ value: fullValue, updatePendingPayments: true }),
+    });
+    console.log(
+      `[asaas] fim da promocao: assinatura ${asaasSubscriptionId} passou de ${promoValue} para ${fullValue} apos ${paidCycles} ciclos`,
+    );
+  } catch (err) {
+    // Nao derruba o processamento do pagamento: a cobranca foi recebida e a
+    // assinatura precisa ser ativada de qualquer forma. Fica registrado para
+    // ajuste manual.
+    console.error('[asaas] falha ao encerrar preco promocional', err);
+  }
+}
+
 export async function activatePaidSubscription(params: {
   subscriptionId: string;
   asaas: Record<string, unknown>;
@@ -125,7 +163,7 @@ export async function activatePaidSubscription(params: {
 }) {
   const { data: subscription, error } = await adminClient
     .from('user_subscriptions')
-    .select('id, user_id, plan_id, metadata, email, current_period_start, current_period_end, subscription_id')
+    .select('id, user_id, plan_id, metadata, email, current_period_start, current_period_end, subscription_id, paid_cycles')
     .eq('id', params.subscriptionId)
     .maybeSingle();
 
@@ -134,7 +172,7 @@ export async function activatePaidSubscription(params: {
 
   const { data: plan } = await adminClient
     .from('subscription_plans')
-    .select('id, frequency, frequency_type')
+    .select('id, frequency, frequency_type, price, total, promo_price, promo_cycles')
     .eq('id', subscription.plan_id)
     .maybeSingle();
 
@@ -156,6 +194,10 @@ export async function activatePaidSubscription(params: {
     },
   };
 
+  const paidCycles = Number(subscription.paid_cycles ?? 0) + 1;
+  const asaasSubscriptionId =
+    String(params.asaas.subscriptionId || subscription.subscription_id || '') || null;
+
   const { data: updated, error: updateError } = await adminClient
     .from('user_subscriptions')
     .update({
@@ -165,16 +207,26 @@ export async function activatePaidSubscription(params: {
       trial_ends_at: null,
       current_period_start: paidAt,
       current_period_end: periodEnd,
+      paid_cycles: paidCycles,
       external_id: String(params.asaas.subscriptionId || params.asaas.paymentId || params.asaas.checkoutId || ''),
-      subscription_id: String(params.asaas.subscriptionId || subscription.subscription_id || ''),
+      subscription_id: asaasSubscriptionId ?? '',
       metadata,
       updated_at: paidAt,
     })
     .eq('id', subscription.id)
-    .select('id, user_id, plan_id, status, is_active, current_period_start, current_period_end, external_id, subscription_id')
+    .select('id, user_id, plan_id, status, is_active, current_period_start, current_period_end, external_id, subscription_id, paid_cycles')
     .single();
 
   if (updateError) throw new Error(updateError.message);
+
+  await endPromoIfDue({
+    asaasSubscriptionId,
+    paidCycles,
+    promoCycles: Number(plan?.promo_cycles ?? 0),
+    fullValue: Number(plan?.total ?? plan?.price ?? 0),
+    promoValue: plan?.promo_price != null ? Number(plan.promo_price) : null,
+  });
+
   return updated;
 }
 
