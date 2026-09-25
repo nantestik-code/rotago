@@ -63,11 +63,12 @@ const SignUp = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Basic validation
-    if (!formData.fullName.trim()) {
+    // Nome e sobrenome. Mesma regra do banco (is_valid_full_name), para o
+    // erro aparecer antes de ir ao servidor.
+    if (!/^[\p{L}'.-]{2,}(\s+[\p{L}'.-]{2,})+$/u.test(formData.fullName.trim())) {
       smartToast({
         title: "Nome completo é obrigatório",
-        description: "Por favor, informe seu nome completo",
+        description: "Informe nome e sobrenome",
         variant: "destructive"
       });
       return;
@@ -93,12 +94,15 @@ const SignUp = () => {
       return;
     }
 
-    // Validação de telefone
+    // Validação de telefone. Precisa ser celular: o número é usado nas
+    // notificações por WhatsApp e serve de vínculo da conta, junto com o CPF.
+    // A mesma regra vale no banco (is_valid_phone), então aceitar fixo aqui
+    // só empurraria o erro para o servidor.
     const phoneClean = formData.phone.replace(/\D/g, '');
-    if (!phoneClean || phoneClean.length < 10) {
+    if (!/^[1-9][1-9]9[0-9]{8}$/.test(phoneClean)) {
       smartToast({
         title: "Telefone inválido",
-        description: "Por favor, informe um WhatsApp válido com DDD",
+        description: "Informe um celular com DDD, no formato (00) 90000-0000",
         variant: "destructive"
       });
       return;
@@ -168,7 +172,10 @@ const SignUp = () => {
         options: {
           data: {
             full_name: formData.fullName,
-            cpf: formData.cpf.replace(/[^0-9]/g, ''),
+            cpf: cpfClean,
+            // O gatilho handle_new_user cria o perfil a partir destes campos
+            // e recusa o cadastro se algum estiver invalido ou duplicado.
+            phone: phoneClean,
           },
           emailRedirectTo: `${window.location.origin}/app`,
         },
@@ -183,8 +190,37 @@ const SignUp = () => {
             description: "Este email já possui uma conta. Faça login ou use um email diferente.",
             variant: "destructive",
           });
+        } else if (error.message?.includes('CPF ja esta cadastrado') || error.message?.includes('profiles_cpf')) {
+          smartToast({
+            title: "CPF já cadastrado",
+            description: "Este CPF já possui uma conta. Faça login ou recupere sua senha.",
+            variant: "destructive",
+          });
+        } else if (error.message?.includes('telefone ja esta cadastrado') || error.message?.includes('profiles_phone')) {
+          smartToast({
+            title: "Telefone já cadastrado",
+            description: "Este número já possui uma conta. Faça login ou recupere sua senha.",
+            variant: "destructive",
+          });
+        } else if (error.message?.includes('Telefone celular invalido')) {
+          smartToast({
+            title: "Telefone inválido",
+            description: "Informe um celular com DDD, no formato (00) 90000-0000.",
+            variant: "destructive",
+          });
+        } else if (error.message?.includes('CPF invalido')) {
+          smartToast({
+            title: "CPF inválido",
+            description: "Confira os números do CPF.",
+            variant: "destructive",
+          });
+        } else if (error.message?.includes('nome completo')) {
+          smartToast({
+            title: "Nome incompleto",
+            description: "Informe nome e sobrenome.",
+            variant: "destructive",
+          });
         } else if (error.message?.includes('Database error saving new user') || error.status === 500) {
-          // Erro 500 geralmente indica problema de constraint no banco (CPF duplicado)
           smartToast({
             title: "Erro no cadastro",
             description: "Não foi possível completar o cadastro. Verifique se os dados estão corretos e tente novamente.",
@@ -198,66 +234,11 @@ const SignUp = () => {
           });
         }
       } else if (data.user) {
-        // Criar perfil do usuário na tabela profiles
-        try {
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .insert([
-              { 
-                id: data.user.id,
-                full_name: formData.fullName,
-                cpf: cpfClean,
-                phone: phoneClean,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              }
-            ]);
-
-          if (profileError) {
-            console.error('Erro ao criar perfil:', profileError);
-            
-            // Tratamento específico para CPF duplicado
-            if (profileError.code === '23505' || (profileError.message && (profileError.message.includes('profiles_cpf_unique') || profileError.message.includes('unique_cpf')))) {
-              // CPF duplicado é um erro crítico - precisamos desfazer o cadastro
-              
-              // Tentar remover o usuário criado no auth
-              try {
-                await supabase.auth.admin.deleteUser(data.user.id);
-              } catch (deleteError) {
-                console.error('Erro ao remover usuário:', deleteError);
-              }
-              
-              smartToast({
-                title: "CPF já cadastrado",
-                description: "Este CPF já está em uso por outra conta. Use um CPF diferente ou faça login na conta existente.",
-                variant: "destructive"
-              });
-              setIsLoading(false);
-              return;
-            }
-            
-            // Outros erros de perfil também são críticos
-            try {
-              await supabase.auth.admin.deleteUser(data.user.id);
-            } catch (deleteError) {
-              console.error('Erro ao remover usuário:', deleteError);
-            }
-            
-            smartToast({
-              title: "Erro no cadastro",
-              description: "Não foi possível completar o cadastro. Tente novamente.",
-              variant: "destructive"
-            });
-            setIsLoading(false);
-            return;
-          }
-          
-          // Trial não é criado automaticamente no cadastro.
-          // O usuário escolhe o plano na página de assinatura para ativar o trial.
-        } catch (err) {
-          console.error('Erro ao criar perfil:', err);
-          // Não bloquear o fluxo principal se falhar
-        }
+        // O perfil e criado pelo gatilho handle_new_user, a partir do metadata
+        // enviado acima. Antes havia um insert manual aqui, que colidia com o
+        // gatilho e fazia o cadastro acusar "CPF ja cadastrado" indevidamente.
+        // O rollback tambem tentava auth.admin.deleteUser, que exige
+        // service_role e sempre falhava no navegador.
 
         const isEmailConfirmationRequired = data.user.identities && data.user.identities.length > 0 && !data.user.email_confirmed_at;
 
