@@ -1,4 +1,28 @@
-# RotaFácil Turbo: instruções para o Claude
+# RotaGo: instruções para o Claude
+
+## Nomes do projeto: são todos a mesma coisa
+
+Este projeto aparece com nomes diferentes. **Não são projetos distintos:**
+
+| Onde | Nome |
+|---|---|
+| Pasta local | `D:\PROJETOS\rota-facil-turbo` (nome antigo) |
+| Produto e domínio | **RotaGo** — `rotago.site` |
+| Repositório e deploy (Coolify) | `github.com/nantestik-code/rotago` |
+| Projeto Supabase | `dsmbytaxyknrmrxcjsww`, apelidado **"entregas"** |
+
+O nome antigo era "RotaFácil Turbo". Ao encontrar `rota-facil-turbo`,
+`rotafacil`, `rotago` ou `entregas`, trate como este mesmo sistema.
+
+**Cuidado com dois vizinhos parecidos, que NÃO são este projeto:**
+
+- Projeto Supabase `nqhllklwjengfnqtkgce` — banco **antigo**, perdido. Ainda
+  aparece em `supabase/.temp/linked-project.json`, em builds antigos e no
+  histórico do Git. Nunca use.
+- Projeto Supabase `lbpcbgpbqmuhxhbbmlmq` ("Clini CRM OFICIAL") — outra conta,
+  sem relação nenhuma.
+- Remote `origin` (`github.com/brnantes/rota-facil-turbo`) — inacessível pela
+  conta `nantestik-code`. O remote em uso é o `coolify`.
 
 ## Banco de dados (Supabase): regra obrigatória
 
