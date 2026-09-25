@@ -266,7 +266,7 @@ const SignUp = () => {
             title: "Cadastro quase completo!",
             description: "Enviamos um link de confirmação para o seu email. Por favor, verifique sua caixa de entrada.",
           });
-          navigate('/login'); // Precisa confirmar email primeiro
+          navigate('/auth/login'); // Precisa confirmar email primeiro
         } else {
           smartToast({
             title: "Cadastro realizado com sucesso!",
@@ -412,7 +412,7 @@ const SignUp = () => {
             </Button>
             <p className="text-sm text-center text-gray-600">
               Já tem uma conta?{' '}
-              <Link to="/login" className="text-primary hover:underline">
+              <Link to="/auth/login" className="text-primary hover:underline">
                 Entrar
               </Link>
             </p>

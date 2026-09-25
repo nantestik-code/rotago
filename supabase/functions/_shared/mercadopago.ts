@@ -100,7 +100,13 @@ export async function getAuthenticatedContext(req: Request) {
   return { client, user };
 }
 
-export async function assertAdmin(userId: string, email: string | null | undefined) {
+const ADMIN_ROLES = ['admin', 'super_admin', 'moderator'];
+
+// Fonte unica de verdade para permissao administrativa: profiles.role.
+// A tabela `admins`, usada por uma versao anterior, nao existe neste banco.
+// O trigger profiles_prevent_role_escalation impede que o proprio usuario
+// eleve o seu role, entao confiar nesta coluna e seguro.
+export async function assertAdmin(userId: string, _email?: string | null) {
   const { data: profile, error: profileError } = await adminClient
     .from('profiles')
     .select('role')
@@ -111,27 +117,7 @@ export async function assertAdmin(userId: string, email: string | null | undefin
     throw new Error(`Falha ao validar perfil administrativo: ${profileError.message}`);
   }
 
-  if (profile && ['admin', 'super_admin', 'moderator'].includes(profile.role ?? '')) {
-    return;
-  }
-
-  const normalizedEmail = email?.trim().toLowerCase();
-  if (!normalizedEmail) {
-    throw new Error('Acesso negado');
-  }
-
-  const { data: adminRow, error: adminError } = await adminClient
-    .from('admins')
-    .select('role')
-    .eq('email', normalizedEmail)
-    .eq('is_active', true)
-    .maybeSingle();
-
-  if (adminError) {
-    throw new Error(`Falha ao validar admin: ${adminError.message}`);
-  }
-
-  if (!adminRow || !['admin', 'super_admin', 'moderator'].includes(adminRow.role ?? '')) {
+  if (!profile || !ADMIN_ROLES.includes(profile.role ?? '')) {
     throw new Error('Acesso negado');
   }
 }

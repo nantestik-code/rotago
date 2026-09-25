@@ -14,6 +14,7 @@ export interface AdminUser {
 
 const ADMIN_SESSION_KEY = 'rotago_admin_session';
 const ADMIN_AUTH_TYPE_KEY = 'adminAuthType';
+const ADMIN_ROLES: ReadonlyArray<AdminUser['role']> = ['admin', 'super_admin', 'moderator'];
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
@@ -60,34 +61,8 @@ export class AdminAuthService {
     });
 
     try {
-      const { data: adminData, error: adminError } = await supabase
-        .from('admins')
-        .select('*')
-        .eq('email', normalizedEmail)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (adminError) {
-        logger.error('DATABASE', 'Erro ao consultar tabela admins', {
-          component: 'AdminAuthService',
-          function: 'loginAdmin',
-          error: adminError,
-          data: { email: normalizedEmail },
-        });
-
-        return {
-          success: false,
-          error: 'Erro ao verificar credenciais administrativas',
-        };
-      }
-
-      if (!adminData) {
-        return {
-          success: false,
-          error: 'Email nao cadastrado como administrador',
-        };
-      }
-
+      // A senha e verificada primeiro. So depois de autenticado o banco
+      // aceita ler `profiles`, ja que o RLS agora exige sessao.
       const {
         data: { session: existingSession },
       } = await supabase.auth.getSession();
@@ -118,14 +93,47 @@ export class AdminAuthService {
         };
       }
 
+      // Permissao vem de profiles.role, protegido pelo trigger
+      // profiles_prevent_role_escalation. A tabela `admins` nao existe.
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, full_name, role, created_at, updated_at')
+        .eq('id', authData.user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        logger.error('DATABASE', 'Erro ao consultar perfil administrativo', {
+          component: 'AdminAuthService',
+          function: 'loginAdmin',
+          error: profileError,
+          data: { email: normalizedEmail },
+        });
+
+        await supabase.auth.signOut();
+        return {
+          success: false,
+          error: 'Erro ao verificar credenciais administrativas',
+        };
+      }
+
+      const role = profileData?.role as AdminUser['role'] | undefined;
+
+      if (!role || !ADMIN_ROLES.includes(role)) {
+        await supabase.auth.signOut();
+        return {
+          success: false,
+          error: 'Esta conta nao tem permissao administrativa',
+        };
+      }
+
       const adminUser: AdminUser = {
-        id: adminData.id,
-        email: adminData.email,
-        full_name: adminData.full_name,
-        role: adminData.role,
-        is_active: adminData.is_active,
-        created_at: adminData.created_at,
-        updated_at: adminData.updated_at,
+        id: profileData.id,
+        email: normalizedEmail,
+        full_name: profileData.full_name ?? normalizedEmail,
+        role,
+        is_active: true,
+        created_at: profileData.created_at ?? new Date().toISOString(),
+        updated_at: profileData.updated_at ?? new Date().toISOString(),
       };
 
       this.currentAdmin = adminUser;
@@ -133,11 +141,8 @@ export class AdminAuthService {
       localStorage.setItem(ADMIN_AUTH_TYPE_KEY, 'supabase');
 
       await supabase
-        .from('admins')
-        .update({
-          last_login_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
+        .from('profiles')
+        .update({ last_login: new Date().toISOString() })
         .eq('id', adminUser.id);
 
       logger.info('ADMIN', 'Login administrativo concluido', {
@@ -286,26 +291,38 @@ export class AdminAuthService {
     try {
       await this.ensureSupabaseAuth(this.currentAdmin.email);
 
-      const { data: adminData, error: adminError } = await supabase
-        .from('admins')
-        .select('*')
-        .eq('email', this.currentAdmin.email)
-        .eq('is_active', true)
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        await this.logoutAdmin();
+        return false;
+      }
+
+      // Rele o role direto do banco. O que esta no localStorage e so cache de
+      // UI: quem decide e o RLS, entao uma sessao forjada nao passa daqui.
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, full_name, role, created_at, updated_at')
+        .eq('id', user.id)
         .maybeSingle();
 
-      if (adminError || !adminData) {
+      const role = profileData?.role as AdminUser['role'] | undefined;
+
+      if (profileError || !role || !ADMIN_ROLES.includes(role)) {
         await this.logoutAdmin();
         return false;
       }
 
       this.currentAdmin = {
-        id: adminData.id,
-        email: adminData.email,
-        full_name: adminData.full_name,
-        role: adminData.role,
-        is_active: adminData.is_active,
-        created_at: adminData.created_at,
-        updated_at: adminData.updated_at,
+        id: profileData.id,
+        email: user.email ?? this.currentAdmin.email,
+        full_name: profileData.full_name ?? user.email ?? '',
+        role,
+        is_active: true,
+        created_at: profileData.created_at ?? this.currentAdmin.created_at,
+        updated_at: profileData.updated_at ?? this.currentAdmin.updated_at,
       };
 
       localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(this.currentAdmin));
@@ -323,45 +340,41 @@ export class AdminAuthService {
     }
   }
 
+  /**
+   * Promove um usuario ja cadastrado a um papel administrativo.
+   *
+   * A promocao acontece na RPC `promote_user_to_role`, que valida do lado do
+   * servidor se quem chama e super_admin. Antes esta funcao era um esqueleto
+   * que nao criava nada.
+   */
   async addAdmin(adminData: {
     email: string;
-    password: string;
-    full_name: string;
-    role: 'admin' | 'moderator';
+    role: 'admin' | 'moderator' | 'super_admin';
   }): Promise<{ success: boolean; error?: string }> {
-    if (!this.hasPermission('super_admin')) {
-      return {
-        success: false,
-        error: 'Apenas super administradores podem adicionar novos admins',
-      };
-    }
-
     const normalizedEmail = normalizeEmail(adminData.email);
-    const { data: existingAdmin, error } = await supabase
-      .from('admins')
-      .select('id')
-      .eq('email', normalizedEmail)
-      .maybeSingle();
+
+    const { error } = await supabase.rpc('promote_user_to_role', {
+      target_email: normalizedEmail,
+      new_role: adminData.role,
+    });
 
     if (error) {
-      return {
-        success: false,
-        error: 'Erro ao verificar admins existentes',
-      };
+      logger.error('ADMIN', 'Falha ao promover usuario a admin', {
+        component: 'AdminAuthService',
+        function: 'addAdmin',
+        error,
+        data: { email: normalizedEmail, role: adminData.role },
+      });
+
+      return { success: false, error: error.message };
     }
 
-    if (existingAdmin) {
-      return {
-        success: false,
-        error: 'Email ja esta em uso',
-      };
-    }
+    await this.logAdminAction(
+      'add_admin',
+      `Usuario ${normalizedEmail} promovido a ${adminData.role}`,
+    );
 
-    await this.logAdminAction('add_admin', `Novo admin adicionado: ${normalizedEmail}`);
-
-    return {
-      success: true,
-    };
+    return { success: true };
   }
 }
 

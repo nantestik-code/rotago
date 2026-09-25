@@ -54,14 +54,15 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
 
-    // Verificar se é admin
-    const { data: adminData } = await supabaseAdmin
-      .from('admins')
+    // Verificar se é admin. Fonte unica de verdade: profiles.role.
+    const { data: adminData, error: adminError } = await supabaseAdmin
+      .from('profiles')
       .select('id, role')
-      .eq('user_id', user.id)
-      .eq('is_active', true)
+      .eq('id', user.id)
+      .in('role', ['admin', 'super_admin', 'moderator'])
       .maybeSingle();
 
+    if (adminError) throw new Error(`Falha ao validar permissao: ${adminError.message}`);
     if (!adminData) throw new Error('Acesso negado: apenas admins podem disparar notificações');
 
     // ─── Action-based requests (settings management) ───────────────
@@ -401,7 +402,7 @@ Seu período de teste gratuito do *RotaFacil* expirou.
 
 🚚 Para continuar organizando suas rotas de entrega sem interrupções, ative seu plano agora:
 
-👉 https://rotafacil.com.br/subscription
+👉 https://rotago.site/subscription
 
 Escolha o plano que melhor se encaixa na sua operação. Se tiver dúvidas, é só responder essa mensagem!
 
@@ -417,7 +418,7 @@ Seu período de teste gratuito do *RotaFacil* vai expirar em *${timeLabel}*.
 
 Não perca o acesso às suas rotas! Assine agora e continue sem interrupções:
 
-👉 https://rotafacil.com.br/subscription
+👉 https://rotago.site/subscription
 
 Equipe RotaFacil 🗺️`;
 }

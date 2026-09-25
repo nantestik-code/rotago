@@ -206,29 +206,11 @@ const SubscriptionManagement = () => {
           userIds: userIds.length
         });
 
-        // Mapeamento de nomes conhecidos para garantir exibição correta
-        const knownProfiles = {
-          '71656963-c5fe-4fe5-8cff-f93fd5a984bd': { full_name: 'Anakesia Silva', email: 'anakesia.silva1994@gmail.com' },
-          'e7e817af-cf73-409c-a644-37e9bc3d1903': { full_name: 'Matheus Nether', email: 'matheusquoosnether@gmail.com' },
-          '4f1a6c13-b602-4bcd-b1a1-08dc0ba4355d': { full_name: 'Amanda Pinheiro', email: 'amandapinheirobhmg@gmail.com' },
-          '20c3fc85-e9e1-4b8a-bd52-8a86f341b2b4': { full_name: 'Rodrigo Gigorski', email: 'rodrygigorski@gmail.com' },
-          'ce98d22b-d6c3-4866-aa03-1154d6e62709': { full_name: 'Ary Broqua', email: 'arybroqua2024@gmail.com' },
-          '47eafbec-92c9-4a2e-ad0a-1fa28ebfc489': { full_name: 'Wellington Rodrigues', email: 'wellingtonrodrigues72@hotmail.com' },
-          '20a7caa3-feae-4745-8025-9687cfbb89bc': { full_name: 'Usuário Demo', email: 'tapiadina@hotmail.com' },
-          '61c4cf56-29c6-4b81-89b7-cd60c74b5b62': { full_name: 'Vitor Silva', email: 'vitor.silvavs022@gmail.com' },
-          '4308c16d-4f72-4c0a-9ab0-f18c43a43a77': { full_name: 'Evandro Romero', email: 'evandromromero@gmail.com' },
-          'ef2b885b-8e1d-4194-974a-67066ebcf29f': { full_name: 'Paulistano Silva', email: 'paulistano1953@gmail.com' },
-          '96d0c888-94d4-4509-9b5c-9d5f565196a6': { full_name: 'Diego Santos', email: 'diegu_18_@hotmail.com' },
-          '10239e6e-122b-4111-b16d-03ab39cb0197': { full_name: 'Denilson Silva', email: 'denilsondasilva2007@gmail.com' },
-          '375ca720-0066-4145-a88a-a37b882504b8': { full_name: 'Beatriz Rodrigues', email: 'beatrizgrodrigues.13@gmail.com' },
-          '5f72e25a-7d13-4729-88d2-2879ef1a38c1': { full_name: 'Contato GGG', email: 'contatoggg@gmail.com' },
-          '90251060-6de9-46e2-b67d-24ebc6d50788': { full_name: 'Jeferson Schonarth', email: 'jefersonschonarth1200@gmail.com' },
-          'c8cf3a1e-7f45-4056-9338-8e93055b8bf9': { full_name: 'Cristiane Viana', email: 'crisviana5169@gmail.com' },
-          'da725e1f-7fd9-4124-95e9-154af245c366': { full_name: 'Derek Lucca', email: 'derecklucca@gmail.com' },
-          'fd75fd86-24df-4d8a-84e2-39fcf49361dc': { full_name: 'Bruno Oliveira', email: 'brunotdeoliveira23@gmail.com' }
-        };
+        // Nao existe mais um mapa de perfis fixo no codigo. Havia aqui nome e
+        // email de 18 clientes reais, que iam para o bundle JS servido a
+        // qualquer visitante. Os dados vem do banco, protegidos por RLS.
 
-        // Tentar buscar perfis do banco primeiro
+        // Buscar perfis do banco
         let profilesData = [];
         let profilesError = null;
         
@@ -256,21 +238,10 @@ const SubscriptionManagement = () => {
           });
         }
 
-        // Combinar dados de assinaturas com perfis (do banco ou fallback)
+        // Combinar dados de assinaturas com perfis do banco
         subscriptionsWithProfiles = subscriptionsData.map(subscription => {
-          // Tentar encontrar perfil no banco primeiro
           let profile = profilesData.find(p => p.id === subscription.user_id);
-          
-          // Se não encontrou no banco, usar dados conhecidos como fallback
-          if (!profile && knownProfiles[subscription.user_id]) {
-            profile = {
-              id: subscription.user_id,
-              full_name: knownProfiles[subscription.user_id].full_name,
-              cpf: null
-            };
-          }
-          
-          // Se ainda não tem perfil, criar um genérico
+
           if (!profile) {
             profile = {
               id: subscription.user_id,
@@ -278,12 +249,9 @@ const SubscriptionManagement = () => {
               cpf: null
             };
           }
-          
-          // Adicionar email
-          const email = knownProfiles[subscription.user_id]?.email || 
-                       subscription.email || 
-                       `user-${subscription.user_id.substring(0, 8)}@rotafacil.com`;
-          
+
+          const email = subscription.email || '—';
+
           return {
             ...subscription,
             profiles: {
@@ -298,7 +266,7 @@ const SubscriptionManagement = () => {
           function: 'fetchData',
           totalSubscriptions: subscriptionsWithProfiles.length,
           profilesFromDB: profilesData.length,
-          knownProfilesUsed: Object.keys(knownProfiles).filter(id => userIds.includes(id)).length,
+          profilesMissing: userIds.length - profilesData.length,
           sampleData: subscriptionsWithProfiles.slice(0, 2).map(s => ({
             user_id: s.user_id.substring(0, 8),
             profile_name: s.profiles?.full_name,

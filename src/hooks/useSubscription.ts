@@ -301,60 +301,24 @@ export const useSubscription = () => {
 
 
 
-  const activateTrial = async (planId: string) => {
+  /**
+   * Ativa o periodo de teste.
+   *
+   * A criacao acontece na funcao `activate_trial` do banco. Antes o navegador
+   * inseria a linha direto, escolhendo a propria data de expiracao, e a regra
+   * de "um trial por usuario" era so no cliente. Agora o servidor decide.
+   */
+  const activateTrial = async (planId?: string) => {
     if (!user) throw new Error('Usuário não autenticado');
 
-    // Verificar se o usuário já teve algum trial antes (ativo ou expirado)
-    const { data: previousTrials, error: trialCheckError } = await supabase
-      .from('user_subscriptions')
-      .select('id, is_trial, status')
-      .eq('user_id', user.id)
-      .eq('is_trial', true);
-
-    if (trialCheckError) {
-      console.error('Erro ao verificar trials anteriores:', trialCheckError);
-      throw new Error('Erro ao verificar histórico de trial');
-    }
-
-    // Se já teve trial (ativo ou expirado), não permitir reativar
-    if (previousTrials && previousTrials.length > 0) {
-      throw new Error('Você já utilizou seu período de teste gratuito. Assine um plano para continuar.');
-    }
-
-    // Buscar duração do trial configurada pelo admin
-    let trialDays = 7;
-    try {
-      const { data } = await supabase
-        .from('system_settings')
-        .select('value')
-        .eq('key', 'trial_duration_days')
-        .maybeSingle();
-      if (data?.value) trialDays = parseInt(data.value, 10) || 7;
-    } catch {
-      // fallback 7 dias
-    }
-
-    const now = new Date();
-    const trialEnd = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
-
-    const trialData = {
+    trackSubscriptionCreation('USESUBSCRIPTION.TS - activateTrial', {
       user_id: user.id,
       plan_id: planId,
-      status: 'trial',
-      is_active: true,
-      is_trial: true,
-      trial_ends_at: trialEnd.toISOString(),
-      current_period_start: now.toISOString(),
-      current_period_end: trialEnd.toISOString(),
-    };
+    });
 
-    trackSubscriptionCreation('USESUBSCRIPTION.TS - activateTrial', trialData);
-
-    const { data, error } = await supabase
-      .from('user_subscriptions')
-      .insert(trialData)
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc('activate_trial', {
+      target_plan_id: planId ?? null,
+    });
 
     if (error) throw error;
 

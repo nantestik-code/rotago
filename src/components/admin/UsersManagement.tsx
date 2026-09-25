@@ -277,14 +277,27 @@ const UsersManagement = () => {
     }
   };
 
+  // Admins sao perfis com role administrativo. Nao existe tabela `admins`.
   const fetchAdmins = async () => {
     try {
       const { data, error } = await supabaseAdmin
-        .from('admins')
-        .select('*')
+        .from('profiles')
+        .select('id, full_name, role, created_at, updated_at')
+        .in('role', ['admin', 'super_admin', 'moderator'])
         .order('created_at', { ascending: false });
       if (error) throw error;
-      setAdmins(data || []);
+
+      setAdmins(
+        (data || []).map((p: any) => ({
+          id: p.id,
+          email: '',
+          full_name: p.full_name ?? '',
+          role: p.role,
+          is_active: true,
+          created_at: p.created_at,
+          updated_at: p.updated_at,
+        })) as AdminRecord[]
+      );
     } catch (error: any) {
       console.error('Erro ao buscar admins:', error);
     }
@@ -348,9 +361,11 @@ const UsersManagement = () => {
     try {
       setIsDeleting(true);
 
+      // Rebaixa para usuario comum em vez de apagar: a conta continua
+      // existindo, so perde o acesso administrativo.
       const { error } = await supabaseAdmin
-        .from('admins')
-        .delete()
+        .from('profiles')
+        .update({ role: 'user', updated_at: new Date().toISOString() })
         .eq('id', adminRecord.id);
 
       if (error) throw error;
@@ -405,23 +420,7 @@ const UsersManagement = () => {
         }
       });
 
-      // 1. Verificar se já existe um admin ou perfil com este email
-      const { data: existingAdmin } = await supabaseAdmin
-        .from('admins')
-        .select('id')
-        .eq('email', newAdminData.email)
-        .maybeSingle();
-
-      if (existingAdmin) {
-        logger.error('AUTH', 'Erro ao criar admin - email já existe na tabela admins', {
-          component: 'UsersManagement',
-          function: 'createAdmin',
-          error: new Error('Email já cadastrado como admin')
-        });
-        throw new Error('Já existe um administrador com este email');
-      }
-
-      // 2. Criar usuário no Supabase Auth
+      // 1. Criar usuário no Supabase Auth
       const { data: authData, error: authCreateError } = await supabaseAdmin.auth.signUp({
         email: newAdminData.email,
         password: newAdminData.password,
@@ -452,48 +451,38 @@ const UsersManagement = () => {
         data: { userId: authData.user.id }
       });
 
-      // 3. Criar perfil na tabela profiles
-      const { data: profiles, error } = await supabaseAdmin
+      // 2. O trigger handle_new_user ja criou o perfil. Ajustar o nome.
+      const { error } = await supabaseAdmin
         .from('profiles')
-        .insert({
-          id: authData.user.id,
+        .update({
           full_name: newAdminData.full_name,
-          role: newAdminData.role,
-          is_early_adopter: true, // Admins são early adopters
-          created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
-        });
+        })
+        .eq('id', authData.user.id);
 
       if (error) {
-        logger.error('DATABASE', 'Erro ao criar perfil do admin', {
+        logger.error('DATABASE', 'Erro ao atualizar perfil do admin', {
           component: 'UsersManagement',
-          function: 'createAdmin', 
+          function: 'createAdmin',
           error: error
         });
         throw error;
       }
 
-      // 4. Criar entrada na tabela admins
-      const { error: adminError } = await supabaseAdmin
-        .from('admins')
-        .insert({
-          id: authData.user.id,
-          email: newAdminData.email,
-          full_name: newAdminData.full_name,
-          role: newAdminData.role,
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
+      // 3. Conceder o papel administrativo. A RPC valida no servidor que quem
+      // chama e super_admin; o role nao pode ser gravado direto pelo cliente.
+      const { error: roleError } = await supabaseAdmin.rpc('promote_user_to_role', {
+        target_email: newAdminData.email,
+        new_role: newAdminData.role
+      });
 
-      if (adminError) {
-        logger.error('DATABASE', 'Erro ao criar entrada na tabela admins', {
+      if (roleError) {
+        logger.error('DATABASE', 'Erro ao conceder papel administrativo', {
           component: 'UsersManagement',
           function: 'createAdmin',
-          error: adminError
+          error: roleError
         });
-        // Não falhar aqui, pois o usuário já foi criado
-        console.warn('⚠️ Admin criado mas não foi possível adicionar à tabela admins:', adminError);
+        throw new Error(`Conta criada, mas sem permissao de admin: ${roleError.message}`);
       }
 
       logger.info('ADMIN', 'Administrador criado com sucesso', {

@@ -17,12 +17,28 @@ const ResetPassword = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // Redirect if already authenticated
+  // O link de recuperacao do Supabase ja abre uma sessao. Sem esta checagem,
+  // `isAuthenticated` vira true e a pessoa era mandada para /app antes de
+  // conseguir digitar a nova senha, tornando a recuperacao inutilizavel.
+  // A deteccao roda uma vez no mount porque o SDK limpa o hash da URL logo
+  // depois de consumir o token.
+  const [isRecoveryFlow] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const hash = window.location.hash ?? '';
+    const search = window.location.search ?? '';
+    return (
+      hash.includes('type=recovery') ||
+      search.includes('type=recovery') ||
+      hash.includes('access_token') ||
+      search.includes('code=')
+    );
+  });
+
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !isRecoveryFlow) {
       navigate('/app', { replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, isRecoveryFlow, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
