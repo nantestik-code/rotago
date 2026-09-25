@@ -144,7 +144,7 @@ export const UpdateNotification: React.FC<UpdateNotificationProps> = ({ classNam
               </div>
 
               <p className="text-sm text-gray-600 mb-4">
-                {updateInfo.message || 'Uma nova versão do RotaFacil Turbo está disponível!'}
+                {updateInfo.message || 'Uma nova versão do RotaGo está disponível!'}
               </p>
 
               <div className="flex gap-2">

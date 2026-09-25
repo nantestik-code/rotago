@@ -289,5 +289,5 @@ export const exportToCSV = (deliveries: DeliveryItem[]): void => {
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Entregas');
   
-  XLSX.writeFile(workbook, `RotaFacil_Exportacao_${new Date().toISOString().split('T')[0]}.xlsx`);
+  XLSX.writeFile(workbook, `RotaGo_Exportacao_${new Date().toISOString().split('T')[0]}.xlsx`);
 };

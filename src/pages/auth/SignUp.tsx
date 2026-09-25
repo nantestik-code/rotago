@@ -251,7 +251,7 @@ const SignUp = () => {
         } else {
           smartToast({
             title: "Cadastro realizado com sucesso!",
-            description: "Bem-vindo ao RotaFacil! Você será redirecionado para o app.",
+            description: "Bem-vindo ao RotaGo! Você será redirecionado para o app.",
           });
 
           navigate('/app'); // Redireciona direto para o app
@@ -287,14 +287,14 @@ const SignUp = () => {
 
       <div className="flex items-center mb-8">
         <Truck className="h-10 w-10 text-primary mr-2" />
-        <span className="text-3xl font-bold">RotaFacil</span>
+        <span className="text-3xl font-bold">RotaGo</span>
       </div>
 
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-2xl text-center">Crie sua conta</CardTitle>
           <CardDescription className="text-center">
-            Entre com seus dados para começar a usar o RotaFacil gratuitamente.
+            Entre com seus dados para começar a usar o RotaGo gratuitamente.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>

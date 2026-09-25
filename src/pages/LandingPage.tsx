@@ -181,7 +181,7 @@ const LandingPage = () => {
               Conheça nosso sistema na prática
             </h2>
             <p className="mt-3 text-xl text-gray-600 max-w-3xl mx-auto">
-              Veja como o RotaFacil funciona e como ele pode otimizar suas entregas
+              Veja como o RotaGo funciona e como ele pode otimizar suas entregas
             </p>
           </div>
           
@@ -343,7 +343,7 @@ const LandingPage = () => {
               Transforme sua logística
             </h2>
             <p className="mt-3 text-xl text-gray-600 max-w-3xl mx-auto">
-              Usuários do RotaFacil relatam melhorias significativas em suas operações
+              Usuários do RotaGo relatam melhorias significativas em suas operações
             </p>
           </div>
           

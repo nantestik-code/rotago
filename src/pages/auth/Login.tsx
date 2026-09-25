@@ -286,7 +286,7 @@ const Login = () => {
         <CardHeader>
           <CardTitle className="text-2xl text-center">Entrar</CardTitle>
           <CardDescription className="text-center">
-            Acesse sua conta do RotaFacil
+            Acesse sua conta do RotaGo
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>

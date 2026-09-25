@@ -43,7 +43,7 @@ export default function RouteHistoryPage() {
   return (
     <>
       <Helmet>
-        <title>Histórico de Rotas | RotaFacil</title>
+        <title>Histórico de Rotas | RotaGo</title>
       </Helmet>
       
       <div className="container mx-auto p-4">

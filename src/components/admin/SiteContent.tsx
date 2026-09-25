@@ -61,7 +61,7 @@ const SiteContent = () => {
         {
           id: "demo-1",
           title: "Banner Principal",
-          content: "Rota Fácil - Otimize suas entregas com a melhor ferramenta do mercado!",
+          content: "RotaGo - Otimize suas entregas com a melhor ferramenta do mercado!",
           type: "banner",
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -96,7 +96,7 @@ const SiteContent = () => {
         {
           id: "fallback-1",
           title: "Banner Principal",
-          content: "Rota Fácil - Otimize suas entregas com a melhor ferramenta do mercado!",
+          content: "RotaGo - Otimize suas entregas com a melhor ferramenta do mercado!",
           type: "banner",
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()

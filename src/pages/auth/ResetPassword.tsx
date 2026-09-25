@@ -103,7 +103,7 @@ const ResetPassword = () => {
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex flex-col items-center justify-center p-4">
       <div className="flex items-center mb-8">
         <Truck className="h-10 w-10 text-primary mr-2" />
-        <span className="text-3xl font-bold">RotaFacil</span>
+        <span className="text-3xl font-bold">RotaGo</span>
       </div>
       
       <Card className="w-full max-w-md">
