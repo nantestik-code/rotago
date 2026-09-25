@@ -1,8 +1,18 @@
-
-import { useState, useCallback, useEffect } from 'react';
-import { MapPosition, getCurrentPosition, watchPosition, stopWatchingPosition, calculateDistance } from '@/utils/mapUtils';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  MapPosition,
+  calculateDistance,
+  getCurrentPosition,
+  stopWatchingPosition,
+  watchPosition,
+} from '@/utils/mapUtils';
 import { toast } from '@/components/ui/use-toast';
 import { DeliveryItem } from '@/utils/deliveryUtils';
+
+type DeliveryDistance = {
+  delivery: DeliveryItem;
+  distance: number;
+};
 
 export function useLocationTracking(
   deliveries: DeliveryItem[],
@@ -12,129 +22,194 @@ export function useLocationTracking(
   const [isTrackingActive, setIsTrackingActive] = useState(false);
   const [watchId, setWatchId] = useState<number | null>(null);
 
-  // Função interna para iniciar rastreamento sem toast
+  const deliveriesRef = useRef<DeliveryItem[]>(deliveries);
+  const isTrackingActiveRef = useRef(false);
+  const watchIdRef = useRef<number | null>(null);
+  const lastProximityDeliveryIdRef = useRef<string | null>(null);
+  const lastProximityToastAtRef = useRef(0);
+  const pendingSignatureRef = useRef('');
+  const shouldAutoSelectNearestRef = useRef(true);
+
+  useEffect(() => {
+    deliveriesRef.current = deliveries;
+  }, [deliveries]);
+
+  useEffect(() => {
+    watchIdRef.current = watchId;
+  }, [watchId]);
+
+  useEffect(() => {
+    isTrackingActiveRef.current = isTrackingActive;
+  }, [isTrackingActive]);
+
+  const getPendingDeliveriesByDistance = useCallback((position: MapPosition): DeliveryDistance[] => {
+    return deliveriesRef.current
+      .filter(delivery => delivery.status === 'pendente' && delivery.lat != null && delivery.lng != null)
+      .map(delivery => ({
+        delivery,
+        distance: calculateDistance(position.lat, position.lng, delivery.lat!, delivery.lng!),
+      }))
+      .sort((a, b) => a.distance - b.distance);
+  }, []);
+
+  const selectNearestPendingDelivery = useCallback(
+    (position: MapPosition) => {
+      if (!shouldAutoSelectNearestRef.current) return;
+
+      const nearestPendingDelivery = getPendingDeliveriesByDistance(position)[0];
+      if (!nearestPendingDelivery) return;
+
+      shouldAutoSelectNearestRef.current = false;
+      lastProximityDeliveryIdRef.current = nearestPendingDelivery.delivery.id;
+      onDeliveryProximity(nearestPendingDelivery.delivery.id);
+    },
+    [getPendingDeliveriesByDistance, onDeliveryProximity]
+  );
+
+  useEffect(() => {
+    const pendingSignature = deliveries
+      .filter(delivery => delivery.status === 'pendente')
+      .map(delivery => delivery.id)
+      .sort()
+      .join('|');
+
+    if (pendingSignature === pendingSignatureRef.current) {
+      return;
+    }
+
+    pendingSignatureRef.current = pendingSignature;
+    shouldAutoSelectNearestRef.current = pendingSignature.length > 0;
+    lastProximityDeliveryIdRef.current = null;
+
+    if (currentLocation) {
+      selectNearestPendingDelivery(currentLocation);
+    }
+  }, [currentLocation, deliveries, selectNearestPendingDelivery]);
+
+  const handlePositionUpdate = useCallback(
+    (position: MapPosition) => {
+      setCurrentLocation(position);
+
+      selectNearestPendingDelivery(position);
+
+      const nearestNearbyDelivery = getPendingDeliveriesByDistance(position).find(
+        entry => entry.distance <= 100
+      );
+
+      if (!nearestNearbyDelivery) {
+        return;
+      }
+
+      const { delivery, distance } = nearestNearbyDelivery;
+      const now = Date.now();
+      const hasSelectionChanged = lastProximityDeliveryIdRef.current !== delivery.id;
+      const shouldNotify = hasSelectionChanged || now - lastProximityToastAtRef.current > 15000;
+
+      if (hasSelectionChanged) {
+        lastProximityDeliveryIdRef.current = delivery.id;
+        onDeliveryProximity(delivery.id);
+      }
+
+      if (!shouldNotify) {
+        return;
+      }
+
+      lastProximityToastAtRef.current = now;
+
+      if ('Notification' in window) {
+        if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+          Notification.requestPermission();
+        }
+
+        if (Notification.permission === 'granted') {
+          new Notification('Entrega proxima!', {
+            body: `Voce esta a ${Math.round(distance)}m de: ${delivery.cliente}`,
+            icon: '/favicon.ico',
+          });
+        }
+      }
+
+      toast({
+        title: 'Entrega proxima!',
+        description: `Voce esta a ${Math.round(distance)}m de: ${delivery.cliente}`,
+      });
+    },
+    [getPendingDeliveriesByDistance, onDeliveryProximity, selectNearestPendingDelivery]
+  );
+
   const startTrackingInternal = useCallback(() => {
-    if (isTrackingActive) return;
-    
+    if (isTrackingActiveRef.current) return;
+
     const id = watchPosition(
-      (position) => {
-        setCurrentLocation(position);
-        
-        // Check proximity to deliveries
-        deliveries.forEach(delivery => {
-          if (delivery.status === 'pendente' && delivery.lat && delivery.lng && position) {
-            const distance = calculateDistance(
-              position.lat, 
-              position.lng, 
-              delivery.lat, 
-              delivery.lng
-            );
-            
-            // Notify when within 100 meters of a delivery
-            if (distance <= 100) {
-              // Check if browser supports notifications
-              if ('Notification' in window) {
-                // Request permission if not granted
-                if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
-                  Notification.requestPermission();
-                }
-                
-                // Show notification if permission granted
-                if (Notification.permission === 'granted') {
-                  new Notification('Entrega próxima!', {
-                    body: `Você está a ${Math.round(distance)}m de: ${delivery.cliente}`,
-                    icon: '/favicon.ico'
-                  });
-                }
-              }
-              
-              toast({
-                title: 'Entrega próxima!',
-                description: `Você está a ${Math.round(distance)}m de: ${delivery.cliente}`,
-              });
-              
-              onDeliveryProximity(delivery.id);
-            }
-          }
-        });
-      },
-      (error) => {
+      handlePositionUpdate,
+      error => {
         console.error('Error watching position:', error);
         setIsTrackingActive(false);
+        isTrackingActiveRef.current = false;
       }
     );
-    
+
     if (id !== null) {
       setWatchId(id);
       setIsTrackingActive(true);
+      isTrackingActiveRef.current = true;
     }
-  }, [deliveries, isTrackingActive, onDeliveryProximity]);
+  }, [handlePositionUpdate]);
 
-  // Initialize location and start automatic tracking
   useEffect(() => {
     const init = async () => {
       try {
         const position = await getCurrentPosition();
         setCurrentLocation(position);
-        
-        // Iniciar rastreamento automaticamente após obter a localização inicial
-        if (!isTrackingActive) {
-          startTrackingInternal();
-        }
+        selectNearestPendingDelivery(position);
+        startTrackingInternal();
       } catch (error) {
-        console.error('Error getting current position:', error);
-        toast({
-          title: 'Erro de localização',
-          description: 'Não foi possível obter sua localização atual.',
-          variant: 'destructive',
-        });
+        setCurrentLocation(null);
       }
     };
 
     init();
-  }, [startTrackingInternal, isTrackingActive]);
+  }, [selectNearestPendingDelivery, startTrackingInternal]);
 
-  // Start location tracking (now just calls internal function with toast)
   const startTracking = useCallback(() => {
     if (isTrackingActive) return;
-    
+
     startTrackingInternal();
-    
+
     if (!isTrackingActive) {
       toast({
         title: 'Rastreamento iniciado',
-        description: 'Sua localização está sendo monitorada em tempo real.',
+        description: 'Sua localizacao esta sendo monitorada em tempo real.',
       });
     }
-  }, [startTrackingInternal, isTrackingActive]);
+  }, [isTrackingActive, startTrackingInternal]);
 
-  // Stop location tracking
   const stopTracking = useCallback(() => {
     if (!isTrackingActive) return;
-    
+
     stopWatchingPosition(watchId);
     setIsTrackingActive(false);
     setWatchId(null);
-    
+    isTrackingActiveRef.current = false;
+
     toast({
       title: 'Rastreamento parado',
-      description: 'O monitoramento de localização foi interrompido.',
+      description: 'O monitoramento de localizacao foi interrompido.',
     });
   }, [isTrackingActive, watchId]);
 
-  // Clean up on unmount
   useEffect(() => {
     return () => {
-      if (watchId !== null) {
-        stopWatchingPosition(watchId);
+      if (watchIdRef.current !== null) {
+        stopWatchingPosition(watchIdRef.current);
       }
     };
-  }, [watchId]);
+  }, []);
 
   return {
     currentLocation,
     isTrackingActive,
     startTracking,
-    stopTracking
+    stopTracking,
   };
 }

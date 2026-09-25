@@ -40,11 +40,19 @@ export interface UserSubscription {
 export const useSubscription = () => {
   const [subscription, setSubscription] = useState<UserSubscription | null>(null);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [plansLoading, setPlansLoading] = useState(true);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
 
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 30000);
 
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   // useEffect separado para planos (executa apenas uma vez)
   useEffect(() => {
@@ -55,148 +63,134 @@ export const useSubscription = () => {
 
   // useEffect para assinatura do usuário
   useEffect(() => {
-    if (user && !subscription) {
-      setLoading(true);
+    if (user) {
       fetchUserSubscription();
+      return;
     }
+
+    setSubscription(null);
+    setSubscriptionLoading(false);
   }, [user?.id]);
 
   // useEffect para verificar expiração (executa apenas quando subscription muda)
+  // FIX #7: adicionar .catch() para evitar unhandled promise rejection quando offline
   useEffect(() => {
     if (!subscription) return;
+
+    const now = new Date(currentTime);
 
     // Atualiza status para 'expired' se trial expirou
     if (
       subscription.is_trial &&
       subscription.trial_ends_at &&
-      new Date(subscription.trial_ends_at) < new Date() &&
+      new Date(subscription.trial_ends_at) < now &&
       subscription.status !== 'expired'
     ) {
-      updateSubscriptionStatus('expired');
+      updateSubscriptionStatus('expired').catch(e =>
+        console.error('Falha ao expirar trial (offline?):', e)
+      );
     }
 
-    // Atualiza status para 'expired' se pagamento pendente há mais de 3 dias
+    // Atualiza status para 'expired' se pagamento pendente e período expirou
     if (
       subscription.status === 'pending_payment' &&
       subscription.current_period_end &&
-      new Date(subscription.current_period_end) < new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+      new Date(subscription.current_period_end) < now
     ) {
-      updateSubscriptionStatus('expired');
+      updateSubscriptionStatus('expired').catch(e =>
+        console.error('Falha ao expirar pending_payment (offline?):', e)
+      );
     }
-  }, [subscription?.id, subscription?.status]);
+
+    // Atualiza status para 'expired' se assinatura paga e período expirou
+    if (
+      subscription.status === 'active' &&
+      subscription.is_active &&
+      !subscription.is_trial &&
+      subscription.current_period_end &&
+      new Date(subscription.current_period_end) < now
+    ) {
+      updateSubscriptionStatus('expired').catch(e =>
+        console.error('Falha ao expirar assinatura paga (offline?):', e)
+      );
+    }
+  }, [currentTime, subscription?.id, subscription?.status, subscription?.trial_ends_at, subscription?.current_period_end]);
 
   // Timeout apenas para planos se necessário (sem forçar fim do loading)
   useEffect(() => {
     const timeout = setTimeout(() => {
-      if (loading && plans.length === 0) {
+      if (plansLoading && plans.length === 0) {
         console.warn('Timeout para planos - usando mock');
         setPlans(getMockPlans());
+        setPlansLoading(false);
       }
     }, 15000); // 15 segundos apenas para planos
 
     return () => clearTimeout(timeout);
-  }, [loading, plans.length]);
+  }, [plansLoading, plans.length]);
 
   // Removido fallback rápido para dados mock - agora usando trial automático do banco
-
-  // Buscar planos na inicialização (independente de autenticação)
-  useEffect(() => {
-    fetchPlans();
-  }, []);
+  // FIX #3: segundo useEffect de fetchPlans() removido — era duplicado do de linha 50
+  // e causava race condition (ambos disparavam antes do setState atualizar plans.length)
 
   const fetchUserSubscription = async () => {
-    if (!user) return;
+    if (!user) {
+      setSubscription(null);
+      setSubscriptionLoading(false);
+      return;
+    }
+
+    setSubscriptionLoading(true);
 
     try {
-      // 🔍 BUSCA PRINCIPAL: Buscar assinatura ativa (trial ou paga)
-      let { data, error } = await supabase
+      const { data: rows, error } = await supabase
         .from('user_subscriptions')
         .select(`
           *,
           plan:subscription_plans(*)
         `)
         .eq('user_id', user.id)
-        .eq('is_active', true)
         .order('created_at', { ascending: false })
-        .maybeSingle();
+        .limit(20);
 
       if (error && error.code !== 'PGRST116') {
         console.error('Erro ao buscar assinatura:', error);
         setSubscription(null);
-        setLoading(false);
         return;
       }
 
-      // Se encontrou uma assinatura, validar se ainda está válida
-      if (data) {
-        const now = new Date();
-        let isValid = false;
+      const now = Date.now();
+      const list = rows ?? [];
+      const pick = list.find((row) => {
+        if (row.is_trial && row.trial_ends_at && new Date(row.trial_ends_at).getTime() > now) return true;
+        if (row.status === 'active' && row.is_active) {
+          if (!row.current_period_end) return true;
+          return new Date(row.current_period_end).getTime() > now;
+        }
+        return false;
+      }) ?? list.find((row) => {
+        if (row.status !== 'pending_payment') return false;
+        const created = new Date(row.created_at || row.updated_at || 0).getTime();
+        return now - created < 15 * 60 * 1000;
+      }) ?? null;
 
-        // Verificar se é trial ativo
-        if (data.is_trial && data.trial_ends_at) {
-          isValid = new Date(data.trial_ends_at) > now;
-        }
-        
-        // Verificar se é assinatura paga ativa
-        if (data.status === 'active' && !data.is_trial) {
-          // Para assinaturas pagas, verificar se não expirou
-          if (data.current_period_end) {
-            isValid = new Date(data.current_period_end) > now;
-          } else {
-            // Se não tem data de fim, considerar válida (assinatura manual)
-            isValid = true;
-          }
-        }
-
-        // Se a assinatura não é mais válida, desativá-la
-        if (!isValid && (data.status !== 'expired' || data.is_active)) {
-          try {
-            await supabase
-              .from('user_subscriptions')
-              .update({
-                status: 'expired',
-                is_active: false,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', data.id);
-            
-            // Buscar novamente após atualização
-            const { data: updatedData } = await supabase
-              .from('user_subscriptions')
-              .select(`
-                *,
-                plan:subscription_plans(*)
-              `)
-              .eq('user_id', user.id)
-              .eq('is_active', true)
-              .order('created_at', { ascending: false })
-              .maybeSingle();
-              
-            setSubscription(updatedData);
-          } catch (updateError) {
-            console.error('Erro ao atualizar status da assinatura:', updateError);
-            setSubscription(data); // Manter dados originais em caso de erro
-          }
-        } else {
-          setSubscription(data);
-        }
-      } else {
-        setSubscription(null);
-      }
-      
-      setLoading(false);
+      setSubscription(pick);
     } catch (err) {
       console.error('Erro ao buscar assinatura:', err);
       setSubscription(null);
-      setLoading(false);
+    } finally {
+      setSubscriptionLoading(false);
     }
   };
 
   const fetchPlans = async () => {
     // Não buscar se já temos planos carregados
     if (plans.length > 0) {
+      setPlansLoading(false);
       return;
     }
+
+    setPlansLoading(true);
     
     try {
       // Buscar planos sem autenticação (dados públicos)
@@ -225,45 +219,74 @@ export const useSubscription = () => {
       setPlans(mockPlans);
       setError('Usando dados de exemplo - configure o Supabase RLS');
     } finally {
-      // Sempre definir loading como false após carregar planos
-      setLoading(false);
+      setPlansLoading(false);
     }
   };
 
   const isTrialActive = () => {
     if (!subscription?.is_trial || !subscription?.trial_ends_at) return false;
-    return new Date(subscription.trial_ends_at) > new Date();
+    return new Date(subscription.trial_ends_at).getTime() > currentTime;
   };
 
   const getTrialDaysRemaining = () => {
     if (!subscription?.is_trial || !subscription?.trial_ends_at) return 0;
     const trialEnd = new Date(subscription.trial_ends_at);
-    const now = new Date();
+    const now = new Date(currentTime);
     const diffTime = trialEnd.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return Math.max(0, diffDays);
   };
 
+  const getTrialTimeRemainingMs = () => {
+    if (!subscription?.is_trial || !subscription?.trial_ends_at) return 0;
+    return Math.max(0, new Date(subscription.trial_ends_at).getTime() - currentTime);
+  };
+
+  const getTrialTimeRemainingLabel = () => {
+    const remainingMs = getTrialTimeRemainingMs();
+    if (remainingMs <= 0) return 'expirado';
+
+    const totalMinutes = Math.ceil(remainingMs / (1000 * 60));
+    const days = Math.floor(totalMinutes / (24 * 60));
+    const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+    const minutes = totalMinutes % 60;
+    const parts: string[] = [];
+
+    if (days > 0) parts.push(`${days}d`);
+    if (days > 0 || hours > 0) parts.push(`${hours}h`);
+    parts.push(`${minutes}min`);
+
+    return parts.join(' ');
+  };
+
   const isSubscriptionActive = () => {
     if (!subscription) return false;
-    
-    const now = new Date();
-    
-    // Verificar trial ativo
-    if (subscription.is_trial && subscription.trial_ends_at) {
-      return new Date(subscription.trial_ends_at) > now;
+
+    const now = new Date(currentTime);
+
+    if (subscription.is_trial) {
+      if (subscription.trial_ends_at) {
+        return new Date(subscription.trial_ends_at) > now;
+      }
+      return Boolean(subscription.is_active);
     }
-    
-    // Verificar assinatura paga ativa
-    if (subscription.status === 'active' && subscription.is_active) {
-      // Se não tem data de fim, considerar válida (ativação manual)
+
+    if ((subscription.status === 'active' || subscription.status === 'trial') && subscription.is_active) {
+      if (subscription.status === 'trial' && subscription.trial_ends_at) {
+        return new Date(subscription.trial_ends_at) > now;
+      }
       if (!subscription.current_period_end) return true;
-      
-      // Verificar se não expirou
       return new Date(subscription.current_period_end) > now;
     }
-    
+
     return false;
+  };
+
+  const isPendingConfirmation = () => {
+    if (!subscription || isSubscriptionActive()) return false;
+    if (subscription.status !== 'pending_payment') return false;
+    const created = new Date(subscription.created_at || subscription.updated_at || 0).getTime();
+    return Date.now() - created < 15 * 60 * 1000;
   };
 
   const canAccessFeatures = () => {
@@ -271,10 +294,73 @@ export const useSubscription = () => {
   };
 
   const getCurrentPlan = () => {
-    return subscription?.plan || null;
+    if (!subscription) return null;
+
+    return subscription.plan || plans.find(plan => plan.id === subscription.plan_id) || null;
   };
 
 
+
+  const activateTrial = async (planId: string) => {
+    if (!user) throw new Error('Usuário não autenticado');
+
+    // Verificar se o usuário já teve algum trial antes (ativo ou expirado)
+    const { data: previousTrials, error: trialCheckError } = await supabase
+      .from('user_subscriptions')
+      .select('id, is_trial, status')
+      .eq('user_id', user.id)
+      .eq('is_trial', true);
+
+    if (trialCheckError) {
+      console.error('Erro ao verificar trials anteriores:', trialCheckError);
+      throw new Error('Erro ao verificar histórico de trial');
+    }
+
+    // Se já teve trial (ativo ou expirado), não permitir reativar
+    if (previousTrials && previousTrials.length > 0) {
+      throw new Error('Você já utilizou seu período de teste gratuito. Assine um plano para continuar.');
+    }
+
+    // Buscar duração do trial configurada pelo admin
+    let trialDays = 7;
+    try {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'trial_duration_days')
+        .maybeSingle();
+      if (data?.value) trialDays = parseInt(data.value, 10) || 7;
+    } catch {
+      // fallback 7 dias
+    }
+
+    const now = new Date();
+    const trialEnd = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
+
+    const trialData = {
+      user_id: user.id,
+      plan_id: planId,
+      status: 'trial',
+      is_active: true,
+      is_trial: true,
+      trial_ends_at: trialEnd.toISOString(),
+      current_period_start: now.toISOString(),
+      current_period_end: trialEnd.toISOString(),
+    };
+
+    trackSubscriptionCreation('USESUBSCRIPTION.TS - activateTrial', trialData);
+
+    const { data, error } = await supabase
+      .from('user_subscriptions')
+      .insert(trialData)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    await fetchUserSubscription();
+    return data;
+  };
 
   const createSubscription = async (planId: string) => {
     if (!user) throw new Error('Usuário não autenticado');
@@ -313,10 +399,13 @@ export const useSubscription = () => {
     if (!subscription) throw new Error('Nenhuma assinatura encontrada');
 
     try {
+      const isActiveStatus = status === 'active' || status === 'trialing';
+
       const { error } = await supabase
         .from('user_subscriptions')
         .update({
           status,
+          is_active: isActiveStatus,
           metadata,
           updated_at: new Date().toISOString(),
         })
@@ -357,7 +446,7 @@ export const useSubscription = () => {
   const getMockPlans = (): SubscriptionPlan[] => {
     return [
       {
-        id: 'monthly',
+        id: 'mensal',
         name: 'Mensal',
         description: 'Plano mensal básico',
         price: '29.90',
@@ -366,10 +455,10 @@ export const useSubscription = () => {
         discount: 0,
         total: '29.90',
         is_active: true,
-        mercadopago_plan_id: 'monthly_plan_id'
+        mercadopago_plan_id: '2c9380849788f4e40197a261c7eb08c9'
       },
       {
-        id: 'quarterly',
+        id: 'trimestral',
         name: 'Trimestral',
         description: 'Plano trimestral com desconto',
         price: '24.90',
@@ -378,10 +467,10 @@ export const useSubscription = () => {
         discount: 15,
         total: '74.70',
         is_active: true,
-        mercadopago_plan_id: 'quarterly_plan_id'
+        mercadopago_plan_id: '2c9380849788f4e40197a2f0374c090d'
       },
       {
-        id: 'semiannual',
+        id: 'semestral',
         name: 'Semestral',
         description: 'Plano semestral com maior desconto',
         price: '22.90',
@@ -390,10 +479,10 @@ export const useSubscription = () => {
         discount: 25,
         total: '137.40',
         is_active: true,
-        mercadopago_plan_id: 'semiannual_plan_id'
+        mercadopago_plan_id: '2c9380849788f4e40197a2f29a4c090e'
       },
       {
-        id: 'annual',
+        id: 'anual',
         name: 'Anual',
         description: 'Plano anual com máximo desconto',
         price: '19.90',
@@ -402,23 +491,30 @@ export const useSubscription = () => {
         discount: 35,
         total: '238.80',
         is_active: true,
-        mercadopago_plan_id: 'annual_plan_id'
+        mercadopago_plan_id: '2c938084979341770197a2f36199055c'
       }
     ];
   };
+
+  const loading = plansLoading || subscriptionLoading;
 
   return {
     subscription,
     plans,
     loading,
+    plansLoading,
+    subscriptionLoading,
     error,
     isTrialActive: isTrialActive(),
     trialDaysRemaining: getTrialDaysRemaining(),
+    trialTimeRemainingMs: getTrialTimeRemainingMs(),
+    trialTimeRemainingLabel: getTrialTimeRemainingLabel(),
     isSubscriptionActive: isSubscriptionActive(),
+    isPendingConfirmation: isPendingConfirmation(),
     canAccessFeatures: canAccessFeatures(),
     currentPlan: getCurrentPlan(),
     createSubscription,
-
+    activateTrial,
     updateSubscriptionStatus,
     cancelSubscription,
     refetch: fetchUserSubscription,

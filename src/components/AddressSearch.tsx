@@ -116,7 +116,7 @@ const AddressSearch: React.FC<AddressSearchProps> = ({
     try {
       const mapboxToken = getMapboxToken();
       const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxToken}&country=br&limit=5`
+        `https://api.mapbox.com/search/geocode/v6/forward?q=${encodeURIComponent(query)}&access_token=${mapboxToken}&country=br&limit=5&language=pt&autocomplete=false`
       );
       
       if (!response.ok) {
@@ -127,8 +127,11 @@ const AddressSearch: React.FC<AddressSearchProps> = ({
       
       if (data.features && data.features.length > 0) {
         setSearchResults(data.features.map((feature: any) => ({
-          place_name: feature.place_name,
-          center: feature.center
+          place_name: feature.properties?.full_address || feature.properties?.name || query,
+          center: (feature.geometry?.coordinates || [
+            feature.properties?.coordinates?.longitude,
+            feature.properties?.coordinates?.latitude,
+          ]) as [number, number],
         })));
       } else {
         setSearchResults([]);

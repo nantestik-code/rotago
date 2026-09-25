@@ -149,10 +149,28 @@ const ImportSection: React.FC<ImportSectionProps> = ({
   };
   
   return (
-    <div className="max-w-2xl mx-auto py-4 pb-20">
-      {/* Mostrar alerta quando o período de trial expirou */}
+    <div className="mx-auto max-w-2xl py-8 pb-20">
+      {/* Usuário sem assinatura: convidar a escolher um plano para trial */}
+      {!subscriptionLoading && !canAccessImport && !subscription && (
+        <Alert className="mb-5 rounded-2xl border-blue-200/80 bg-[linear-gradient(180deg,rgba(239,246,255,0.98)_0%,rgba(219,234,254,0.9)_100%)] shadow-[0_18px_36px_-28px_rgba(37,99,235,0.35)]">
+          <Crown className="h-4 w-4 text-blue-600" />
+          <AlertDescription className="flex items-center justify-between">
+            <span className="text-blue-800">
+              <strong>Bem-vindo!</strong> Escolha um plano para ativar seu período gratuito.
+            </span>
+            <Button
+              size="sm"
+              onClick={goToSubscription}
+              className="bg-blue-600 hover:bg-blue-700 text-white ml-3 shrink-0"
+            >
+              Ver Planos
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+      {/* Trial expirado */}
       {!subscriptionLoading && !canAccessImport && subscription && (
-        <Alert className="border-amber-200 bg-amber-50 mb-4">
+        <Alert className="mb-5 rounded-2xl border-amber-200/80 bg-[linear-gradient(180deg,rgba(255,251,235,0.98)_0%,rgba(254,243,199,0.9)_100%)] shadow-[0_18px_36px_-28px_rgba(217,119,6,0.35)]">
           <Lock className="h-4 w-4 text-amber-600" />
           <AlertDescription className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -164,8 +182,8 @@ const ImportSection: React.FC<ImportSectionProps> = ({
                 Premium
               </Badge>
             </div>
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               onClick={goToSubscription}
               className="bg-amber-600 hover:bg-amber-700 text-white"
             >
@@ -175,94 +193,67 @@ const ImportSection: React.FC<ImportSectionProps> = ({
         </Alert>
       )}
       
-      <Card className="w-full mb-6">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-xl font-bold">Criar Nova Rota</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="route-name">Nome da Rota</Label>
-              <Input 
-                id="route-name" 
-                placeholder="Ex: Entregas Centro - Manhã" 
-                value={routeName}
-                onChange={(e) => setRouteName(e.target.value)}
-              />
-            </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="route-date">Data da Rota</Label>
-              <Input 
-                id="route-date" 
-                type="date" 
-                value={routeDate}
-                onChange={(e) => setRouteDate(e.target.value)}
-              />
-            </div>
+      <section className="overflow-hidden rounded-3xl border border-sky-100 bg-white shadow-[0_30px_60px_-36px_rgba(37,99,235,0.25)]">
+        <div className="border-b border-sky-100 bg-gradient-to-r from-emerald-50 via-white to-sky-50 px-6 py-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-600">Nova rota</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">Importar planilha</h1>
+          <p className="mt-1 text-sm text-slate-500">Um arquivo. Sem telas extras para planilha SPX.</p>
+        </div>
+        <div className="grid gap-4 px-6 py-5 sm:grid-cols-[1.4fr_0.8fr]">
+          <div className="grid gap-2">
+            <Label htmlFor="route-name" className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Nome</Label>
+            <Input
+              id="route-name"
+              placeholder="Gabriela Tapia — manhã"
+              value={routeName}
+              onChange={(e) => setRouteName(e.target.value)}
+              className="h-11"
+            />
           </div>
-        </CardContent>
-      </Card>
-      
-      <Tabs defaultValue="import" value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-4">
-          <TabsTrigger value="import" className="flex items-center gap-1 text-xs sm:text-sm">
-            <FileUp size={16} />
-            <span className="hidden xs:inline">Importar Planilha</span>
-            <span className="xs:hidden">Importar</span>
-          </TabsTrigger>
-          <TabsTrigger value="create" className="flex items-center gap-1 text-xs sm:text-sm">
-            <Plus size={16} />
-            <span className="hidden xs:inline">Criar Manualmente</span>
-            <span className="xs:hidden">Criar</span>
-          </TabsTrigger>
-          <TabsTrigger value="empty" className="flex items-center gap-1 text-xs sm:text-sm">
-            <Route size={16} />
-            <span className="hidden xs:inline">Rota Vazia</span>
-            <span className="xs:hidden">Vazia</span>
-          </TabsTrigger>
+          <div className="grid gap-2">
+            <Label htmlFor="route-date" className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Data</Label>
+            <Input
+              id="route-date"
+              type="date"
+              value={routeDate}
+              onChange={(e) => setRouteDate(e.target.value)}
+              className="h-11"
+            />
+          </div>
+        </div>
+        <div className="px-6 pb-6">
+          {canAccessImport ? (
+            <FileImport onImportComplete={handleImportComplete} routeName={routeName} />
+          ) : (
+            <div className="rounded-2xl border border-dashed border-sky-200 bg-sky-50/60 p-8 text-center">
+              <p className="text-sm text-slate-600">Assine para importar rotas.</p>
+              <Button onClick={goToSubscription} className="mt-4 bg-blue-600 text-white hover:bg-blue-700">
+                Ver planos
+              </Button>
+            </div>
+          )}
+          <div className="mt-4 flex gap-3 text-xs text-slate-500">
+            <button type="button" className="hover:text-blue-700 hover:underline" onClick={() => { setActiveTab('create'); handleCreateEmptyRoute(); }}>
+              Adicionar endereços na mão
+            </button>
+            <span>·</span>
+            <button type="button" className="hover:text-blue-700 hover:underline" onClick={handleCreateEmptyRoute}>
+              Só GPS
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <Tabs defaultValue="import" value={activeTab} onValueChange={setActiveTab} className="hidden">
+        <TabsList>
+          <TabsTrigger value="import">Importar</TabsTrigger>
+          <TabsTrigger value="create">Criar</TabsTrigger>
+          <TabsTrigger value="empty">Vazia</TabsTrigger>
         </TabsList>
-        
-        <TabsContent value="import" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                Importar Planilha
-                {!canAccessImport && (
-                  <Badge variant="outline" className="border-amber-500 text-amber-600 flex items-center gap-1">
-                    <Lock className="w-3 h-3" />
-                    Premium
-                  </Badge>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {canAccessImport ? (
-                <FileImport onImportComplete={handleImportComplete} routeName={routeName} />
-              ) : (
-                <div className="p-4 border border-dashed border-gray-300 rounded-md bg-gray-50">
-                  <div className="text-center">
-                    <Lock className="w-8 h-8 mx-auto text-amber-500 mb-2" />
-                    <p className="text-sm text-gray-600 mb-3">
-                      A importação de planilhas é uma funcionalidade premium.
-                      Assine um plano para continuar utilizando.
-                    </p>
-                    <Button 
-                      onClick={goToSubscription}
-                      className="bg-amber-600 hover:bg-amber-700 text-white"
-                    >
-                      <Crown className="w-4 h-4 mr-2" />
-                      Ver Planos
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+        <TabsContent value="import" />
         
         <TabsContent value="create" className="space-y-4">
-          <Card>
+          <Card className="border-white/70 bg-white/90 shadow-[0_24px_44px_-32px_rgba(15,23,42,0.28)]">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 Adicionar Entregas Manualmente
@@ -287,7 +278,7 @@ const ImportSection: React.FC<ImportSectionProps> = ({
                   Criar e Adicionar Entregas
                 </Button>
               ) : (
-                <div className="p-4 border border-dashed border-gray-300 rounded-md bg-gray-50 mt-4">
+                <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50/90 p-5">
                   <div className="text-center">
                     <Lock className="w-8 h-8 mx-auto text-amber-500 mb-2" />
                     <p className="text-sm text-gray-600 mb-3">
@@ -309,7 +300,7 @@ const ImportSection: React.FC<ImportSectionProps> = ({
         </TabsContent>
         
         <TabsContent value="empty" className="space-y-4">
-          <Card>
+          <Card className="border-white/70 bg-white/90 shadow-[0_24px_44px_-32px_rgba(15,23,42,0.28)]">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 Iniciar Rota Vazia
@@ -334,7 +325,7 @@ const ImportSection: React.FC<ImportSectionProps> = ({
                   Iniciar Rota
                 </Button>
               ) : (
-                <div className="p-4 border border-dashed border-gray-300 rounded-md bg-gray-50 mt-4">
+                <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50/90 p-5">
                   <div className="text-center">
                     <Lock className="w-8 h-8 mx-auto text-amber-500 mb-2" />
                     <p className="text-sm text-gray-600 mb-3">

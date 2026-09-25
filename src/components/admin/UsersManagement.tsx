@@ -3,29 +3,32 @@ import React, { useState, useEffect } from "react";
 import { supabaseAdmin } from "@/integrations/supabase/admin-client";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import { logger } from "@/utils/logger";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from "@/components/ui/table";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
   DialogTitle,
-  DialogTrigger 
+  DialogTrigger,
+  DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
-import { Users, Search, Filter, Eye, EyeOff, UserPlus, Trash2, Download, Upload, Shield, CheckCircle2, Loader2, XCircle, PieChart, Crown, UserCheck } from "lucide-react";
+import { Users, Search, Filter, Eye, EyeOff, UserPlus, Trash2, Download, Upload, Shield, CheckCircle2, Loader2, XCircle, PieChart, Crown, UserCheck, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   ChartContainer, 
   ChartTooltip, 
@@ -35,6 +38,16 @@ import {
 } from "@/components/ui/chart";
 import { PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { Progress } from "@/components/ui/progress";
+
+interface SubscriptionData {
+  id: string;
+  user_id: string;
+  status: string;
+  is_active: boolean | null;
+  is_trial: boolean | null;
+  trial_ends_at: string | null;
+  current_period_end: string | null;
+}
 
 interface UserProfile {
   id: string;
@@ -46,16 +59,88 @@ interface UserProfile {
   subscription_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  subscriptions: SubscriptionData[] | null;
 }
 
+// Derived subscription status type
+type DerivedSubscriptionStatus = "free" | "trial" | "premium" | "expired" | "pending";
+
 // Extended status type for user filtering
-type UserStatus = "all" | "free" | "premium" | "admin";
+type UserStatus = "all" | "free" | "premium" | "trial" | "expired" | "pending" | "admin";
+
+interface AdminRecord {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Deriva o status real de assinatura a partir dos dados de user_subscriptions.
+ * Se houver múltiplas subscriptions, usa a mais recente.
+ */
+const getSubscriptionStatus = (user: UserProfile): DerivedSubscriptionStatus => {
+  const subs = user.subscriptions;
+
+  // Se não tem subscription -> "free"
+  if (!subs || subs.length === 0) return "free";
+
+  // Ordenar por data de criação/id (mais recente primeiro)
+  // Como não temos created_at no select, usamos o último do array
+  const latest = subs[subs.length - 1];
+  const now = new Date();
+
+  // Se is_trial e trial_ends_at > now -> "trial"
+  if (latest.is_trial && latest.trial_ends_at) {
+    const trialEnd = new Date(latest.trial_ends_at);
+    if (trialEnd > now) return "trial";
+    // Se is_trial e trial_ends_at <= now -> "expired"
+    return "expired";
+  }
+
+  // Se status === 'active' e is_active e !is_trial -> verificar se período ainda é válido
+  if (latest.status === 'active' && latest.is_active && !latest.is_trial) {
+    // Verificar se current_period_end existe e se ainda não expirou
+    if (latest.current_period_end) {
+      const periodEnd = new Date(latest.current_period_end);
+      if (periodEnd > now) return "premium";
+      // Período expirou -> "expired"
+      return "expired";
+    }
+    // Sem data de fim (ativação manual pelo admin) -> considerar premium
+    return "premium";
+  }
+
+  // Se status === 'pending_payment' -> verificar se já expirou (mais de 3 dias)
+  if (latest.status === 'pending_payment') {
+    if (latest.current_period_end) {
+      const periodEnd = new Date(latest.current_period_end);
+      if (periodEnd < now) return "expired";
+    }
+    return "pending";
+  }
+
+  // Se status é 'expired' ou 'cancelled' -> "expired"
+  if (latest.status === 'expired' || latest.status === 'cancelled') {
+    return "expired";
+  }
+
+  // Caso default: se tem assinatura mas não é ativa -> "expired"
+  if (!latest.is_active) return "expired";
+
+  return "free";
+};
 
 const UsersManagement = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [admins, setAdmins] = useState<AdminRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [adminSearchQuery, setAdminSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<UserStatus>("all");
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [showCreateAdmin, setShowCreateAdmin] = useState(false);
@@ -66,6 +151,9 @@ const UsersManagement = () => {
     role: 'admin'
   });
   const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
+  const [adminToDelete, setAdminToDelete] = useState<AdminRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const { admin, isAdminLoggedIn } = useAdminAuth();
 
@@ -101,95 +189,66 @@ const UsersManagement = () => {
         }
       });
 
-      // Buscar usuários usando cliente administrativo
+      // Buscar usuários usando cliente administrativo - queries separadas para evitar problemas de JOIN/RLS
       console.log('🔍 [UsersManagement] Buscando usuários com admin:', admin.email);
-      const { data, error } = await supabaseAdmin
+
+      // 1. Buscar todos os perfis
+      const { data: profilesData, error: profilesError } = await supabaseAdmin
         .from("profiles")
-        .select("*")
+        .select('*')
         .order('created_at', { ascending: false });
-      
-      if (error) {
-        logger.error('DATABASE', 'Erro ao buscar usuários', {
+
+      if (profilesError) {
+        logger.error('DATABASE', 'Erro ao buscar perfis', {
           component: 'UsersManagement',
           function: 'fetchUsers',
-          error,
-          data: { 
-            errorCode: error.code,
-            errorMessage: error.message,
+          error: profilesError,
+          data: {
+            errorCode: profilesError.code,
+            errorMessage: profilesError.message,
             adminId: admin.id,
           }
         });
-        console.error('❌ Erro ao buscar usuários:', error);
-        
-        // Verificar se é um erro de RLS/permissão
-        if (error.code === 'PGRST116' || error.message?.includes('permission') || error.message?.includes('policy')) {
-          logger.warn('SECURITY', 'Acesso bloqueado por políticas RLS - usando dados de demonstração', {
-            component: 'UsersManagement',
-            function: 'fetchUsers',
-            data: { 
-              errorCode: error.code,
-              securityLevel: 'RLS_BLOCKED'
-            }
-          });
-
-          setIsDemoMode(true);
-          
-          toast({
-            title: "Modo Demonstração",
-            description: "Exibindo dados simulados devido às políticas de segurança RLS.",
-            variant: "default",
-          });
-          
-          // Criar dados de exemplo para demonstração
-          const mockUsers = [
-            {
-              id: 'demo-1',
-              full_name: 'João Silva Santos',
-              avatar_url: null,
-              is_early_adopter: false,
-              subscription_status: 'free',
-              created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-            },
-            {
-              id: 'demo-2', 
-              full_name: 'Maria Oliveira Costa',
-              avatar_url: null,
-              is_early_adopter: true,
-              subscription_status: 'premium',
-              created_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString()
-            },
-            {
-              id: 'demo-3',
-              full_name: 'Carlos Eduardo Lima',
-              avatar_url: null,
-              is_early_adopter: false,
-              subscription_status: 'trial',
-              created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-            },
-            {
-              id: 'demo-4',
-              full_name: 'Ana Paula Ferreira',
-              avatar_url: null,
-              is_early_adopter: true,
-              subscription_status: 'premium',
-              created_at: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString()
-            }
-          ];
-          
-          setUsers(mockUsers);
-          logger.info('ADMIN', 'Dados de demonstração carregados', {
-            component: 'UsersManagement',
-            function: 'fetchUsers',
-            data: { mockUsersCount: mockUsers.length }
-          });
-          console.log('📊 Exibindo dados de demonstração devido às políticas RLS');
-        } else {
-          throw error;
-        }
-        return;
+        console.error('❌ Erro ao buscar perfis:', profilesError);
+        throw profilesError;
       }
 
-      setUsers(data || []);
+      // 2. Buscar todas as assinaturas
+      const { data: subscriptionsData, error: subscriptionsError } = await supabaseAdmin
+        .from('user_subscriptions')
+        .select('id, user_id, status, is_active, is_trial, trial_ends_at, current_period_end');
+
+      if (subscriptionsError) {
+        logger.warn('DATABASE', 'Erro ao buscar assinaturas - continuando sem dados de assinatura', {
+          component: 'UsersManagement',
+          function: 'fetchUsers',
+          error: subscriptionsError,
+          data: {
+            errorCode: subscriptionsError.code,
+            errorMessage: subscriptionsError.message,
+          }
+        });
+        console.warn('⚠️ Erro ao buscar assinaturas, continuando sem dados:', subscriptionsError);
+        // Não lançar erro - continuar sem dados de assinatura
+      }
+
+      // 3. Fazer merge dos dados: mapear subscriptions por user_id
+      const subscriptionsByUser = new Map<string, SubscriptionData[]>();
+      if (subscriptionsData) {
+        for (const sub of subscriptionsData) {
+          const existing = subscriptionsByUser.get(sub.user_id) || [];
+          existing.push(sub);
+          subscriptionsByUser.set(sub.user_id, existing);
+        }
+      }
+
+      // 4. Montar array final com profiles + subscriptions
+      const data: UserProfile[] = (profilesData || []).map(profile => ({
+        ...profile,
+        subscriptions: subscriptionsByUser.get(profile.id) || null,
+      }));
+
+      setUsers(data);
       logger.info('ADMIN', 'Usuários carregados com sucesso', {
         component: 'UsersManagement',
         function: 'fetchUsers',
@@ -218,9 +277,101 @@ const UsersManagement = () => {
     }
   };
 
+  const fetchAdmins = async () => {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('admins')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setAdmins(data || []);
+    } catch (error: any) {
+      console.error('Erro ao buscar admins:', error);
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
+    fetchAdmins();
   }, []);
+
+  const deleteUser = async (user: UserProfile) => {
+    if (isDemoMode) return;
+    try {
+      setIsDeleting(true);
+
+      // 1. Remover assinaturas
+      await supabaseAdmin
+        .from('user_subscriptions')
+        .delete()
+        .eq('user_id', user.id);
+
+      // 2. Remover rotas e entregas relacionadas
+      const { data: routes } = await supabaseAdmin
+        .from('routes')
+        .select('id')
+        .eq('user_id', user.id);
+
+      if (routes && routes.length > 0) {
+        const routeIds = routes.map(r => r.id);
+        await supabaseAdmin.from('route_deliveries').delete().in('route_id', routeIds);
+        await supabaseAdmin.from('routes').delete().eq('user_id', user.id);
+      }
+
+      // 3. Remover perfil
+      const { error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .delete()
+        .eq('id', user.id);
+
+      if (profileError) throw profileError;
+
+      toast({
+        title: "Usuário excluído",
+        description: `${user.full_name || 'Usuário'} foi removido do sistema.`,
+      });
+
+      setUserToDelete(null);
+      fetchUsers();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao excluir usuário",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const deleteAdmin = async (adminRecord: AdminRecord) => {
+    try {
+      setIsDeleting(true);
+
+      const { error } = await supabaseAdmin
+        .from('admins')
+        .delete()
+        .eq('id', adminRecord.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Admin removido",
+        description: `${adminRecord.full_name} foi removido do painel de admins.`,
+      });
+
+      setAdminToDelete(null);
+      fetchAdmins();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao remover admin",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const createAdmin = async () => {
     if (isDemoMode) {
@@ -254,18 +405,23 @@ const UsersManagement = () => {
         }
       });
 
-      // 1. Criar usuário no Supabase Auth
-      const { data: authUsers, error: authError } = await supabaseAdmin.auth.admin.listUsers();
-      const existingUser = authUsers?.users?.find(user => user.email === newAdminData.email);
-      if (existingUser) {
-        logger.error('AUTH', 'Erro ao criar usuário no Supabase Auth', {
+      // 1. Verificar se já existe um admin ou perfil com este email
+      const { data: existingAdmin } = await supabaseAdmin
+        .from('admins')
+        .select('id')
+        .eq('email', newAdminData.email)
+        .maybeSingle();
+
+      if (existingAdmin) {
+        logger.error('AUTH', 'Erro ao criar admin - email já existe na tabela admins', {
           component: 'UsersManagement',
           function: 'createAdmin',
-          error: new Error('Usuário já existe')
+          error: new Error('Email já cadastrado como admin')
         });
-        throw new Error('Usuário já existe');
+        throw new Error('Já existe um administrador com este email');
       }
 
+      // 2. Criar usuário no Supabase Auth
       const { data: authData, error: authCreateError } = await supabaseAdmin.auth.signUp({
         email: newAdminData.email,
         password: newAdminData.password,
@@ -296,7 +452,7 @@ const UsersManagement = () => {
         data: { userId: authData.user.id }
       });
 
-      // 2. Criar perfil na tabela profiles
+      // 3. Criar perfil na tabela profiles
       const { data: profiles, error } = await supabaseAdmin
         .from('profiles')
         .insert({
@@ -317,7 +473,7 @@ const UsersManagement = () => {
         throw error;
       }
 
-      // 3. Criar entrada na tabela admins
+      // 4. Criar entrada na tabela admins
       const { error: adminError } = await supabaseAdmin
         .from('admins')
         .insert({
@@ -434,46 +590,65 @@ const UsersManagement = () => {
     const matchesSearch = searchQuery.trim() === "" || 
       (user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) || false);
     
+    const derivedStatus = getSubscriptionStatus(user);
     let matchesStatus = true;
     if (statusFilter === "admin") {
       matchesStatus = user.is_early_adopter === true;
     } else if (statusFilter === "premium") {
-      matchesStatus = user.subscription_status === "premium";
+      matchesStatus = derivedStatus === "premium";
     } else if (statusFilter === "free") {
-      matchesStatus = user.subscription_status === "free" || !user.subscription_status;
+      matchesStatus = derivedStatus === "free";
+    } else if (statusFilter === "trial") {
+      matchesStatus = derivedStatus === "trial";
+    } else if (statusFilter === "expired") {
+      matchesStatus = derivedStatus === "expired";
+    } else if (statusFilter === "pending") {
+      matchesStatus = derivedStatus === "pending";
     }
     
     return matchesSearch && matchesStatus;
   });
 
-  // Calculate user statistics
+  // Calculate user statistics using derived subscription status
   const userStats = {
     total: users.length,
     admin: users.filter(user => user.is_early_adopter === true).length,
-    premium: users.filter(user => user.subscription_status === "premium").length,
-    free: users.filter(user => user.subscription_status === "free" || !user.subscription_status).length,
+    premium: users.filter(user => getSubscriptionStatus(user) === "premium").length,
+    trial: users.filter(user => getSubscriptionStatus(user) === "trial").length,
+    expired: users.filter(user => getSubscriptionStatus(user) === "expired").length,
+    free: users.filter(user => getSubscriptionStatus(user) === "free").length,
+    pending: users.filter(user => getSubscriptionStatus(user) === "pending").length,
   };
 
   // Prepare chart data
   const chartData = [
-    { name: "Administradores", value: userStats.admin, color: "#3b82f6" },
+    { name: "Administradores", value: userStats.admin, color: "#8b5cf6" },
     { name: "Premium", value: userStats.premium, color: "#10b981" },
-    { name: "Gratuito", value: userStats.free, color: "#6b7280" },
+    { name: "Trial", value: userStats.trial, color: "#3b82f6" },
+    { name: "Expirados", value: userStats.expired, color: "#ef4444" },
+    { name: "Pendentes", value: userStats.pending, color: "#f59e0b" },
+    { name: "Gratuitos", value: userStats.free, color: "#6b7280" },
   ];
 
   // Export users to CSV
   const exportToCSV = () => {
     try {
       // Create CSV content
-      const headers = ["Nome", "Email", "Status", "Admin", "Data de Cadastro"];
+      const headers = ["Nome", "Status Assinatura", "Admin", "Data de Cadastro"];
       const csvRows = [
         headers.join(","),
         ...filteredUsers.map(user => {
-          const status = user.is_early_adopter ? "Admin" : (user.subscription_status || "Free");
+          const derivedStatus = getSubscriptionStatus(user);
+          const statusLabels: Record<DerivedSubscriptionStatus, string> = {
+            free: "Gratuito",
+            trial: "Trial",
+            premium: "Premium",
+            expired: "Trial Expirado",
+            pending: "Pagamento Pendente",
+          };
           const rowData = [
             user.full_name || "Nome não informado",
-            "", // We don't have email in the current data model
-            status,
+            statusLabels[derivedStatus],
             user.is_early_adopter ? "Sim" : "Não",
             formatDate(user.created_at)
           ];
@@ -555,20 +730,19 @@ const UsersManagement = () => {
       )}
       
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
         <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-medium text-blue-100">
-                Total de Usuários
+                Total
               </CardTitle>
-              <Users className="h-5 w-5 text-white" />
+              <Users className="h-4 w-4 text-white" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold mb-2">{userStats.total}</div>
-            <Progress className="mt-2 bg-blue-400/30" value={100} />
-            <div className="text-xs text-blue-100 mt-1">100% da base</div>
+            <div className="text-2xl font-bold mb-1">{userStats.total}</div>
+            <div className="text-xs text-blue-100">Usuários</div>
           </CardContent>
         </Card>
         
@@ -576,19 +750,15 @@ const UsersManagement = () => {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-medium text-purple-100">
-                Administradores
+                Admins
               </CardTitle>
-              <Shield className="h-5 w-5 text-white" />
+              <Shield className="h-4 w-4 text-white" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold mb-2">{userStats.admin}</div>
-            <Progress 
-              className="mt-2 bg-purple-400/30" 
-              value={(userStats.admin / userStats.total) * 100} 
-            />
-            <div className="text-xs text-purple-100 mt-1">
-              {((userStats.admin / userStats.total) * 100).toFixed(1)}% do total
+            <div className="text-2xl font-bold mb-1">{userStats.admin}</div>
+            <div className="text-xs text-purple-100">
+              {userStats.total > 0 ? ((userStats.admin / userStats.total) * 100).toFixed(1) : 0}%
             </div>
           </CardContent>
         </Card>
@@ -597,19 +767,49 @@ const UsersManagement = () => {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-medium text-emerald-100">
-                Usuários Premium
+                Premium
               </CardTitle>
-              <Crown className="h-5 w-5 text-white" />
+              <Crown className="h-4 w-4 text-white" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold mb-2">{userStats.premium}</div>
-            <Progress 
-              className="mt-2 bg-emerald-400/30" 
-              value={(userStats.premium / userStats.total) * 100} 
-            />
-            <div className="text-xs text-emerald-100 mt-1">
-              {((userStats.premium / userStats.total) * 100).toFixed(1)}% do total
+            <div className="text-2xl font-bold mb-1">{userStats.premium}</div>
+            <div className="text-xs text-emerald-100">
+              {userStats.total > 0 ? ((userStats.premium / userStats.total) * 100).toFixed(1) : 0}%
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-gradient-to-br from-sky-500 to-sky-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-sky-100">
+                Trial
+              </CardTitle>
+              <UserCheck className="h-4 w-4 text-white" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold mb-1">{userStats.trial}</div>
+            <div className="text-xs text-sky-100">
+              {userStats.total > 0 ? ((userStats.trial / userStats.total) * 100).toFixed(1) : 0}%
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-red-100">
+                Expirados
+              </CardTitle>
+              <XCircle className="h-4 w-4 text-white" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold mb-1">{userStats.expired}</div>
+            <div className="text-xs text-red-100">
+              {userStats.total > 0 ? ((userStats.expired / userStats.total) * 100).toFixed(1) : 0}%
             </div>
           </CardContent>
         </Card>
@@ -618,19 +818,15 @@ const UsersManagement = () => {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-medium text-slate-100">
-                Usuários Gratuitos
+                Gratuitos
               </CardTitle>
-              <UserCheck className="h-5 w-5 text-white" />
+              <UserCheck className="h-4 w-4 text-white" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold mb-2">{userStats.free}</div>
-            <Progress 
-              className="mt-2 bg-slate-400/30" 
-              value={(userStats.free / userStats.total) * 100} 
-            />
-            <div className="text-xs text-slate-100 mt-1">
-              {((userStats.free / userStats.total) * 100).toFixed(1)}% do total
+            <div className="text-2xl font-bold mb-1">{userStats.free}</div>
+            <div className="text-xs text-slate-100">
+              {userStats.total > 0 ? ((userStats.free / userStats.total) * 100).toFixed(1) : 0}%
             </div>
           </CardContent>
         </Card>
@@ -652,6 +848,9 @@ const UsersManagement = () => {
               config={{
                 admin: { color: "#8b5cf6", label: "Administradores" },
                 premium: { color: "#10b981", label: "Premium" },
+                trial: { color: "#3b82f6", label: "Trial" },
+                expired: { color: "#ef4444", label: "Expirados" },
+                pending: { color: "#f59e0b", label: "Pendentes" },
                 free: { color: "#64748b", label: "Gratuito" },
               }}
             >
@@ -684,8 +883,20 @@ const UsersManagement = () => {
           </CardContent>
         </Card>
 
-        {/* Filters and Table */}
+        {/* Filters and Tables */}
         <div className="w-full md:w-2/3 space-y-4">
+          <Tabs defaultValue="users">
+            <TabsList className="mb-2">
+              <TabsTrigger value="users">
+                <Users className="h-4 w-4 mr-1" /> Usuários ({users.length})
+              </TabsTrigger>
+              <TabsTrigger value="admins">
+                <Shield className="h-4 w-4 mr-1" /> Admins ({admins.length})
+              </TabsTrigger>
+            </TabsList>
+
+            {/* ── ABA USUÁRIOS ── */}
+            <TabsContent value="users">
           {/* Filters */}
           <Card className="bg-gradient-to-r from-slate-50 to-gray-50 border-0 shadow-md">
             <CardContent className="p-4">
@@ -706,113 +917,19 @@ const UsersManagement = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">Todos os usuários</SelectItem>
-                        <SelectItem value="free">Usuários gratuitos</SelectItem>
-                        <SelectItem value="premium">Usuários premium</SelectItem>
+                        <SelectItem value="free">Gratuitos</SelectItem>
+                        <SelectItem value="premium">Premium</SelectItem>
+                        <SelectItem value="trial">Trial</SelectItem>
+                        <SelectItem value="expired">Trial expirado</SelectItem>
+                        <SelectItem value="pending">Pagamento pendente</SelectItem>
                         <SelectItem value="admin">Administradores</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Dialog open={showCreateAdmin} onOpenChange={setShowCreateAdmin}>
-                      <DialogTrigger asChild>
-                        <Button className="bg-purple-600 hover:bg-purple-700 text-white">
-                          <UserPlus className="h-4 w-4 mr-2" />
-                          Criar Admin
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-md">
-                        <DialogHeader>
-                          <DialogTitle className="text-xl font-bold text-purple-800 flex items-center">
-                            <Crown className="h-5 w-5 mr-2" />
-                            Criar Novo Administrador
-                          </DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4 py-4">
-                          <div className="space-y-2">
-                            <label className="text-sm font-medium text-gray-700">Nome Completo *</label>
-                            <Input
-                              placeholder="Digite o nome completo"
-                              value={newAdminData.full_name}
-                              onChange={(e) => setNewAdminData(prev => ({ ...prev, full_name: e.target.value }))}
-                              className="w-full"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-sm font-medium text-gray-700">Email *</label>
-                            <Input
-                              type="email"
-                              placeholder="admin@rotago.com"
-                              value={newAdminData.email}
-                              onChange={(e) => setNewAdminData(prev => ({ ...prev, email: e.target.value }))}
-                              className="w-full"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-sm font-medium text-gray-700">Senha *</label>
-                            <Input
-                              type="password"
-                              placeholder="Digite uma senha segura"
-                              value={newAdminData.password}
-                              onChange={(e) => setNewAdminData(prev => ({ ...prev, password: e.target.value }))}
-                              className="w-full"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-sm font-medium text-gray-700">Função</label>
-                            <Select 
-                              value={newAdminData.role} 
-                              onValueChange={(value) => setNewAdminData(prev => ({ ...prev, role: value }))}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="admin">Administrador</SelectItem>
-                                <SelectItem value="super_admin">Super Admin</SelectItem>
-                                <SelectItem value="moderator">Moderador</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                            <div className="flex items-start">
-                              <Shield className="h-4 w-4 text-yellow-600 mt-0.5 mr-2" />
-                              <div className="text-xs text-yellow-800">
-                                <strong>Atenção:</strong> Este administrador terá acesso completo ao sistema e poderá fazer login imediatamente após a criação.
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex justify-end gap-2 pt-4 border-t">
-                          <Button 
-                            variant="outline" 
-                            onClick={() => setShowCreateAdmin(false)}
-                            disabled={isCreatingAdmin}
-                          >
-                            Cancelar
-                          </Button>
-                          <Button 
-                            onClick={createAdmin}
-                            disabled={isCreatingAdmin || !newAdminData.email || !newAdminData.password || !newAdminData.full_name}
-                            className="bg-purple-600 hover:bg-purple-700"
-                          >
-                            {isCreatingAdmin ? (
-                              <>
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                Criando...
-                              </>
-                            ) : (
-                              <>
-                                <UserCheck className="h-4 w-4 mr-2" />
-                                Criar Admin
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
                   </div>
                 </div>
-                <Button 
-                  variant="outline" 
-                  className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white border-0 hover:from-blue-600 hover:to-purple-700 shadow-md" 
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white border-0 hover:from-blue-600 hover:to-purple-700 shadow-md"
                   onClick={exportToCSV}
                 >
                   <Download className="h-4 w-4" />
@@ -847,14 +964,30 @@ const UsersManagement = () => {
                       <TableCell className="font-medium text-slate-900">{user.full_name || "Nome não informado"}</TableCell>
                       <TableCell>
                         <Badge 
-                          variant={user.subscription_status === "premium" ? "default" : "secondary"}
-                          className={
-                            user.subscription_status === "premium" 
-                              ? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white" 
-                              : "bg-slate-100 text-slate-700"
-                          }
+                          variant="secondary"
+                          className={(() => {
+                            const ds = getSubscriptionStatus(user);
+                            switch (ds) {
+                              case "trial": return "bg-blue-100 text-blue-700";
+                              case "premium": return "bg-emerald-100 text-emerald-700";
+                              case "expired": return "bg-red-100 text-red-700";
+                              case "pending": return "bg-amber-100 text-amber-700";
+                              case "free": return "bg-slate-100 text-slate-700";
+                              default: return "bg-slate-100 text-slate-700";
+                            }
+                          })()}
                         >
-                          {user.subscription_status || "free"}
+                          {(() => {
+                            const ds = getSubscriptionStatus(user);
+                            const labels: Record<DerivedSubscriptionStatus, string> = {
+                              free: "Gratuito",
+                              trial: "Trial",
+                              premium: "Premium",
+                              expired: "Expirado",
+                              pending: "Pendente",
+                            };
+                            return labels[ds];
+                          })()}
                         </Badge>
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-slate-600">{formatDate(user.created_at)}</TableCell>
@@ -926,9 +1059,24 @@ const UsersManagement = () => {
                                     <div className="grid grid-cols-2 gap-3 text-sm">
                                       <div className="font-medium text-gray-700">Status da Assinatura:</div>
                                       <div>
-                                        <Badge variant={selectedUser.subscription_status === 'active' ? 'default' : 'secondary'}>
-                                          {selectedUser.subscription_status || "trial"}
-                                        </Badge>
+                                        {(() => {
+                                          const ds = getSubscriptionStatus(selectedUser);
+                                          const labelMap: Record<DerivedSubscriptionStatus, string> = {
+                                            free: "Gratuito",
+                                            trial: "Trial",
+                                            premium: "Premium",
+                                            expired: "Trial Expirado",
+                                            pending: "Pagamento Pendente",
+                                          };
+                                          const colorMap: Record<DerivedSubscriptionStatus, string> = {
+                                            free: "bg-slate-100 text-slate-700",
+                                            trial: "bg-blue-100 text-blue-700",
+                                            premium: "bg-emerald-100 text-emerald-700",
+                                            expired: "bg-red-100 text-red-700",
+                                            pending: "bg-amber-100 text-amber-700",
+                                          };
+                                          return <Badge className={colorMap[ds]}>{labelMap[ds]}</Badge>;
+                                        })()}
                                       </div>
                                       <div className="font-medium text-gray-700">É Administrador:</div>
                                       <div>
@@ -986,14 +1134,23 @@ const UsersManagement = () => {
                           <Button
                             size="sm"
                             className={
-                              user.is_early_adopter 
-                                ? "bg-gradient-to-r from-red-500 to-red-600 text-white border-0 hover:from-red-600 hover:to-red-700 shadow-sm" 
+                              user.is_early_adopter
+                                ? "bg-gradient-to-r from-red-500 to-red-600 text-white border-0 hover:from-red-600 hover:to-red-700 shadow-sm"
                                 : "bg-gradient-to-r from-purple-500 to-purple-600 text-white border-0 hover:from-purple-600 hover:to-purple-700 shadow-sm"
                             }
                             onClick={() => toggleAdminStatus(user)}
                             disabled={isDemoMode}
                           >
                             {user.is_early_adopter ? "Remover Admin" : "Tornar Admin"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-red-300 text-red-600 hover:bg-red-50"
+                            onClick={() => setUserToDelete(user)}
+                            disabled={isDemoMode}
+                          >
+                            <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
                       </TableCell>
@@ -1004,19 +1161,200 @@ const UsersManagement = () => {
             </Table>
           </Card>
 
-          {/* Info Footer */}
           <Card className="bg-gradient-to-r from-slate-50 to-gray-50 border-0 shadow-sm">
             <CardContent className="p-3">
               <div className="text-sm text-slate-600 flex items-center justify-between">
                 <span>Exibindo {filteredUsers.length} de {users.length} usuários</span>
-                <Badge variant="outline" className="text-slate-500">
-                  Atualizado em tempo real
-                </Badge>
+                <Badge variant="outline" className="text-slate-500">Atualizado em tempo real</Badge>
               </div>
             </CardContent>
           </Card>
+            </TabsContent>
+
+            {/* ── ABA ADMINS ── */}
+            <TabsContent value="admins">
+              <Card className="bg-gradient-to-r from-slate-50 to-gray-50 border-0 shadow-md mb-4">
+                <CardContent className="p-4">
+                  <div className="flex gap-4">
+                    <Input
+                      placeholder="Buscar admin por nome ou email..."
+                      value={adminSearchQuery}
+                      onChange={(e) => setAdminSearchQuery(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Dialog open={showCreateAdmin} onOpenChange={setShowCreateAdmin}>
+                      <DialogTrigger asChild>
+                        <Button className="bg-purple-600 hover:bg-purple-700 text-white whitespace-nowrap">
+                          <UserPlus className="h-4 w-4 mr-2" />
+                          Novo Admin
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-md">
+                        <DialogHeader>
+                          <DialogTitle className="text-xl font-bold text-purple-800 flex items-center">
+                            <Crown className="h-5 w-5 mr-2" />
+                            Criar Novo Administrador
+                          </DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">Nome Completo *</label>
+                            <Input
+                              placeholder="Digite o nome completo"
+                              value={newAdminData.full_name}
+                              onChange={(e) => setNewAdminData(prev => ({ ...prev, full_name: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">Email *</label>
+                            <Input
+                              type="email"
+                              placeholder="admin@rotago.com"
+                              value={newAdminData.email}
+                              onChange={(e) => setNewAdminData(prev => ({ ...prev, email: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">Senha *</label>
+                            <Input
+                              type="password"
+                              placeholder="Digite uma senha segura"
+                              value={newAdminData.password}
+                              onChange={(e) => setNewAdminData(prev => ({ ...prev, password: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">Função</label>
+                            <Select value={newAdminData.role} onValueChange={(value) => setNewAdminData(prev => ({ ...prev, role: value }))}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="admin">Administrador</SelectItem>
+                                <SelectItem value="super_admin">Super Admin</SelectItem>
+                                <SelectItem value="moderator">Moderador</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-4 border-t">
+                          <Button variant="outline" onClick={() => setShowCreateAdmin(false)} disabled={isCreatingAdmin}>Cancelar</Button>
+                          <Button onClick={createAdmin} disabled={isCreatingAdmin || !newAdminData.email || !newAdminData.password || !newAdminData.full_name} className="bg-purple-600 hover:bg-purple-700">
+                            {isCreatingAdmin ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Criando...</> : <><UserCheck className="h-4 w-4 mr-2" />Criar Admin</>}
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white border-0 shadow-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gradient-to-r from-slate-100 to-gray-100">
+                      <TableHead className="font-semibold text-slate-700">Nome</TableHead>
+                      <TableHead className="font-semibold text-slate-700">Email</TableHead>
+                      <TableHead className="font-semibold text-slate-700">Função</TableHead>
+                      <TableHead className="font-semibold text-slate-700">Status</TableHead>
+                      <TableHead className="font-semibold text-slate-700">Cadastro</TableHead>
+                      <TableHead className="font-semibold text-slate-700">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {admins
+                      .filter(a =>
+                        adminSearchQuery.trim() === '' ||
+                        a.full_name?.toLowerCase().includes(adminSearchQuery.toLowerCase()) ||
+                        a.email?.toLowerCase().includes(adminSearchQuery.toLowerCase())
+                      )
+                      .map((a) => (
+                        <TableRow key={a.id} className="hover:bg-slate-50/50">
+                          <TableCell className="font-medium">{a.full_name}</TableCell>
+                          <TableCell className="text-sm text-slate-600">{a.email}</TableCell>
+                          <TableCell>
+                            <Badge className={a.role === 'super_admin' ? 'bg-purple-600 text-white' : 'bg-blue-500 text-white'}>
+                              {a.role === 'super_admin' ? 'Super Admin' : a.role === 'moderator' ? 'Moderador' : 'Admin'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={a.is_active ? 'default' : 'secondary'}>
+                              {a.is_active ? 'Ativo' : 'Inativo'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-500">{formatDate(a.created_at)}</TableCell>
+                          <TableCell>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-red-300 text-red-600 hover:bg-red-50"
+                              onClick={() => setAdminToDelete(a)}
+                            >
+                              <Trash2 className="h-3 w-3 mr-1" /> Remover
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    {admins.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-6 text-slate-500">
+                          Nenhum admin encontrado
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
+
+      {/* Dialog confirmação excluir usuário */}
+      <Dialog open={!!userToDelete} onOpenChange={() => setUserToDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" /> Excluir Usuário
+            </DialogTitle>
+            <DialogDescription>
+              Isso removerá permanentemente <strong>{userToDelete?.full_name || 'este usuário'}</strong> do sistema, incluindo assinaturas e rotas. Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUserToDelete(null)} disabled={isDeleting}>Cancelar</Button>
+            <Button
+              variant="destructive"
+              onClick={() => userToDelete && deleteUser(userToDelete)}
+              disabled={isDeleting}
+            >
+              {isDeleting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Excluindo...</> : 'Sim, excluir'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog confirmação remover admin */}
+      <Dialog open={!!adminToDelete} onOpenChange={() => setAdminToDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" /> Remover Admin
+            </DialogTitle>
+            <DialogDescription>
+              Isso removerá <strong>{adminToDelete?.full_name}</strong> ({adminToDelete?.email}) do painel de administradores. O usuário não poderá mais fazer login como admin.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdminToDelete(null)} disabled={isDeleting}>Cancelar</Button>
+            <Button
+              variant="destructive"
+              onClick={() => adminToDelete && deleteAdmin(adminToDelete)}
+              disabled={isDeleting}
+            >
+              {isDeleting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Removendo...</> : 'Sim, remover'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

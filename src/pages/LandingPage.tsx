@@ -100,7 +100,7 @@ const LandingPage = () => {
               <div className="relative bg-white p-4 rounded-xl shadow-2xl">
                 <AspectRatio ratio={16/9} className="bg-gray-100 rounded-lg overflow-hidden">
                   <img 
-                    src="/lovable-uploads/40d87efa-c141-4230-9169-0423b48170d2.png" 
+                    src="/app-screenshot.png" 
                     alt="Mapa interativo com rotas de entrega" 
                     className="object-cover w-full h-full rounded-lg" 
                   />
@@ -190,7 +190,7 @@ const LandingPage = () => {
               <h3 className="font-semibold text-lg mb-3">Visualização de Rotas Otimizadas</h3>
               <AspectRatio ratio={16/9} className="bg-gray-100 rounded-lg overflow-hidden mb-3">
                 <img 
-                  src="/lovable-uploads/40d87efa-c141-4230-9169-0423b48170d2.png"
+                  src="/app-screenshot.png"
                   alt="Mapa com rotas e marcadores de entrega" 
                   className="object-cover w-full h-full rounded-lg" 
                 />

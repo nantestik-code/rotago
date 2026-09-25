@@ -475,127 +475,11 @@ export const useRouteHistory = () => {
     }
   }, [user]);
   
-  // Tentar sincronizar ações pendentes quando o usuário estiver autenticado
-  useEffect(() => {
-    // Definição da função assíncrona para sincronizar ações pendentes
-    const syncPendingActionsInEffect = async () => {
-      try {
-        const pendingActionsString = localStorage.getItem('pendingRouteActions');
-        if (!pendingActionsString) {
-          setIsLoading(false);
-          return;
-        }
-        
-        const pendingActions = JSON.parse(pendingActionsString);
-        if (!pendingActions || pendingActions.length === 0) {
-          setIsLoading(false);
-          return;
-        }
-    
-        console.log(`Tentando sincronizar ${pendingActions.length} ações pendentes`);
-        
-        // Filtrar apenas ações deste usuário
-        const userActions = pendingActions.filter(action => action.user_id === user.id);
-        if (userActions.length === 0) {
-          setIsLoading(false);
-          return;
-        }
-    
-        // Processar em lotes para evitar problemas
-        const batchSize = 5;
-        let syncedCount = 0;
-    
-        for (let i = 0; i < userActions.length; i += batchSize) {
-          const batch = userActions.slice(i, i + batchSize);
-
-          // Validar existence das rotas referenciadas no lote para evitar FK 23503
-          const routeIds = Array.from(new Set(batch.map(a => a.route_id).filter(Boolean)));
-          let validRouteIds = new Set<string>();
-          if (routeIds.length > 0) {
-            try {
-              const { data: existingRoutes } = await supabase
-                .from('routes')
-                .select('id')
-                .in('id', routeIds as any);
-              validRouteIds = new Set((existingRoutes || []).map((r: any) => r.id));
-            } catch (e) {
-              console.warn('Falha ao validar rotas do lote, prosseguindo mesmo assim');
-            }
-          }
-
-          const actionsToInsert = batch.map(action => {
-            const hasValidRoute = !action.route_id || validRouteIds.has(action.route_id);
-            if (hasValidRoute) {
-              return {
-                user_id: action.user_id,
-                route_id: action.route_id,
-                action: action.action,
-                details: action.details,
-                created_at: action.created_at
-              };
-            }
-            // Fallback: rota não existe mais -> inserir sem route_id e anotar o original
-            return {
-              user_id: action.user_id,
-              route_id: null,
-              action: action.action,
-              details: { ...(action.details || {}), original_route_id: action.route_id, note: 'route_missing' },
-              created_at: action.created_at
-            };
-          });
-          
-          const { error } = await supabase
-            .from('route_history')
-            .insert(actionsToInsert);
-            
-          if (error) {
-            console.error('Erro ao sincronizar lote de ações:', error);
-            continue;
-          }
-          
-          syncedCount += batch.length;
-        }
-        
-        if (syncedCount > 0) {
-          console.log(`${syncedCount} ações sincronizadas com sucesso`);
-          
-          // Remover ações sincronizadas
-          const remainingActions = pendingActions.filter(action => 
-            action.user_id !== user.id || action.synced
-          );
-          
-          localStorage.setItem('pendingRouteActions', JSON.stringify(remainingActions));
-          
-          // Atualizar estado
-          setPendingActions(prev => prev.filter(action => action.user_id !== user.id));
-          
-          smartToast({
-            title: 'Sincronização concluída',
-            description: `${syncedCount} ações de rota sincronizadas com sucesso`,
-            variant: 'default'
-          });
-        }
-        
-        setIsLoading(false);
-      } catch (error: any) {
-        console.error('Erro ao sincronizar ações pendentes:', error);
-        setIsLoading(false);
-        setError('Erro ao sincronizar ações pendentes.');
-      }
-    };
-    
-    if (user) {
-      // Pequeno atraso para garantir que a autenticação esteja completa
-      const timer = setTimeout(() => {
-        syncPendingActions();
-      }, 5000);
-      
-      // Iniciar a função assíncrona
-      syncPendingActionsInEffect();
-      
-      return () => clearTimeout(timer);
-    }
-  }, [user, syncPendingActions, setIsLoading, setError]);
+  // FIX #4: useEffect de sincronização CONSOLIDADO
+  // O useEffect duplicado (linhas 479-598 originais) foi removido.
+  // Havia 3 chamadas simultâneas no login: syncPendingActionsInEffect() imediata
+  // + setTimeout(syncPendingActions, 5000) aqui + setTimeout(syncPendingActions, 5000)
+  // no segundo useEffect abaixo. Agora existe apenas 1 ponto de sincronização.
 
 /**
  * Exclui uma rota e registra a ação no histórico
@@ -643,10 +527,12 @@ const deleteRoute = useCallback(async (routeId: string) => {
       return { success: false, error: routeError.message };
     }
     
-    // 3. Registrar a ação no histórico
-    await logRouteAction('delete', routeId, {
+    // 3. Registrar a ação no histórico (fire-and-forget)
+    // FIX #6: não deixar o log bloquear nem reverter o retorno de sucesso;
+    // a rota já foi deletada com sucesso — o log é auditória secundária.
+    logRouteAction('delete', routeId, {
       message: `Rota ${routeId} excluída com sucesso`
-    });
+    }).catch(e => console.warn('Log do histórico falhou (rota já deletada):', e));
     
     setIsLoading(false);
     setDeletingRouteId(null);

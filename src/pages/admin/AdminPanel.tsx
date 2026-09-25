@@ -25,7 +25,8 @@ import {
   Bug,
   Bell,
   Home,
-  Mail
+  Mail,
+  MessageCircle
 } from "lucide-react";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import UsersManagement from "@/components/admin/UsersManagement";
@@ -38,6 +39,7 @@ import ReportsAndExports from "@/components/admin/ReportsAndExports";
 import AuditLogs from "@/components/admin/AuditLogs";
 import LogsViewer from "@/components/admin/LogsViewer";
 import EmailManager from "@/components/admin/EmailManager";
+import WhatsAppManager from "@/components/admin/WhatsAppManager";
 
 const AdminPanel = () => {
   const { admin, logoutAdmin } = useAdminAuth();
@@ -53,6 +55,7 @@ const AdminPanel = () => {
     { id: 'subscriptions', label: 'Assinaturas', icon: CreditCard, color: 'purple' },
     { id: 'users', label: 'Usuários', icon: Users, color: 'orange' },
     { id: 'emails', label: 'E-mails', icon: Mail, color: 'cyan' },
+    { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, color: 'green' },
     { id: 'reports', label: 'Relatórios', icon: FileText, color: 'indigo' },
     { id: 'audit', label: 'Auditoria', icon: Shield, color: 'red' },
     { id: 'logs', label: 'Logs', icon: Bug, color: 'gray' },
@@ -189,6 +192,12 @@ const AdminPanel = () => {
           <TabsContent value="emails" className="mt-0">
             <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
               <EmailManager />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="whatsapp" className="mt-0">
+            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+              <WhatsAppManager />
             </div>
           </TabsContent>
 

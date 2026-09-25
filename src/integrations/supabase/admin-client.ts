@@ -1,19 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Cliente Supabase administrativo - usando anon key com sessão autenticada
-const sanitizeEnv = (val?: unknown) => (typeof val === 'string' ? val.trim().replace(/^['"`]|['"`]$/g, '') : '');
+const sanitizeEnv = (val?: unknown) => (typeof val === 'string' ? val.trim().replace(/^["'`]|["'`]$/g, '') : '');
 const SUPABASE_URL = sanitizeEnv(import.meta.env.VITE_SUPABASE_URL);
 const SUPABASE_ANON_KEY = sanitizeEnv(import.meta.env.VITE_SUPABASE_ANON_KEY);
-const SUPABASE_SERVICE_ROLE_KEY = sanitizeEnv(import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY);
 
-// Debug das variáveis de ambiente
-console.log('🔍 [ADMIN CLIENT] Debug env vars:', {
-  url: SUPABASE_URL,
-  hasAnonKey: !!SUPABASE_ANON_KEY,
-  hasServiceKey: !!SUPABASE_SERVICE_ROLE_KEY,
-  anonKeyLength: SUPABASE_ANON_KEY.length,
-  anonKeyStart: SUPABASE_ANON_KEY.substring(0, 20) + '...'
-});
+// Debug mínimo apenas em desenvolvimento (sem expor chaves)
+if (import.meta.env.DEV) {
+  console.log('ℹ️ [ADMIN CLIENT] Env check (DEV):', {
+    hasUrl: !!SUPABASE_URL,
+    hasAnonKey: !!SUPABASE_ANON_KEY,
+  });
+}
 
 // Verificar se as variáveis estão definidas
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {

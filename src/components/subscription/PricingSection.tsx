@@ -87,7 +87,7 @@ const PricingSection = () => {
 
   const getFallbackPlans = (): SubscriptionPlan[] => [
     {
-      id: 'monthly',
+      id: 'mensal',
       name: 'Mensal',
       description: 'Plano mensal padrão',
       price: '29.90',
@@ -99,36 +99,36 @@ const PricingSection = () => {
       mercadopago_plan_id: '2c9380849788f4e40197a261c7eb08c9'
     },
     {
-      id: 'quarterly',
+      id: 'trimestral',
       name: 'Trimestral',
       description: 'Plano trimestral com desconto',
       price: '26.90',
       frequency: 3,
-      frequency_type: 'months',
+      frequency_type: 'month',
       discount: 10,
       total: '80.70',
       is_active: true,
       mercadopago_plan_id: '2c9380849788f4e40197a2f0374c090d'
     },
     {
-      id: 'semiannual',
+      id: 'semestral',
       name: 'Semestral',
       description: 'Plano semestral com desconto',
       price: '23.90',
       frequency: 6,
-      frequency_type: 'months',
+      frequency_type: 'month',
       discount: 20,
       total: '143.40',
       is_active: true,
       mercadopago_plan_id: '2c9380849788f4e40197a2f29a4c090e'
     },
     {
-      id: 'annual',
+      id: 'anual',
       name: 'Anual',
       description: 'Plano anual com desconto',
       price: '19.90',
       frequency: 12,
-      frequency_type: 'months',
+      frequency_type: 'month',
       discount: 33,
       total: '238.80',
       is_active: true,
@@ -137,7 +137,7 @@ const PricingSection = () => {
   ];
 
   const getPopularPlan = () => {
-    return plans.find(plan => plan.id === 'quarterly') || plans[1];
+    return plans.find(plan => plan.id === 'trimestral') || plans[1];
   };
 
   const getPlanFeatures = (planId: string) => {
@@ -157,7 +157,7 @@ const PricingSection = () => {
       'Notificações automáticas'
     ];
 
-    return planId === 'monthly' ? baseFeatures : [...baseFeatures, ...premiumFeatures];
+    return planId === 'mensal' ? baseFeatures : [...baseFeatures, ...premiumFeatures];
   };
 
   const formatPrice = (price: string) => {

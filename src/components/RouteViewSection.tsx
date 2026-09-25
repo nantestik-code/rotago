@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import DeliveryList from '@/components/DeliveryList';
@@ -7,7 +7,8 @@ import DeliveryMap from '@/components/DeliveryMap';
 import StatusCounter from '@/components/StatusCounter';
 import { DeliveryItem } from '@/utils/deliveryUtils';
 import { MapPosition, calculateDistance } from '@/utils/mapUtils';
-import { List, X, LayoutList, ArrowLeft, FileUp, Check, AlertTriangle, Eye, Clock, MessageSquare, MapPin, Navigation, RotateCcw } from 'lucide-react';
+import { ArrowLeft, FileUp, Check, AlertTriangle, Clock } from 'lucide-react';
+import StopCard from '@/components/StopCard';
 import {
   Dialog,
   DialogContent,
@@ -63,80 +64,252 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
 }) => {
   // Estado compartilhado para controlar a aba ativa em ambos os layouts (mobile e desktop)
   const [activeTab, setActiveTab] = useState<'pendente' | 'entregue' | 'ocorrencia'>('pendente');
-  
-  // Log para depuração das entregas recebidas
-  console.log('RouteViewSection - Entregas recebidas:', deliveries.length, deliveries);
-  const [showBottomSheet, setShowBottomSheet] = useState(false);
-  const [sheetPosition, setSheetPosition] = useState('default'); // 'minimized', 'default', 'maximized'
-  const [startY, setStartY] = useState(0);
-  const [currentY, setCurrentY] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const [sheetHeight, setSheetHeight] = useState(0);
-  
-  // Referências para elementos
+
+  // Bottom sheet mobile: 'minimized' | 'half' | 'full'
+  // Inicial: minimizado (só a barra visível). Clicar expande para 'half'. Arrastar para 'full'.
+  const SHEET_HANDLE_HEIGHT = 56;
+  const [sheetHeight, setSheetHeight] = useState(SHEET_HANDLE_HEIGHT);
+  const [sheetPosition, setSheetPosition] = useState<'minimized' | 'half' | 'full'>('minimized');
   const sheetRef = useRef<HTMLDivElement>(null);
   const dragHandleRef = useRef<HTMLDivElement>(null);
-  
-  // Calcular altura da lista quando o componente montar e quando a orientação mudar
+  const sheetHeightRef = useRef(SHEET_HANDLE_HEIGHT);
+  const dragState = useRef({
+    dragging: false,
+    startY: 0,
+    startHeight: SHEET_HANDLE_HEIGHT,
+    currentY: 0,
+    moved: false,
+    pointerId: null as number | null,
+  });
+  const ignoreNextHandleClickRef = useRef(false);
+  const sheetHeightInitializedRef = useRef(false);
+
+  const getSheetBounds = useCallback(() => {
+    const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+    const minHeight = SHEET_HANDLE_HEIGHT;
+    const maxHeight = Math.min(Math.max(Math.round(viewportHeight * 0.88), 360), viewportHeight - 12);
+    const initialHeight = Math.min(
+      Math.max(Math.round(viewportHeight * 0.42), 260),
+      maxHeight
+    );
+
+    return { minHeight, initialHeight, maxHeight };
+  }, []);
+
+  const clampSheetHeight = useCallback((height: number) => {
+    const { minHeight, maxHeight } = getSheetBounds();
+    return Math.min(Math.max(height, minHeight), maxHeight);
+  }, [getSheetBounds]);
+
   useEffect(() => {
-    if (isMobile && sheetRef.current) {
-      const updateSheetHeight = () => {
-        const viewportHeight = window.innerHeight;
-        setSheetHeight(viewportHeight * 0.6); // 60% da altura da tela
-        
-        // Reset para posição padrão quando a orientação mudar
-        setSheetPosition('default');
-        setCurrentY(0);
-      };
-      
-      updateSheetHeight();
-      window.addEventListener('resize', updateSheetHeight);
-      window.addEventListener('orientationchange', updateSheetHeight);
-      
-      return () => {
-        window.removeEventListener('resize', updateSheetHeight);
-        window.removeEventListener('orientationchange', updateSheetHeight);
-      };
-    }
-  }, [isMobile]);
-  
-  // Prevenir que o body role quando a lista estiver sendo arrastada
+    sheetHeightRef.current = sheetHeight;
+    const { minHeight, maxHeight } = getSheetBounds();
+    const nextSheetPosition =
+      sheetHeight <= minHeight + 12
+        ? 'minimized'
+        : sheetHeight >= maxHeight - 12
+        ? 'full'
+        : 'half';
+
+    setSheetPosition(currentPosition =>
+      currentPosition === nextSheetPosition ? currentPosition : nextSheetPosition
+    );
+  }, [getSheetBounds, sheetHeight]);
+
+  // Registrar touch events com {passive: false} para poder chamar preventDefault
   useEffect(() => {
-    if (isDragging) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    
-    return () => {
-      document.body.style.overflow = '';
+    return;
+    const handle = dragHandleRef.current;
+    const sheet = sheetRef.current;
+    if (!handle || !sheet) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      dragState.current = { dragging: true, startY: e.touches[0].clientY, currentY: 0 };
+      sheet.style.transition = 'none';
     };
-  }, [isDragging]);
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!dragState.current.dragging) return;
+      e.preventDefault();
+      const delta = e.touches[0].clientY - dragState.current.startY;
+      dragState.current.currentY = delta;
+      // Aplicar transform visual durante o drag (limitado para não sair da tela)
+      const clamp = Math.max(-window.innerHeight * 0.5, Math.min(delta, window.innerHeight * 0.5));
+      sheet.style.transform = `translateY(${clamp}px)`;
+    };
+
+    const onTouchEnd = () => {
+      if (!dragState.current.dragging) return;
+      dragState.current.dragging = false;
+      sheet.style.transition = '';
+      sheet.style.transform = '';
+      const delta = dragState.current.currentY;
+      const threshold = 50;
+      if (delta < -threshold) {
+        // Arrastar para cima: minimized→half→full
+        setSheetPosition(prev =>
+          prev === 'minimized' ? 'half' : prev === 'half' ? 'full' : 'full'
+        );
+      } else if (delta > threshold) {
+        // Arrastar para baixo: full→half→minimized
+        setSheetPosition(prev =>
+          prev === 'full' ? 'half' : 'minimized'
+        );
+      }
+    };
+
+    handle.addEventListener('touchstart', onTouchStart, { passive: true });
+    handle.addEventListener('touchmove', onTouchMove, { passive: false });
+    handle.addEventListener('touchend', onTouchEnd, { passive: true });
+
+    return () => {
+      handle.removeEventListener('touchstart', onTouchStart);
+      handle.removeEventListener('touchmove', onTouchMove);
+      handle.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [isMobile]);
+
+  useEffect(() => {
+    if (!isMobile) return;
+
+    const syncSheetBounds = () => {
+      const { minHeight, maxHeight } = getSheetBounds();
+
+      setSheetHeight(currentHeight => {
+        if (!sheetHeightInitializedRef.current) {
+          sheetHeightInitializedRef.current = true;
+          return minHeight;
+        }
+
+        if (currentHeight <= minHeight + 12) {
+          return minHeight;
+        }
+
+        return Math.min(Math.max(currentHeight, minHeight), maxHeight);
+      });
+    };
+
+    syncSheetBounds();
+    window.addEventListener('resize', syncSheetBounds);
+
+    return () => {
+      window.removeEventListener('resize', syncSheetBounds);
+    };
+  }, [getSheetBounds, isMobile]);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    const handle = dragHandleRef.current;
+    const sheet = sheetRef.current;
+    if (!handle || !sheet) return;
+
+    const finishDrag = (pointerId?: number) => {
+      if (!dragState.current.dragging) return;
+
+      dragState.current.dragging = false;
+      dragState.current.pointerId = null;
+      sheet.style.transition = '';
+      document.body.style.userSelect = '';
+
+      if (pointerId != null) {
+        handle.releasePointerCapture?.(pointerId);
+      }
+
+      const { minHeight } = getSheetBounds();
+      setSheetHeight(currentHeight => currentHeight <= minHeight + 24 ? minHeight : clampSheetHeight(currentHeight));
+    };
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+
+      dragState.current = {
+        dragging: true,
+        startY: event.clientY,
+        startHeight: sheetHeightRef.current,
+        currentY: 0,
+        moved: false,
+        pointerId: event.pointerId,
+      };
+
+      sheet.style.transition = 'none';
+      document.body.style.userSelect = 'none';
+      handle.setPointerCapture?.(event.pointerId);
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (!dragState.current.dragging) return;
+      if (dragState.current.pointerId != null && event.pointerId !== dragState.current.pointerId) return;
+
+      event.preventDefault();
+
+      const deltaY = dragState.current.startY - event.clientY;
+      if (Math.abs(deltaY) > 4) {
+        dragState.current.moved = true;
+        ignoreNextHandleClickRef.current = true;
+      }
+
+      dragState.current.currentY = deltaY;
+      setSheetHeight(clampSheetHeight(dragState.current.startHeight + deltaY));
+    };
+
+    const onPointerUp = (event: PointerEvent) => {
+      if (dragState.current.pointerId != null && event.pointerId !== dragState.current.pointerId) return;
+      finishDrag(event.pointerId);
+    };
+
+    const onPointerCancel = (event: PointerEvent) => {
+      if (dragState.current.pointerId != null && event.pointerId !== dragState.current.pointerId) return;
+      finishDrag(event.pointerId);
+    };
+
+    handle.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove, { passive: false });
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerCancel);
+
+    return () => {
+      document.body.style.userSelect = '';
+      handle.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerCancel);
+    };
+  }, [clampSheetHeight, getSheetBounds, isMobile]);
+
   const [showOcorrenciaDialog, setShowOcorrenciaDialog] = useState(false);
   const [ocorrenciaText, setOcorrenciaText] = useState('');
   const [currentDeliveryId, setCurrentDeliveryId] = useState<string | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState('');
   const [showFeedback, setShowFeedback] = useState(false);
   const [currentDeliveryIndex, setCurrentDeliveryIndex] = useState(0);
+  const pendingGroupRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const deliveredRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const occurrenceRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const sheetBounds = isMobile ? getSheetBounds() : {
+    minHeight: SHEET_HANDLE_HEIGHT,
+    initialHeight: SHEET_HANDLE_HEIGHT,
+    maxHeight: SHEET_HANDLE_HEIGHT,
+  };
+  const isSheetExpanded = sheetHeight > sheetBounds.minHeight + 12;
 
-  // Sincronizar lista horizontal quando entrega for selecionada no mapa
-  useEffect(() => {
-    if (selectedDeliveryId && deliveries.length > 0) {
-      const selectedIndex = deliveries.findIndex(d => d.id === selectedDeliveryId);
-      if (selectedIndex !== -1) {
-        setCurrentDeliveryIndex(selectedIndex);
-        // Scroll automático para a parada correta na lista horizontal
-        const container = document.querySelector('.flex.overflow-x-auto.snap-x');
-        if (container) {
-          const cardWidth = container.clientWidth;
-          container.scrollTo({
-            left: selectedIndex * cardWidth,
-            behavior: 'smooth'
-          });
-        }
-      }
+  const handleSheetHandleClick = useCallback(() => {
+    if (ignoreNextHandleClickRef.current) {
+      ignoreNextHandleClickRef.current = false;
+      return;
     }
-  }, [selectedDeliveryId, deliveries]);
+
+    if (sheetHeight <= sheetBounds.minHeight + 8) {
+      setSheetHeight(sheetBounds.initialHeight);
+      return;
+    }
+
+    if (sheetHeight >= sheetBounds.maxHeight - 8) {
+      setSheetHeight(sheetBounds.initialHeight);
+      return;
+    }
+
+    setSheetHeight(sheetBounds.maxHeight);
+  }, [sheetBounds.initialHeight, sheetBounds.maxHeight, sheetBounds.minHeight, sheetHeight]);
 
   useEffect(() => {
     if (!currentLocation || selectedDeliveryId) return;
@@ -164,42 +337,247 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
     if (status !== activeTab) setActiveTab(status);
   }, [selectedDeliveryId, deliveries]);
 
-  // Filtrar e ordenar pendentes por sequência (fallback: ordem da parada)
+  // Verificar se a rota foi otimizada (qualquer entrega com optimizedOrder, independente do status)
+  const isRouteOptimized = useMemo(() =>
+    deliveries.some(d => d.optimizedOrder != null),
+  [deliveries]);
+
+  // Filtrar e ordenar pendentes:
+  // - Se otimizado: usar optimizedOrder (ordem geográfica nearest-neighbor)
+  // - Se não otimizado: usar sequence_number da planilha
   const pendingDeliveries = useMemo(() => {
     return deliveries
       .filter(d => d.status === 'pendente')
       .slice()
       .sort((a, b) => {
-        const seqA = Number(a.sequence_number || a.orderNumber || 999999);
-        const seqB = Number(b.sequence_number || b.orderNumber || 999999);
+        if (isRouteOptimized) {
+          const oa = a.optimizedOrder ?? 999999;
+          const ob = b.optimizedOrder ?? 999999;
+          return oa - ob;
+        }
+        const seqA = a.sequence_number != null && Number(a.sequence_number) > 0 ? Number(a.sequence_number) : 999999;
+        const seqB = b.sequence_number != null && Number(b.sequence_number) > 0 ? Number(b.sequence_number) : 999999;
         return seqA - seqB;
       });
-  }, [deliveries]);
-  const deliveredDeliveries = deliveries.filter(d => d.status === 'entregue');
-  const occurrenceDeliveries = deliveries.filter(d => d.status === 'ocorrencia');
+  }, [deliveries, isRouteOptimized]);
+  const deliveredDeliveries = useMemo(() =>
+    deliveries
+      .filter(d => d.status === 'entregue')
+      .slice()
+      .sort((a, b) => {
+        const seqA = a.sequence_number != null && Number(a.sequence_number) > 0 ? Number(a.sequence_number) : 999999;
+        const seqB = b.sequence_number != null && Number(b.sequence_number) > 0 ? Number(b.sequence_number) : 999999;
+        return seqA - seqB;
+      }),
+  [deliveries]);
 
-  // Agrupar entregas pendentes por localização (mesmo endereço/coordenadas)
-  const groupedPendingDeliveries = useMemo(() => {
+  const occurrenceDeliveries = useMemo(() =>
+    deliveries
+      .filter(d => d.status === 'ocorrencia')
+      .slice()
+      .sort((a, b) => {
+        const seqA = a.sequence_number != null && Number(a.sequence_number) > 0 ? Number(a.sequence_number) : 999999;
+        const seqB = b.sequence_number != null && Number(b.sequence_number) > 0 ? Number(b.sequence_number) : 999999;
+        return seqA - seqB;
+      }),
+  [deliveries]);
+
+  // Agrupar entregas pendentes por Stop (orderNumber) — um card por parada
+  // Dentro de cada grupo, ordenar por sequence_number
+  const groupByStop = (items: DeliveryItem[]) => {
     const groups: { [key: string]: DeliveryItem[] } = {};
-    
-    pendingDeliveries.forEach(delivery => {
-      // Criar chave única baseada no endereço completo
-      const locationKey = `${delivery.endereco}-${delivery.cidade}-${delivery.cep}`.toLowerCase().trim();
-      
-      if (!groups[locationKey]) {
-        groups[locationKey] = [];
-      }
-      groups[locationKey].push(delivery);
+    items.forEach((delivery) => {
+      const stopKey = String(delivery.orderNumber ?? delivery.sequence_number ?? 'x');
+      if (!groups[stopKey]) groups[stopKey] = [];
+      groups[stopKey].push(delivery);
     });
-    
-    // Converter grupos em array e ordenar por sequence_number
-    return Object.values(groups).map(group => {
-      return group.sort((a, b) => (a.sequence_number || 0) - (b.sequence_number || 0));
-    }).sort((a, b) => (a[0].sequence_number || 0) - (b[0].sequence_number || 0));
-  }, [pendingDeliveries]);
+
+    const sorted = Object.values(groups).map((group) =>
+      group.sort((a, b) => (Number(a.sequence_number) || 0) - (Number(b.sequence_number) || 0))
+    );
+
+    sorted.sort((a, b) => {
+      const idxA = items.findIndex((delivery) => delivery.id === a[0].id);
+      const idxB = items.findIndex((delivery) => delivery.id === b[0].id);
+      return idxA - idxB;
+    });
+
+    return sorted;
+  };
+
+  const groupedPendingDeliveries = useMemo(() => groupByStop(pendingDeliveries), [pendingDeliveries]);
+  const groupedDeliveredDeliveries = useMemo(() => groupByStop(deliveredDeliveries), [deliveredDeliveries]);
+  const groupedOccurrenceDeliveries = useMemo(() => groupByStop(occurrenceDeliveries), [occurrenceDeliveries]);
+
+  const getNextPendingSelectionId = (deliveryId: string): string | null => {
+    const currentGroupIndex = groupedPendingDeliveries.findIndex(group =>
+      group.some(delivery => delivery.id === deliveryId)
+    );
+
+    const currentGroup = currentGroupIndex >= 0 ? groupedPendingDeliveries[currentGroupIndex] ?? [] : [];
+    const remainingInCurrentGroup = currentGroup
+      .filter(delivery => delivery.id !== deliveryId)
+      .sort((a, b) => Number(a.sequence_number || 0) - Number(b.sequence_number || 0));
+
+    if (remainingInCurrentGroup.length > 0) {
+      return remainingInCurrentGroup[0].id;
+    }
+
+    const candidateGroups = currentGroupIndex >= 0
+      ? groupedPendingDeliveries.filter((_, index) => index !== currentGroupIndex)
+      : groupedPendingDeliveries;
+
+    if (currentLocation) {
+      const nearestGroup = candidateGroups
+        .map(group => {
+          const referenceDelivery = group.find(delivery => delivery.lat != null && delivery.lng != null) ?? group[0];
+          if (!referenceDelivery || referenceDelivery.lat == null || referenceDelivery.lng == null) {
+            return null;
+          }
+
+          return {
+            group,
+            distance: calculateDistance(
+              currentLocation.lat,
+              currentLocation.lng,
+              referenceDelivery.lat,
+              referenceDelivery.lng
+            ),
+          };
+        })
+        .filter((entry): entry is { group: DeliveryItem[]; distance: number } => entry !== null)
+        .sort((a, b) => a.distance - b.distance)[0];
+
+      if (nearestGroup?.group?.length) {
+        return [...nearestGroup.group]
+          .sort((a, b) => Number(a.sequence_number || 0) - Number(b.sequence_number || 0))[0]
+          ?.id ?? null;
+      }
+    }
+
+    if (currentGroupIndex === -1) {
+      const fallbackIndex = Math.min(currentDeliveryIndex, groupedPendingDeliveries.length - 1);
+      return groupedPendingDeliveries[fallbackIndex]?.[0]?.id ?? null;
+    }
+
+    const nextGroup = groupedPendingDeliveries[currentGroupIndex + 1];
+    if (nextGroup?.[0]?.id) {
+      return nextGroup[0].id;
+    }
+
+    const previousGroup = groupedPendingDeliveries[currentGroupIndex - 1];
+    return previousGroup?.[0]?.id ?? null;
+  };
+
+  // Quando groupedPendingDeliveries monta/muda e não há seleção compatível,
+  // selecionar o primeiro pacote do primeiro grupo (primeira parada)
+  useEffect(() => {
+    if (groupedPendingDeliveries.length === 0) return;
+
+    const selectedDelivery = selectedDeliveryId
+      ? deliveries.find(delivery => delivery.id === selectedDeliveryId)
+      : null;
+
+    if (selectedDelivery && selectedDelivery.status !== 'pendente') return;
+
+    const fallbackId = getNextPendingSelectionId(selectedDeliveryId ?? '');
+    if (!fallbackId) return;
+
+    const alreadyInGroup = groupedPendingDeliveries.some(group =>
+      group.some(delivery => delivery.id === selectedDeliveryId)
+    );
+
+    if (!alreadyInGroup) {
+      onSelectDelivery(fallbackId);
+    }
+  }, [currentDeliveryIndex, currentLocation, deliveries, groupedPendingDeliveries, onSelectDelivery, selectedDeliveryId]);
+
+  // Sincronizar carousel quando entrega for selecionada no mapa
+  // DEVE ficar após groupedPendingDeliveries para evitar TDZ no bundle minificado
+  useEffect(() => {
+    if (activeTab !== 'pendente') return;
+    if (isMobile && !isSheetExpanded) return;
+    if (!selectedDeliveryId || deliveries.length === 0) return;
+    const selected = deliveries.find(d => d.id === selectedDeliveryId);
+    if (!selected) return;
+    const selectedIndex = selected.status === 'pendente'
+      ? groupedPendingDeliveries.findIndex(group => group.some(d => d.id === selectedDeliveryId))
+      : -1;
+    if (selectedIndex === -1) return;
+    setCurrentDeliveryIndex(selectedIndex);
+    const selectedGroup = groupedPendingDeliveries[selectedIndex];
+    const selectedGroupId = selectedGroup?.[0]?.id;
+    if (!selectedGroupId) return;
+
+    requestAnimationFrame(() => {
+      pendingGroupRefs.current[selectedGroupId]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    });
+  }, [activeTab, deliveries, groupedPendingDeliveries, isMobile, isSheetExpanded, selectedDeliveryId, sheetHeight]);
+
+  useEffect(() => {
+    if (activeTab !== 'entregue') return;
+    if (isMobile && !isSheetExpanded) return;
+    if (!selectedDeliveryId || deliveries.length === 0) return;
+
+    const selectedDelivery = deliveries.find(delivery => delivery.id === selectedDeliveryId);
+    if (!selectedDelivery || selectedDelivery.status !== 'entregue') return;
+
+    requestAnimationFrame(() => {
+      deliveredRefs.current[selectedDeliveryId]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      });
+    });
+  }, [activeTab, deliveries, isMobile, isSheetExpanded, selectedDeliveryId]);
+
+  useEffect(() => {
+    if (activeTab !== 'ocorrencia') return;
+    if (isMobile && !isSheetExpanded) return;
+    if (!selectedDeliveryId || deliveries.length === 0) return;
+
+    const selectedDelivery = deliveries.find(delivery => delivery.id === selectedDeliveryId);
+    if (!selectedDelivery || selectedDelivery.status !== 'ocorrencia') return;
+
+    requestAnimationFrame(() => {
+      occurrenceRefs.current[selectedDeliveryId]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      });
+    });
+  }, [activeTab, deliveries, isMobile, isSheetExpanded, selectedDeliveryId]);
 
   // Próxima entrega (primeira pendente)
   const nextDelivery = pendingDeliveries[0];
+
+  // Marca todos os pacotes de um grupo como entregue, navegando apenas uma vez
+  // A seleção da próxima parada é feita pelo useEffect de correção (groupedPendingDeliveries)
+  // que já detecta automaticamente quando selectedDeliveryId sai dos grupos pendentes
+  const handleGroupEntregue = (group: DeliveryItem[]) => {
+    if (group.length === 0) return;
+    if (group.length === 1) {
+      handleStatusChange(group[0].id, 'entregue');
+      return;
+    }
+    const nextPendingSelectionId = getNextPendingSelectionId(group[0].id);
+    // Múltiplos pacotes: marcar todos sem callback — o useEffect de correção vai navegar
+    for (const d of group) {
+      onStatusChange(d.id, 'entregue');
+    }
+    setFeedbackMessage(`Parada concluída — ${group.length} pacote(s) entregue(s)`);
+    setShowFeedback(true);
+    setTimeout(() => setShowFeedback(false), 3000);
+    if (nextPendingSelectionId) {
+      onSelectDelivery(nextPendingSelectionId);
+      setActiveTab('pendente');
+    } else {
+      setActiveTab('entregue');
+    }
+    // selectedDeliveryId vai cair fora dos grupos pendentes após os status mudarem,
+    // o useEffect de groupedPendingDeliveries vai selecionar a primeira parada restante
+  };
 
   const handleStatusChange = (id: string, status: 'pendente' | 'entregue' | 'ocorrencia') => {
     console.log('RouteViewSection: Changing delivery status:', id, 'to', status);
@@ -230,9 +608,9 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
     // IMPORTANTE: Primeiro mostrar feedback para melhor UX
     let message = 'Status atualizado!';
     if (status === 'entregue') {
-      // Encontrar a entrega e seu número de ordem real (sem usar índice do array)
+      // SIMPLES: Usar APENAS sequence_number
       const delivery = deliveries.find(d => d.id === id);
-      const orderNum = delivery?.orderNumber ?? delivery?.sequence_number ?? '?';
+      const orderNum = delivery?.sequence_number ?? '?';
       message = `Entrega concluída, ordem ${orderNum}`;
     }
     setFeedbackMessage(message);
@@ -240,56 +618,28 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
     setTimeout(() => setShowFeedback(false), 3000);
     
     // IMPORTANTE: Criar uma cópia local atualizada da entrega para verificação
-    const updatedDelivery = {
-      ...deliveryToUpdate,
-      status: status
-    };
-    
     // Chamar o handler pai para atualizar o estado global
     // Se for uma entrega concluída, passar callback para navegação automática
     if (status === 'entregue') {
+      // Buscar a entrega que acabou de ser marcada como entregue ANTES de chamar onStatusChange
+      const nextPendingSelectionId = getNextPendingSelectionId(id);
+      
+      console.log(`Marcando entrega ${id} como entregue. Próxima seleção prevista: ${nextPendingSelectionId ?? 'nenhuma'}`);
+      
       onStatusChange(id, status, (nextDeliveryId: string | null) => {
         try {
-          const latest = JSON.parse(localStorage.getItem('currentRouteDeliveries') || '[]');
-          const pendings = (Array.isArray(latest) && latest.length > 0 ? latest : deliveries)
-            .filter((d: DeliveryItem) => d.status === 'pendente');
-          let nextId: string | null = null;
-          if (pendings.length > 0) {
-            if (currentLocation) {
-              let nearest = pendings.find(d => d.lat && d.lng);
-              if (nearest && nearest.lat && nearest.lng) {
-                let best = calculateDistance(currentLocation.lat, currentLocation.lng, nearest.lat, nearest.lng);
-                pendings.forEach(d => {
-                  if (d.lat && d.lng) {
-                    const dist = calculateDistance(currentLocation.lat, currentLocation.lng, d.lat, d.lng);
-                    if (dist < best) {
-                      best = dist;
-                      nearest = d;
-                    }
-                  }
-                });
-                nextId = nearest.id;
-              }
-            }
-            if (!nextId) {
-              pendings.sort((a: DeliveryItem, b: DeliveryItem) => {
-                const seqA = Number(a.sequence_number || a.orderNumber || 0);
-                const seqB = Number(b.sequence_number || b.orderNumber || 0);
-                return seqA - seqB;
-              });
-              nextId = pendings[0].id;
-            }
-          }
-          if (!nextId) {
-            nextId = nextDeliveryId || null;
-          }
+          // Buscar entregas pendentes do estado ATUAL (deliveries), não do localStorage
+          // porque o localStorage ainda não foi atualizado neste momento
+          const nextId = nextPendingSelectionId ?? nextDeliveryId ?? null;
+          
           if (nextId) {
             onSelectDelivery(nextId);
             setActiveTab('pendente');
           } else {
             setActiveTab('entregue');
           }
-        } catch {
+        } catch (error) {
+          console.error('❌ Erro ao selecionar próxima entrega:', error);
           setActiveTab('pendente');
         }
       });
@@ -302,19 +652,28 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
   };
   
   // Função para abrir o diálogo de ocorrência
-  const handleOcorrenciaClick = (id: string) => {
-    setCurrentDeliveryId(id);
+  const handleOcorrenciaClick = (group: DeliveryItem[]) => {
+    setCurrentDeliveryId(group[0]?.id ?? null);
     setShowOcorrenciaDialog(true);
   };
 
   const handleOcorrenciaSubmit = () => {
-    if (currentDeliveryId) {
-      onStatusChange(currentDeliveryId, 'ocorrencia');
-      setShowOcorrenciaDialog(false);
-      setFeedbackMessage('Ocorrência registrada!');
-      setShowFeedback(true);
-      setTimeout(() => setShowFeedback(false), 2000);
-    }
+    if (!currentDeliveryId) return;
+    const group = groupedPendingDeliveries.find((items) =>
+      items.some((item) => item.id === currentDeliveryId)
+    ) ?? deliveries.filter((item) => item.id === currentDeliveryId);
+
+    group.forEach((item) => onStatusChange(item.id, 'ocorrencia'));
+    setShowOcorrenciaDialog(false);
+    setFeedbackMessage(group.length > 1 ? `Problema na parada · ${group.length} pacotes` : 'Ocorrência registrada');
+    setShowFeedback(true);
+    setTimeout(() => setShowFeedback(false), 2000);
+  };
+
+  const handleGroupUndo = (group: DeliveryItem[]) => {
+    group.forEach((item) => onStatusChange(item.id, 'pendente'));
+    if (group[0]) onSelectDelivery(group[0].id);
+    setActiveTab('pendente');
   };
 
   const openNavigation = (delivery: DeliveryItem) => {
@@ -440,128 +799,35 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
               />
             </div>
             
-            {/* Lista de entregas suspensa arrastável */}
-            <div 
+            {/* Bottom sheet — minimizada por padrão, expande ao clicar/arrastar */}
+            <div
               ref={sheetRef}
-              className={`absolute bottom-0 left-0 right-0 flex flex-col bg-white rounded-t-xl shadow-lg transition-transform duration-300 ease-out ${
-                sheetPosition === 'minimized' ? 'translate-y-[70%]' : 
-                sheetPosition === 'maximized' ? 'translate-y-0' : 
-                'translate-y-[30%]'
-              }`}
+              className="absolute bottom-0 left-0 right-0 flex flex-col bg-white rounded-t-2xl shadow-2xl overflow-hidden"
               style={{
-                height: sheetHeight ? `${sheetHeight}px` : '60%',
-                transform: isDragging ? `translateY(${currentY}px)` : undefined,
-                transition: isDragging ? 'none' : 'transform 300ms ease-out',
-                zIndex: 50
-              }}
-              onTouchStart={(e) => {
-                if (dragHandleRef.current?.contains(e.target as Node)) {
-                  setStartY(e.touches[0].clientY);
-                  setIsDragging(true);
-                  e.preventDefault();
-                }
-              }}
-              onTouchMove={(e) => {
-                if (isDragging) {
-                  const deltaY = e.touches[0].clientY - startY;
-                  // Limitar o arraste para não ultrapassar os limites
-                  const maxUp = sheetPosition === 'default' ? -(sheetHeight * 0.3) : 0;
-                  const maxDown = sheetPosition === 'default' ? (sheetHeight * 0.4) : (sheetPosition === 'minimized' ? 0 : (sheetHeight * 0.7));
-                  
-                  const limitedDelta = Math.max(maxUp, Math.min(deltaY, maxDown));
-                  setCurrentY(limitedDelta);
-                  e.preventDefault();
-                }
-              }}
-              onTouchEnd={(e) => {
-                if (isDragging) {
-                  setIsDragging(false);
-                  
-                  // Determinar a nova posição com base no movimento
-                  const threshold = sheetHeight * 0.15;
-                  
-                  if (currentY > threshold) {
-                    // Arrastar para baixo
-                    if (sheetPosition === 'maximized') {
-                      setSheetPosition('default');
-                    } else if (sheetPosition === 'default') {
-                      setSheetPosition('minimized');
-                    }
-                  } else if (currentY < -threshold) {
-                    // Arrastar para cima
-                    if (sheetPosition === 'minimized') {
-                      setSheetPosition('default');
-                    } else if (sheetPosition === 'default') {
-                      setSheetPosition('maximized');
-                    }
-                  }
-                  
-                  setCurrentY(0);
-                  e.preventDefault();
-                }
-              }}
-              // Suporte para mouse também
-              onMouseDown={(e) => {
-                if (dragHandleRef.current?.contains(e.target as Node)) {
-                  setStartY(e.clientY);
-                  setIsDragging(true);
-                }
-              }}
-              onMouseMove={(e) => {
-                if (isDragging) {
-                  const deltaY = e.clientY - startY;
-                  const maxUp = sheetPosition === 'default' ? -(sheetHeight * 0.3) : 0;
-                  const maxDown = sheetPosition === 'default' ? (sheetHeight * 0.4) : (sheetPosition === 'minimized' ? 0 : (sheetHeight * 0.7));
-                  
-                  const limitedDelta = Math.max(maxUp, Math.min(deltaY, maxDown));
-                  setCurrentY(limitedDelta);
-                }
-              }}
-              onMouseUp={() => {
-                if (isDragging) {
-                  setIsDragging(false);
-                  
-                  const threshold = sheetHeight * 0.15;
-                  
-                  if (currentY > threshold) {
-                    if (sheetPosition === 'maximized') {
-                      setSheetPosition('default');
-                    } else if (sheetPosition === 'default') {
-                      setSheetPosition('minimized');
-                    }
-                  } else if (currentY < -threshold) {
-                    if (sheetPosition === 'minimized') {
-                      setSheetPosition('default');
-                    } else if (sheetPosition === 'default') {
-                      setSheetPosition('maximized');
-                    }
-                  }
-                  
-                  setCurrentY(0);
-                }
-              }}
-              onMouseLeave={() => {
-                if (isDragging) {
-                  setIsDragging(false);
-                  setCurrentY(0);
-                }
+                height: `${sheetHeight}px`,
+                transition: 'height 220ms cubic-bezier(0.32, 0.72, 0, 1)',
+                zIndex: 50,
               }}
             >
-              {/* Indicador de arraste */}
-              <div 
+              {/* Handle — clicar alterna minimized→half→full→minimized */}
+              <div
                 ref={dragHandleRef}
-                className="drag-handle w-full h-8 flex flex-col items-center justify-center cursor-grab active:cursor-grabbing mx-auto"
+                className="flex flex-col items-center justify-center w-full cursor-pointer select-none border-b border-gray-100"
+                style={{ height: SHEET_HANDLE_HEIGHT, flexShrink: 0, touchAction: 'none' }}
+                onClick={handleSheetHandleClick}
               >
-                <div className="w-12 h-1 bg-gray-300 rounded-full mb-1"></div>
-                <div className="w-12 h-1 bg-gray-300 rounded-full"></div>
-                {sheetPosition === 'minimized' && (
-                  <div className="text-xs text-gray-400 mt-1">Arraste para cima</div>
-                )}
-                {sheetPosition === 'maximized' && (
-                  <div className="text-xs text-gray-400 mt-1">Arraste para baixo</div>
-                )}
+                <div className="w-10 h-1 bg-gray-300 rounded-full" />
+                <span className="text-xs text-gray-400 mt-2">
+                  {sheetPosition === 'minimized'
+                    ? `▲  ${pendingDeliveries.length} pendentes · ${deliveredDeliveries.length} entregues · ${occurrenceDeliveries.length} ocorrências`
+                    : sheetPosition === 'half'
+                    ? '▲ Expandir  ·  toque para ver tudo'
+                    : '▼ Recolher lista'}
+                </span>
               </div>
               
+              {/* Conteúdo: oculto quando minimizado */}
+              {isSheetExpanded && <>
               {/* Abas de navegação */}
               <div className="flex flex-wrap gap-1 space-x-1 mb-2 border-b border-gray-200 pb-2 overflow-x-auto px-2">
                 <button 
@@ -570,7 +836,7 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                 >
                   <Clock size={14} className="mr-1 text-blue-500" />
                   <span>Pend.</span>
-                  <span className="ml-1">({pendingDeliveries.length || deliveries.length})</span>
+                  <span className="ml-1">({groupedPendingDeliveries.length})</span>
                 </button>
                 <button 
                   className={`px-2 py-1 rounded-md text-xs font-medium flex items-center whitespace-nowrap ${activeTab === 'entregue' ? 'bg-green-100 text-green-700' : 'text-gray-600 hover:bg-gray-100'}`}
@@ -578,7 +844,7 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                 >
                   <Check size={14} className="mr-1 text-green-500" />
                   <span>Entr.</span>
-                  <span className="ml-1">({deliveredDeliveries.length})</span>
+                  <span className="ml-1">({groupedDeliveredDeliveries.length})</span>
                 </button>
                 <button 
                   className={`px-2 py-1 rounded-md text-xs font-medium flex items-center whitespace-nowrap ${activeTab === 'ocorrencia' ? 'bg-red-100 text-red-700' : 'text-gray-600 hover:bg-gray-100'}`}
@@ -594,126 +860,50 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                 {/* Renderizar apenas a lista ativa selecionada */}
                 {activeTab === 'pendente' && (
                   <div className="relative">
-                    <div 
-                      className="flex overflow-x-auto snap-x snap-mandatory" 
-                      style={{ 
-                        scrollbarWidth: 'none', 
-                        msOverflowStyle: 'none',
-                        WebkitOverflowScrolling: 'touch'
-                      }}
-                    >
-                      {pendingDeliveries.map((delivery, index) => (
-                        <div key={delivery.id} className="flex-none w-full snap-start">
-                          <div className="p-4">
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center space-x-2 mb-1">
-                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold relative ${
-                                    delivery.id === selectedDeliveryId ? 'bg-blue-500 text-white ring-2 ring-blue-200' : 'bg-blue-100 text-blue-700'
-                                  }`}>
-                                    #{delivery.sequence_number || delivery.orderNumber || '?'}
-                                    {/* Verificar se há entregas múltiplas no mesmo endereço */}
-                                    {pendingDeliveries.filter(d => d.lat === delivery.lat && d.lng === delivery.lng).length > 1 && (
-                                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs">
-                                        {pendingDeliveries.filter(d => d.lat === delivery.lat && d.lng === delivery.lng).length}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <h3 className="font-semibold text-gray-900 truncate text-sm">{delivery.endereco}</h3>
-                                    <p className="text-xs text-gray-500 truncate">{delivery.bairro && `${delivery.bairro}, `}{delivery.cidade}</p>
-                                    {/* Sempre mostrar o número da ordem */}
-                                    <p className="text-xs text-blue-600 font-medium">
-                                      📦 Ordem: #{delivery.sequence_number || delivery.orderNumber || '?'} | 🚩 Parada: #{delivery.orderNumber || delivery.sequence_number || '?'}
-                                    </p>
-                                    {/* Mostrar outras ordens no mesmo endereço se houver múltiplas */}
-                                    {pendingDeliveries.filter(d => d.lat === delivery.lat && d.lng === delivery.lng).length > 1 && (
-                                      <p className="text-xs text-orange-600 font-medium">
-                                        📍 Entregas múltiplas: {pendingDeliveries
-                                          .filter(d => d.lat === delivery.lat && d.lng === delivery.lng)
-                                          .map(d => `#${d.sequence_number || d.orderNumber || '?'}`)
-                                          .join(', ')}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                                {delivery.observacoes && (
-                                  <p className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded mt-1 truncate">💬 {delivery.observacoes}</p>
-                                )}
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-3 gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="flex items-center justify-center space-x-1 h-10 text-xs bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
-                                onClick={(e) => { e.stopPropagation(); openNavigation(delivery); }}
-                                disabled={!delivery.lat || !delivery.lng}
-                              >
-                                <Navigation size={14} />
-                                <span>Navegar</span>
-                              </Button>
-                              <Button
-                                size="sm"
-                                className="flex items-center justify-center space-x-1 h-10 text-xs bg-green-500 hover:bg-green-600 text-white"
-                                onClick={(e) => { e.stopPropagation(); handleStatusChange(delivery.id, 'entregue'); }}
-                              >
-                                <Check size={14} />
-                                <span>Entregue</span>
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="flex items-center justify-center space-x-1 h-10 text-xs bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
-                                onClick={(e) => { e.stopPropagation(); handleOcorrenciaClick(delivery.id); }}
-                              >
-                                <AlertTriangle size={14} />
-                                <span>Problema</span>
-                              </Button>
-                            </div>
+                    <div className="space-y-2 overflow-y-auto p-1">
+                      {groupedPendingDeliveries.map((group, groupIndex) => {
+                        const firstDelivery = group[0];
+                        const isGroupSelected = group.some(d => d.id === selectedDeliveryId);
+                        const stopNum = firstDelivery.orderNumber ?? firstDelivery.sequence_number;
+                        return (
+                          <div
+                            key={`stop-${stopNum}-${groupIndex}`}
+                            ref={(element) => {
+                              if (element) {
+                                pendingGroupRefs.current[firstDelivery.id] = element;
+                                return;
+                              }
+
+                              delete pendingGroupRefs.current[firstDelivery.id];
+                            }}
+                          >
+                            <StopCard
+                              group={group}
+                              selected={isGroupSelected}
+                              mode="pendente"
+                              onSelect={() => onSelectDelivery(firstDelivery.id)}
+                              onNavigate={() => openNavigation(firstDelivery)}
+                              onComplete={() => handleGroupEntregue(group)}
+                              onProblem={() => handleOcorrenciaClick(group)}
+                            />
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
-                    {pendingDeliveries.length > 1 && (
-                      <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex space-x-1">
-                        {pendingDeliveries.map((delivery, index) => (
-                          <div 
-                            key={index} 
-                            className={`w-2 h-2 rounded-full transition-colors ${
-                              delivery.id === selectedDeliveryId ? 'bg-blue-500' : 'bg-gray-300'
-                            }`} 
-                          />
-                        ))}
-                      </div>
-                    )}
                   </div>
                 )}
 
                 {activeTab === 'entregue' && (
-                  <div className="delivery-cards space-y-3">
-                    {deliveredDeliveries.length > 0 ? deliveredDeliveries.map((delivery, index) => (
-                        <div key={delivery.id} className="mobile-delivery-card delivered bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                          <div className="card-header">
-                            <div className="delivery-number delivered w-6 h-6 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-sm font-medium mr-2">{delivery.sequence_number || delivery.orderNumber || '?'}</div>
-                            <div className="delivery-info">
-                              <h3 className="truncate">{delivery.endereco.split(',')[0]}</h3>
-                              <p className="truncate">{delivery.cidade}</p>
-                              <p className="truncate text-xs text-blue-600">Ordem: {delivery.sequence_number || delivery.orderNumber || '?'} • Parada: #{delivery.orderNumber || delivery.sequence_number || '?'}</p>
-                              <span className="status-label">Entregue</span>
-                            </div>
-                          </div>
-                          <div className="card-actions">
-                            <Button
-                              className="action-btn undo-btn"
-                              onClick={() => handleStatusChange(delivery.id, 'pendente')}
-                              size="sm"
-                            >
-                              <RotateCcw size={16} />
-                              <span className="hidden sm:inline">Desfazer</span>
-                            </Button>
-                          </div>
-                        </div>
+                  <div className="space-y-2 overflow-y-auto pb-6 px-1">
+                    {groupedDeliveredDeliveries.length > 0 ? groupedDeliveredDeliveries.map((group) => (
+                      <StopCard
+                        key={`delivered-${group[0].id}`}
+                        group={group}
+                        selected={group.some((item) => item.id === selectedDeliveryId)}
+                        mode="entregue"
+                        onSelect={() => onSelectDelivery(group[0].id)}
+                        onUndo={() => handleGroupUndo(group)}
+                      />
                     )) : (
                       <div className="empty-list-message p-4 text-center text-gray-500 italic">Nenhuma entrega concluída</div>
                     )}
@@ -721,35 +911,23 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                 )}
 
                 {activeTab === 'ocorrencia' && (
-                  <div className="delivery-cards space-y-3">
-                    {occurrenceDeliveries.length > 0 ? occurrenceDeliveries.map((delivery, index) => (
-                        <div key={delivery.id} className="mobile-delivery-card occurrence bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                          <div className="card-header">
-                            <div className="delivery-number occurrence w-6 h-6 rounded-full bg-red-100 text-red-700 flex items-center justify-center text-sm font-medium mr-2">{delivery.sequence_number || delivery.orderNumber || '?'}</div>
-                            <div className="delivery-info">
-                              <h3 className="truncate">{delivery.endereco.split(',')[0]}</h3>
-                              <p className="truncate">{delivery.cidade}</p>
-                              <p className="truncate text-xs text-blue-600">Ordem: {delivery.sequence_number || delivery.orderNumber || '?'} • Parada: #{delivery.orderNumber || delivery.sequence_number || '?'}</p>
-                              <span className="status-label">Ocorrência</span>
-                            </div>
-                          </div>
-                          <div className="card-actions">
-                            <Button
-                              className="action-btn undo-btn"
-                              onClick={() => handleStatusChange(delivery.id, 'pendente')}
-                              size="sm"
-                            >
-                              <RotateCcw size={16} />
-                              <span className="hidden sm:inline">Desfazer</span>
-                            </Button>
-                          </div>
-                        </div>
+                  <div className="space-y-2">
+                    {groupedOccurrenceDeliveries.length > 0 ? groupedOccurrenceDeliveries.map((group) => (
+                      <StopCard
+                        key={`occ-${group[0].id}`}
+                        group={group}
+                        selected={group.some((item) => item.id === selectedDeliveryId)}
+                        mode="ocorrencia"
+                        onSelect={() => onSelectDelivery(group[0].id)}
+                        onUndo={() => handleGroupUndo(group)}
+                      />
                     )) : (
                       <div className="empty-list-message p-4 text-center text-gray-500 italic">Nenhuma ocorrência registrada</div>
                     )}
                   </div>
                 )}
               </div>
+              </>}
             </div>
           </div>
         </div>
@@ -758,7 +936,7 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
         <div className="desktop-route-view">
           <div className="mb-4">
             <div className="flex justify-between items-center mb-2">
-              <h2 className="text-2xl font-semibold">Rota Otimizada</h2>
+              <h2 className="text-xl font-semibold tracking-tight text-slate-900">Rota do dia</h2>
               <div className="flex gap-2">
                 {onFinishRoute && (
                   <Button 
@@ -821,9 +999,9 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                     onClick={() => setActiveTab('pendente')}
                   >
                     <Clock size={16} className="mr-1 lg:mr-2 text-blue-500" />
-                    <span className="hidden sm:inline">Pendentes</span>
+                    <span className="hidden sm:inline">Paradas</span>
                     <span className="sm:hidden">Pend.</span>
-                    <span className="ml-1">({pendingDeliveries.length || deliveries.length})</span>
+                    <span className="ml-1">({groupedPendingDeliveries.length})</span>
                   </button>
                   <button 
                     className={`px-2 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium flex items-center whitespace-nowrap ${activeTab === 'entregue' ? 'bg-green-100 text-green-700' : 'text-gray-600 hover:bg-gray-100'}`}
@@ -832,7 +1010,7 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                     <Check size={16} className="mr-1 lg:mr-2 text-green-500" />
                     <span className="hidden sm:inline">Entregues</span>
                     <span className="sm:hidden">Entr.</span>
-                    <span className="ml-1">({deliveredDeliveries.length})</span>
+                    <span className="ml-1">({groupedDeliveredDeliveries.length})</span>
                   </button>
                   <button 
                     className={`px-2 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium flex items-center whitespace-nowrap ${activeTab === 'ocorrencia' ? 'bg-red-100 text-red-700' : 'text-gray-600 hover:bg-gray-100'}`}
@@ -845,107 +1023,68 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                   </button>
                 </div>
                 
-                {/* Conteúdo da aba ativa */}
                 <div className="flex-1 overflow-hidden">
                   {activeTab === 'pendente' && (
-                    <div className="relative">
-                      <div 
-                        className="flex overflow-x-auto snap-x snap-mandatory" 
-                        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
-                      >
-                        {pendingDeliveries.map((delivery, index) => (
-                          <div key={delivery.id} className="flex-none w-full snap-start">
-                            <div className="p-4">
-                              <div className="flex items-start justify-between mb-3">
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center space-x-2 mb-1">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold relative ${delivery.id === selectedDeliveryId ? 'bg-blue-500 text-white ring-2 ring-blue-200' : 'bg-blue-100 text-blue-700'}`}>
-                                      #{delivery.sequence_number || delivery.orderNumber}
-                                      {pendingDeliveries.filter(d => d.lat === delivery.lat && d.lng === delivery.lng).length > 1 && (
-                                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs">
-                                          {pendingDeliveries.filter(d => d.lat === delivery.lat && d.lng === delivery.lng).length}
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <h3 className="font-semibold text-gray-900 truncate text-sm">{delivery.endereco}</h3>
-                                      <p className="text-xs text-gray-500 truncate">{delivery.bairro && `${delivery.bairro}, `}{delivery.cidade}</p>
-                                      <p className="text-xs text-blue-600 font-medium">📦 Ordem: #{delivery.sequence_number} | 🚩 Parada: #{delivery.orderNumber}</p>
-                                      {pendingDeliveries.filter(d => d.lat === delivery.lat && d.lng === delivery.lng).length > 1 && (
-                                        <p className="text-xs text-orange-600 font-medium">
-                                          📍 Entregas múltiplas: {pendingDeliveries
-                                            .filter(d => d.lat === delivery.lat && d.lng === delivery.lng)
-                                            .map(d => `#${d.sequence_number}`)
-                                            .join(', ')}
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
-                                  {delivery.observacoes && (
-                                    <p className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded mt-1 truncate">💬 {delivery.observacoes}</p>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="grid grid-cols-3 gap-2">
-                                <Button size="sm" variant="outline" className="flex items-center justify-center space-x-1 h-10 text-xs bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100" onClick={(e) => { e.stopPropagation(); openNavigation(delivery); }} disabled={!delivery.lat || !delivery.lng}>
-                                  <Navigation size={14} />
-                                  <span>Navegar</span>
-                                </Button>
-                                <Button size="sm" className="flex items-center justify-center space-x-1 h-10 text-xs bg-green-500 hover:bg-green-600 text-white" onClick={(e) => { e.stopPropagation(); handleStatusChange(delivery.id, 'entregue'); }}>
-                                  <Check size={14} />
-                                  <span>Entregue</span>
-                                </Button>
-                                <Button size="sm" variant="outline" className="flex items-center justify-center space-x-1 h-10 text-xs bg-red-50 border-red-200 text-red-700 hover:bg-red-100" onClick={(e) => { e.stopPropagation(); handleOcorrenciaClick(delivery.id); }}>
-                                  <AlertTriangle size={14} />
-                                  <span>Problema</span>
-                                </Button>
-                              </div>
-                            </div>
+                    <div className="h-full space-y-2 overflow-y-auto p-3">
+                      {groupedPendingDeliveries.map((group, groupIndex) => {
+                        const firstDelivery = group[0];
+                        const stopNum = firstDelivery.orderNumber ?? firstDelivery.sequence_number;
+                        return (
+                          <div
+                            key={`desk-stop-${stopNum}-${groupIndex}`}
+                            ref={(element) => {
+                              if (element) {
+                                pendingGroupRefs.current[firstDelivery.id] = element;
+                                return;
+                              }
+                              delete pendingGroupRefs.current[firstDelivery.id];
+                            }}
+                          >
+                            <StopCard
+                              group={group}
+                              selected={group.some((item) => item.id === selectedDeliveryId)}
+                              mode="pendente"
+                              onSelect={() => onSelectDelivery(firstDelivery.id)}
+                              onNavigate={() => openNavigation(firstDelivery)}
+                              onComplete={() => handleGroupEntregue(group)}
+                              onProblem={() => handleOcorrenciaClick(group)}
+                            />
                           </div>
-                        ))}
-                      </div>
-                      {pendingDeliveries.length > 1 && (
-                        <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex space-x-1">
-                          {pendingDeliveries.map((delivery, index) => (
-                            <div key={index} className={`w-2 h-2 rounded-full transition-colors ${delivery.id === selectedDeliveryId ? 'bg-blue-500' : 'bg-gray-300'}`} />
-                          ))}
-                        </div>
-                      )}
+                        );
+                      })}
                     </div>
                   )}
                   {activeTab === 'entregue' && (
-                    <div className="p-2 space-y-2 overflow-y-auto h-full">
-                      {deliveredDeliveries.length === 0 && (
+                    <div className="h-full space-y-2 overflow-y-auto p-3">
+                      {groupedDeliveredDeliveries.length === 0 && (
                         <div className="text-sm text-gray-500 italic p-4">Nenhuma entrega concluída</div>
                       )}
-                      {deliveredDeliveries.map((delivery, index) => (
-                        <div key={delivery.id} className="flex items-center justify-between bg-white border border-gray-200 rounded-md p-3">
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium truncate">{delivery.endereco}</div>
-                            <div className="text-xs text-gray-500 truncate">📦 Ordem: #{delivery.sequence_number || delivery.orderNumber} | 🚩 Parada: #{delivery.orderNumber || delivery.sequence_number}</div>
-                          </div>
-                          <Button size="sm" variant="outline" onClick={() => onStatusChange(delivery.id, 'pendente')}>
-                            Desfazer
-                          </Button>
-                        </div>
+                      {groupedDeliveredDeliveries.map((group) => (
+                        <StopCard
+                          key={`desk-delivered-${group[0].id}`}
+                          group={group}
+                          selected={group.some((item) => item.id === selectedDeliveryId)}
+                          mode="entregue"
+                          onSelect={() => onSelectDelivery(group[0].id)}
+                          onUndo={() => handleGroupUndo(group)}
+                        />
                       ))}
                     </div>
                   )}
                   {activeTab === 'ocorrencia' && (
-                    <div className="p-2 space-y-2 overflow-y-auto h-full">
-                      {occurrenceDeliveries.length === 0 && (
+                    <div className="h-full space-y-2 overflow-y-auto p-3">
+                      {groupedOccurrenceDeliveries.length === 0 && (
                         <div className="text-sm text-gray-500 italic p-4">Nenhuma ocorrência registrada</div>
                       )}
-                      {occurrenceDeliveries.map((delivery) => (
-                        <div key={delivery.id} className="flex items-center justify-between bg-white border border-gray-200 rounded-md p-3">
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium truncate">{delivery.endereco}</div>
-                            <div className="text-xs text-gray-500 truncate">📦 Ordem: #{delivery.sequence_number || delivery.orderNumber} | 🚩 Parada: #{delivery.orderNumber || delivery.sequence_number}</div>
-                          </div>
-                          <Button size="sm" variant="outline" onClick={() => onStatusChange(delivery.id, 'pendente')}>
-                            Desfazer
-                          </Button>
-                        </div>
+                      {groupedOccurrenceDeliveries.map((group) => (
+                        <StopCard
+                          key={`desk-occ-${group[0].id}`}
+                          group={group}
+                          selected={group.some((item) => item.id === selectedDeliveryId)}
+                          mode="ocorrencia"
+                          onSelect={() => onSelectDelivery(group[0].id)}
+                          onUndo={() => handleGroupUndo(group)}
+                        />
                       ))}
                     </div>
                   )}

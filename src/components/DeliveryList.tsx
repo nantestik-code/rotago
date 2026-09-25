@@ -46,32 +46,18 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
     } catch {}
   }, []);
 
-  // Group deliveries by stop number for multiple delivery detection
+  // Agrupar entregas por Stop (orderNumber) — mesma lógica do carousel
   const stopGroups = useMemo(() => {
-    const groups: Record<string, {items: DeliveryItem[], indices: number[]}> = {};
-    
-    deliveries.forEach((delivery, index) => {
-      // Usar orderNumber como número da parada (Stop da planilha)
-      const stopNumber = delivery.orderNumber || delivery.sequence_number || undefined;
-      const stopKey = `stop_${stopNumber}`;
-      
-      if (!groups[stopKey]) {
-        groups[stopKey] = { items: [], indices: [] };
-      }
+    const groups: Record<string, { items: DeliveryItem[]; sequences: number[] }> = {};
+    deliveries.forEach((delivery) => {
+      const stopKey = String(delivery.orderNumber ?? delivery.sequence_number ?? 'x');
+      if (!groups[stopKey]) groups[stopKey] = { items: [], sequences: [] };
       groups[stopKey].items.push(delivery);
-      // Usar sequence_number como ordem real da entrega (Sequence da planilha)
-      const realSequenceNumber = Number(delivery.sequence_number || delivery.orderNumber || 999999);
-      groups[stopKey].indices.push(realSequenceNumber);
+      groups[stopKey].sequences.push(Number(delivery.sequence_number || 0));
     });
-    
-    return Object.entries(groups)
-      .filter(([_, data]) => data.items.length > 1)
-      .reduce((acc, [key, data]) => {
-        // Ordenar os índices em ordem crescente para exibição consistente
-        data.indices.sort((a, b) => a - b);
-        acc[key] = data;
-        return acc;
-      }, {} as Record<string, {items: DeliveryItem[], indices: number[]}>);
+    // Ordenar sequences dentro de cada grupo
+    Object.values(groups).forEach(g => g.sequences.sort((a, b) => a - b));
+    return groups;
   }, [deliveries]);
   
   // Filter deliveries and sort by sequence_number
@@ -126,28 +112,34 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
     // Adicionar log para debug
     console.log(`DeliveryList - entregas filtradas: ${filtered.length}`);
     
-    // Ordenar por número de sequência (usando a mesma lógica do hook)
+    // Se a rota foi otimizada (alguma tem optimizedOrder), ordenar por ordem geográfica.
+    // Caso contrário, ordenar por sequence_number da planilha.
+    const isOptimized = deliveries.some(d => d.optimizedOrder != null);
     return filtered.sort((a, b) => {
-      const seqA = Number(a.sequence_number || a.orderNumber || 999999);
-      const seqB = Number(b.sequence_number || b.orderNumber || 999999);
+      if (isOptimized && a.optimizedOrder != null && b.optimizedOrder != null) {
+        return a.optimizedOrder - b.optimizedOrder;
+      }
+      const seqA = a.sequence_number != null && Number(a.sequence_number) > 0 ? Number(a.sequence_number) : 999999;
+      const seqB = b.sequence_number != null && Number(b.sequence_number) > 0 ? Number(b.sequence_number) : 999999;
       return seqA - seqB;
     });
   }, [deliveries, filter, searchQuery, status]);
 
-  // Function to check if a delivery has multiple deliveries at the same stop
-  const hasMultipleDeliveries = (delivery: DeliveryItem): {isMultiple: boolean, indices: number[]} => {
-    const stopNumber = delivery.orderNumber || delivery.sequence_number;
-    if (!stopNumber) return {isMultiple: false, indices: []};
-    
-    const stopKey = `stop_${stopNumber}`;
-    const group = stopGroups[stopKey];
-    
-    if (group && group.items.length > 1) {
-      return {isMultiple: true, indices: group.indices};
-    }
-    
-    return {isMultiple: false, indices: []};
-  };
+  // Agrupar filteredDeliveries por Stop (orderNumber) — um item na lista por parada
+  const groupedFilteredDeliveries = useMemo(() => {
+    const seen = new Set<string>();
+    const result: DeliveryItem[][] = [];
+    filteredDeliveries.forEach(delivery => {
+      const stopKey = String(delivery.orderNumber ?? delivery.sequence_number ?? 'x');
+      if (seen.has(stopKey)) return;
+      seen.add(stopKey);
+      const group = stopGroups[stopKey]?.items.filter(d =>
+        filteredDeliveries.some(fd => fd.id === d.id)
+      ) ?? [delivery];
+      result.push(group);
+    });
+    return result;
+  }, [filteredDeliveries, stopGroups]);
 
   // Enhanced status change handler with proper logging and UI feedback
   const handleStatusChange = (id: string, status: 'pendente' | 'entregue' | 'ocorrencia') => {
@@ -174,9 +166,6 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
       }, 800);
     }
     
-    // Chamar o manipulador pai para atualizar o estado
-    console.log(`DeliveryList: Chamando onStatusChange(${id}, ${status})`);
-    
     // Importante: Verificar se a entrega existe antes de continuar
     const delivery = deliveries.find(d => d.id === id);
     if (!delivery) {
@@ -185,48 +174,8 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
     }
     
     // Chamar o manipulador pai para atualizar o estado global
+    // IMPORTANTE: Não forçar re-renderizações desnecessárias que podem causar bugs
     onStatusChange(id, status);
-    
-    // IMPORTANTE: Forçar uma re-renderização imediata da lista para garantir que a UI seja atualizada
-    // Isso é crucial para que a entrega seja movida para a lista correta
-    setTimeout(() => {
-      console.log('Forçando re-renderização imediata após mudança de status');
-      
-      // Mudar o filtro temporariamente para forçar uma re-renderização completa
-      const currentFilter = filter;
-      setFilter('todos');
-      
-      // Mudar o termo de busca temporariamente
-      const currentQuery = searchQuery;
-      setSearchQuery(currentQuery + ' ');
-      
-      // Restaurar os valores originais após um curto atraso
-      setTimeout(() => {
-        setFilter(currentFilter);
-        setSearchQuery(currentQuery);
-        
-        // Forçar mais uma re-renderização após um tempo maior
-        setTimeout(() => {
-          console.log('Forçando re-renderização final para garantir atualização da UI');
-          // Alterar e restaurar rapidamente para forçar atualização
-          setFilter('todos');
-          setTimeout(() => setFilter(currentFilter), 10);
-        }, 300);
-      }, 50);
-    }, 10);
-    
-    // Verificar se a entrega foi realmente atualizada no estado local
-    setTimeout(() => {
-      const updatedDelivery = deliveries.find(d => d.id === id);
-      if (updatedDelivery && updatedDelivery.status !== status) {
-        console.error(`Erro de sincronização: Entrega ${id} deveria ter status ${status} mas tem ${updatedDelivery.status}`);
-        // Tentar forçar uma atualização manual
-        console.log('Tentando forçar atualização manual do status');
-        onStatusChange(id, status);
-      } else {
-        console.log(`Verificação de sincronização: Entrega ${id} tem status ${status} como esperado`);
-      }
-    }, 500);
   };
 
   // Effect to scroll to selected delivery when it changes
@@ -256,7 +205,8 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
             <div className="text-sm font-medium text-gray-700 flex items-center">
               <span className="bg-gray-100 px-2 py-1 rounded-md">
-                {filteredDeliveries.length} {filteredDeliveries.length === 1 ? 'entrega' : 'entregas'}
+                {groupedFilteredDeliveries.length} {groupedFilteredDeliveries.length === 1 ? 'parada' : 'paradas'}
+                {filteredDeliveries.length !== groupedFilteredDeliveries.length && ` · ${filteredDeliveries.length} pacotes`}
               </span>
             </div>
             <div className="flex items-center w-full sm:w-auto">
@@ -310,48 +260,41 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
       )}
       
       <div ref={listContainerRef} className={`flex-1 overflow-y-auto overflow-x-hidden ${compactMode ? 'pr-0' : 'pr-1'} relative`}>
-        {/* Debug para verificar as entregas filtradas */}
-        {/* Debug para verificar as entregas filtradas */}
-        {filteredDeliveries.length > 0 && (
-          <div className="hidden">
-            {`DeliveryList - filteredDeliveries: ${filteredDeliveries.length}`}
-          </div>
-        )}
-        
-        {filteredDeliveries.length > 0 ? (
+        {groupedFilteredDeliveries.length > 0 ? (
           <div className="py-2 px-1 lg:px-2">
-            {filteredDeliveries.map((delivery, index) => {
-              // Usar o orderNumber original da planilha, não o índice calculado
-              const orderNumber = delivery.orderNumber || delivery.sequence_number || '?';
+            {groupedFilteredDeliveries.map((group) => {
+              const delivery = group[0]; // representante do grupo
+              const stopNum = delivery.orderNumber ?? delivery.sequence_number;
+              const isGroupSelected = group.some(d => d.id === selectedDeliveryId);
+              const isMultiple = group.length > 1;
+              const sequences = group.map(d => d.sequence_number).filter(Boolean);
+              const groupStatus = group.every(d => d.status === 'entregue')
+                ? 'entregue'
+                : group.some(d => d.status === 'ocorrencia')
+                  ? 'ocorrencia'
+                  : 'pendente';
+
               const subtitleParts: string[] = [];
               if (displayFields.bairro && delivery.bairro) subtitleParts.push(delivery.bairro);
               if (displayFields.city && delivery.cidade) subtitleParts.push(delivery.cidade);
               if (displayFields.zipcode && delivery.cep) subtitleParts.push(delivery.cep);
-              const { isMultiple, indices } = hasMultipleDeliveries(delivery);
-              
+
               return (
-                <div 
-                  key={delivery.id} 
+                <div
+                  key={`stop-${stopNum}-${delivery.id}`}
                   ref={el => deliveryItemRefs.current[delivery.id] = el}
-                  className={`mb-2 border-l-4 ${delivery.status === 'pendente' ? 'border-l-blue-500' : delivery.status === 'entregue' ? 'border-l-green-500' : 'border-l-red-500'} ${selectedDeliveryId === delivery.id ? 'bg-gray-50 ring-2 ring-blue-200' : 'bg-white'} rounded shadow-sm hover:shadow-md transition-all`}
+                  className={`mb-2 border-l-4 ${groupStatus === 'pendente' ? 'border-l-blue-500' : groupStatus === 'entregue' ? 'border-l-green-500' : 'border-l-red-500'} ${isGroupSelected ? 'bg-gray-50 ring-2 ring-blue-200' : 'bg-white'} rounded shadow-sm hover:shadow-md transition-all`}
                   onClick={(e) => {
-                    // Verificar se o clique foi em um botão ou em seus filhos
                     const target = e.target as HTMLElement;
-                    const isButtonClick = target.tagName === 'BUTTON' || 
-                                         target.tagName === 'svg' || 
-                                         target.tagName === 'path' || 
-                                         target.tagName === 'polyline' || 
-                                         target.tagName === 'circle' ||
-                                         target.closest('button');
-                    
-                    // Se não for um clique em botão, selecionar a entrega
-                    if (!isButtonClick) {
-                      onSelectDelivery(delivery.id);
-                    }
+                    const isButtonClick = target.tagName === 'BUTTON' ||
+                      target.tagName === 'svg' || target.tagName === 'path' ||
+                      target.tagName === 'polyline' || target.tagName === 'circle' ||
+                      target.closest('button');
+                    if (!isButtonClick) onSelectDelivery(delivery.id);
                   }}
                   role="button"
                   tabIndex={0}
-                  aria-selected={selectedDeliveryId === delivery.id}
+                  aria-selected={isGroupSelected}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
@@ -361,20 +304,15 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
                 >
                   <div className="p-2 sm:p-3 flex items-center justify-between">
                     <div className="flex-1 min-w-0 mr-2">
-                      <div className="flex items-center mb-1">
+                      <div className="flex items-center mb-1 gap-1">
                         {displayFields.order && (
-                          <span className="font-medium text-sm mr-2">
-                            {isMultiple ? (
-                              // Mostrar todas as ordens quando há múltiplas entregas
-                              `#${indices.join(', #')}`
-                            ) : (
-                              `#${orderNumber}`
-                            )}
+                          <span className="font-medium text-sm">
+                            Parada {stopNum}
                           </span>
                         )}
                         {isMultiple && (
-                          <span className="text-xs bg-orange-100 text-orange-800 px-1 rounded ml-1">
-                            Múltipla
+                          <span className="text-xs bg-orange-100 text-orange-800 px-1 rounded">
+                            {group.length} pacotes
                           </span>
                         )}
                       </div>
@@ -383,52 +321,43 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
                           {delivery.endereco || 'Sem endereço'}
                         </div>
                       )}
-                      {(subtitleParts.length > 0) && (
+                      {isMultiple && (
+                        <div className="text-xs text-blue-600 truncate">
+                          Pacotes {sequences.map(s => `#${s}`).join(' · ')}
+                        </div>
+                      )}
+                      {subtitleParts.length > 0 && (
                         <div className="text-xs text-gray-500 truncate">
                           {subtitleParts.join(' • ')}
                         </div>
                       )}
                     </div>
-                    
+
                     <div className="flex space-x-1 sm:space-x-2">
-                      {delivery.status !== 'pendente' && (
-                        <button 
+                      {groupStatus !== 'pendente' && (
+                        <button
                           className="p-2 sm:p-1.5 rounded-full text-blue-600 hover:bg-blue-50 active:bg-blue-100 border border-blue-100 touch-manipulation"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            handleStatusChange(delivery.id, 'pendente');
-                          }}
+                          onClick={(e) => { e.stopPropagation(); e.preventDefault(); group.forEach(d => handleStatusChange(d.id, 'pendente')); }}
                           title="Marcar como pendente"
                           aria-label="Marcar como pendente"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                         </button>
                       )}
-                      
-                      {delivery.status !== 'entregue' && (
-                        <button 
+                      {groupStatus !== 'entregue' && (
+                        <button
                           className="p-2 sm:p-1.5 rounded-full text-green-600 hover:bg-green-50 active:bg-green-100 border border-green-100 touch-manipulation"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            handleStatusChange(delivery.id, 'entregue');
-                          }}
+                          onClick={(e) => { e.stopPropagation(); e.preventDefault(); group.forEach(d => handleStatusChange(d.id, 'entregue')); }}
                           title="Marcar como entregue"
                           aria-label="Marcar como entregue"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                         </button>
                       )}
-                      
-                      {delivery.status !== 'ocorrencia' && (
-                        <button 
+                      {groupStatus !== 'ocorrencia' && (
+                        <button
                           className="p-2 sm:p-1.5 rounded-full text-red-600 hover:bg-red-50 active:bg-red-100 border border-red-100 touch-manipulation"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            handleStatusChange(delivery.id, 'ocorrencia');
-                          }}
+                          onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleStatusChange(delivery.id, 'ocorrencia'); }}
                           title="Marcar como ocorrência"
                           aria-label="Marcar como ocorrência"
                         >

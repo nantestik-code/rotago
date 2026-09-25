@@ -5,7 +5,8 @@ import mapboxgl from 'mapbox-gl';
 export interface MapPosition {
   lat: number;
   lng: number;
-  addressKey?: string; // Chave única para o endereço (usado para cache)
+  addressKey?: string;
+  isGps?: boolean;
 }
 
 // Campo Grande, MS
@@ -14,8 +15,9 @@ export const defaultMapCenter = {
   lng: -54.6201,
 }; 
 
-// Using the provided Mapbox token
-let mapboxToken = 'pk.eyJ1Ijoidml0b3JuYW50ZXMiLCJhIjoiY21hbGZuYjB2MDh2MjJtcTA2bXNxc3NyayJ9.W5yJUirvUawrinZcF6PHCw';
+let mapboxToken =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_MAPBOX_TOKEN) ||
+  'pk.eyJ1Ijoidml0b3JuYW50ZXMiLCJhIjoiY21hbGZuYjB2MDh2MjJtcTA2bXNxc3NyayJ9.W5yJUirvUawrinZcF6PHCw';
 
 export const setMapboxToken = (token: string) => {
   mapboxToken = token;
@@ -26,6 +28,12 @@ export const getMapboxToken = () => mapboxToken;
 
 export const initMapbox = () => {
   mapboxgl.accessToken = mapboxToken;
+  try {
+    localStorage.removeItem('geocode-cache');
+    localStorage.removeItem('rota-facil-geocode-cache');
+  } catch {
+    // ignore
+  }
 };
 
 // Helper function to calculate distance between two points
@@ -48,36 +56,25 @@ export const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2
 export const getCurrentPosition = (): Promise<MapPosition> => {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
-      console.warn('Geolocalização não é suportada pelo seu navegador');
-      // Usar posição padrão como fallback
-      resolve(defaultMapCenter);
+      reject(new Error('Geolocalizacao nao suportada'));
       return;
     }
 
-    const timeoutId = setTimeout(() => {
-      console.warn('Timeout ao obter localização, usando posição padrão');
-      resolve(defaultMapCenter);
-    }, 10000); // 10 segundos de timeout
-
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        clearTimeout(timeoutId);
         resolve({
           lat: position.coords.latitude,
           lng: position.coords.longitude,
+          isGps: true,
         });
       },
       (error) => {
-        clearTimeout(timeoutId);
-        console.warn(`Erro ao obter posição atual (${error.code}): ${error.message}`);
-        
-        // Usar posição padrão como fallback em caso de erro
-        resolve(defaultMapCenter);
+        reject(error);
       },
-      { 
+      {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 60000 // Aceita posições de até 1 minuto atrás
+        timeout: 12000,
+        maximumAge: 15000,
       }
     );
   });
@@ -88,44 +85,40 @@ export const watchPosition = (
   onError?: (error: GeolocationPositionError) => void
 ) => {
   if (!navigator.geolocation) {
-    console.warn('Geolocalização não suportada pelo navegador');
-    // Notificar com a posição padrão
-    onPositionChange(defaultMapCenter);
     if (onError) onError({ code: 0, message: 'Geolocalização não suportada', PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 } as GeolocationPositionError);
     return null;
   }
 
-  // Obter posição imediatamente para não ter que esperar pelo primeiro evento de watch
   navigator.geolocation.getCurrentPosition(
     (position) => {
       onPositionChange({
         lat: position.coords.latitude,
         lng: position.coords.longitude,
+        isGps: true,
       });
     },
     (error) => {
-      console.warn(`Erro ao obter posição inicial (${error.code}): ${error.message}`);
-      // Usar posição padrão como fallback
-      onPositionChange(defaultMapCenter);
+      if (onError) onError(error);
     },
-    { 
+    {
       enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 60000 // Aceita posições de até 1 minuto atrás
+      timeout: 12000,
+      maximumAge: 15000,
     }
   );
 
-  // Configurar o monitoramento contínuo com maior precisão
   const watchId = navigator.geolocation.watchPosition(
     (position) => {
       onPositionChange({
         lat: position.coords.latitude,
         lng: position.coords.longitude,
+        isGps: true,
       });
     },
     (error) => {
-      console.warn(`Erro ao monitorar posição (${error.code}): ${error.message}`);
-      // Não notificar com posição padrão aqui para evitar loops
+      if (error.code !== error.PERMISSION_DENIED) {
+        console.warn(`Erro ao monitorar posição (${error.code}): ${error.message}`);
+      }
       if (onError) onError(error);
     },
     { 
@@ -155,12 +148,12 @@ export const geocodeAddress = async (address: string, retryCount = 0): Promise<M
     return geocodeMemoryCache[cacheKey];
   }
 
-  const MAX_RETRIES = 2; // Reduzido de 3 para 2
-  const RETRY_DELAY = 500; // Reduzido de 1000ms para 500ms
-  
+  const MAX_RETRIES = 1;
+  const RETRY_DELAY = 400;
+
   try {
     const query = encodeURIComponent(address);
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?access_token=${mapboxToken}&country=br&limit=1`;
+    const url = `https://api.mapbox.com/search/geocode/v6/forward?q=${query}&access_token=${mapboxToken}&country=br&limit=1&language=pt&autocomplete=false`;
     
     // Adicionar um timeout para a requisição
     const controller = new AbortController();
@@ -177,8 +170,17 @@ export const geocodeAddress = async (address: string, retryCount = 0): Promise<M
     const data = await response.json();
     
     if (data.features && data.features.length > 0) {
-      const [lng, lat] = data.features[0].center;
-      const relevance = data.features[0].relevance || 0;
+      const feature = data.features[0];
+      const coords = feature.geometry?.coordinates || [
+        feature.properties?.coordinates?.longitude,
+        feature.properties?.coordinates?.latitude,
+      ];
+      const lng = Number(coords?.[0]);
+      const lat = Number(coords?.[1]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return null;
+      }
+      const relevance = feature.properties?.match_code?.confidence === 'exact' ? 1 : 0.7;
       
       // Verificar se a relevância do resultado é alta o suficiente
       if (relevance < 0.5) {
@@ -241,12 +243,12 @@ export const geocodeAddress = async (address: string, retryCount = 0): Promise<M
 export const getMarkerCssClassByStatus = (status: string): string => {
   switch (status) {
     case 'entregue':
-      return 'status-entregue';
+      return 'marker-delivered';
     case 'ocorrencia':
-      return 'status-ocorrencia';
+      return 'marker-occurrence';
     case 'pendente':
     default:
-      return 'status-pendente';
+      return 'marker-pending';
   }
 };
 
@@ -273,18 +275,19 @@ export const createDeliveryMarker = (
   isMultiple: boolean,
   isSelected: boolean
 ): mapboxgl.Marker => {
-  // Criar o elemento do marcador
+  // Criar o elemento do marcador com design profissional
   const markerEl = document.createElement('div');
   markerEl.className = `delivery-marker ${getMarkerCssClassByStatus(status)}`;
   
-  // Criar o elemento do conteúdo do marcador (Parada e Ordem)
+  // Criar o elemento do conteúdo do marcador
   const contentEl = document.createElement('div');
   contentEl.className = 'delivery-marker-content';
-  // Exibir em duas linhas para não extrapolar o quadrado
-  contentEl.innerHTML = `<div class="marker-row">P${stopNumber}</div><div class="marker-row">O${orderNumber}</div>`;
+  
+  const displayNumber = stopNumber || orderNumber || 0;
+  contentEl.innerHTML = `<div class="marker-number">${displayNumber}</div>`;
   markerEl.appendChild(contentEl);
   
-  // Adicionar classe para múltiplas entregas
+  // Adicionar classe para múltiplas entregas (indicador visual)
   if (isMultiple) {
     markerEl.classList.add('multiple-deliveries');
   }
@@ -351,42 +354,18 @@ export const geocodeAddresses = async (
   onProgress?: (progress: number) => void
 ): Promise<DeliveryItem[]> => {
   const updatedDeliveries = [...deliveries];
-  
-  // Carregar cache de geocodificação do localStorage
-  let geocodeCache: Record<string, MapPosition> = {};
-  try {
-    const cachedData = localStorage.getItem('geocode-cache');
-    if (cachedData) {
-      geocodeCache = JSON.parse(cachedData);
-      
-      // Aplicar cache imediatamente para entregas
-      updatedDeliveries.forEach(delivery => {
-        // Criar chave mais específica incluindo o ID da entrega para evitar agrupamento indevido
-        const addressKey = `${delivery.endereco}, ${delivery.cidade}, ${delivery.estado}, ${delivery.cep}`.toLowerCase().trim();
-        if (geocodeCache[addressKey]) {
-          // Adicionar pequena variação nas coordenadas para entregas no mesmo endereço
-          // mas com IDs diferentes, para evitar sobreposição total
-          const baseCoords = geocodeCache[addressKey];
-          const variation = 0.0001; // ~11 metros de variação
-          const deliveryIndex = updatedDeliveries.indexOf(delivery);
-          const offsetLat = (deliveryIndex % 5) * variation * 0.1;
-          const offsetLng = (Math.floor(deliveryIndex / 5) % 5) * variation * 0.1;
-          
-          delivery.lat = baseCoords.lat + offsetLat;
-          delivery.lng = baseCoords.lng + offsetLng;
-        }
-      });
-    }
-  } catch (error) {
-    console.error('Erro ao carregar cache de geocodificação:', error);
+  const needsGeocode = updatedDeliveries.some(
+    (delivery) => !Number.isFinite(delivery.lat) || !Number.isFinite(delivery.lng)
+  );
+
+  if (needsGeocode) {
+    setTimeout(() => {
+      backgroundGeocode(updatedDeliveries, onProgress);
+    }, 100);
+  } else if (onProgress) {
+    onProgress(100);
   }
-  
-  // Iniciar geocodificação em segundo plano
-  setTimeout(() => {
-    backgroundGeocode(updatedDeliveries, onProgress);
-  }, 100);
-  
-  // Retornar as entregas imediatamente para não bloquear a interface
+
   return updatedDeliveries;
 };
 
@@ -395,16 +374,7 @@ const backgroundGeocode = async (
   deliveries: DeliveryItem[],
   onProgress?: (progress: number) => void
 ) => {
-  // Recuperar cache de geocodificação do localStorage
-  let geocodeCache: Record<string, MapPosition> = {};
-  try {
-    const cachedData = localStorage.getItem('geocode-cache');
-    if (cachedData) {
-      geocodeCache = JSON.parse(cachedData);
-    }
-  } catch (error) {
-    console.error('Erro ao carregar cache de geocodificação:', error);
-  }
+  const geocodeCache: Record<string, MapPosition> = { ...geocodeMemoryCache };
 
   // Identificar endereços únicos que precisam ser geocodificados
   const uniqueAddresses: Record<string, boolean> = {};
@@ -442,11 +412,11 @@ const backgroundGeocode = async (
         const location = await geocodeAddress(fullAddress);
         
         if (location) {
-          // Salvar no cache
           geocodeCache[addressKey] = {
             lat: location.lat,
-            lng: location.lng
+            lng: location.lng,
           };
+          geocodeMemoryCache[addressKey] = geocodeCache[addressKey];
           
           // Atualizar entregas com esse endereço
           deliveries.forEach((delivery, deliveryIndex) => {
@@ -470,13 +440,6 @@ const backgroundGeocode = async (
     // Aguardar geocodificação do lote atual
     await Promise.all(promises);
     
-    // Salvar cache atualizado no localStorage
-    try {
-      localStorage.setItem('geocode-cache', JSON.stringify(geocodeCache));
-    } catch (error) {
-      console.error('Erro ao salvar cache de geocodificação:', error);
-    }
-    
     // Atualizar progresso
     if (onProgress) {
       onProgress(Math.min(100, (i + batch.length) / Math.min(addressesToGeocode.length, MAX_GEOCODING) * 100));
@@ -488,19 +451,32 @@ const backgroundGeocode = async (
     }
   }
   
-  // Salvar entregas atualizadas no localStorage
+  // Salvar entregas atualizadas no localStorage (por ID, não por índice)
+  // IMPORTANTE: Apenas atualizar coordenadas, NUNCA alterar sequence_number ou orderNumber
   try {
     const currentDeliveries = localStorage.getItem('currentRouteDeliveries');
     if (currentDeliveries) {
       const parsedDeliveries = JSON.parse(currentDeliveries);
-      // Atualizar coordenadas nas entregas salvas
-      deliveries.forEach((delivery, index) => {
-        if (delivery.lat && delivery.lng && index < parsedDeliveries.length) {
-          parsedDeliveries[index].lat = delivery.lat;
-          parsedDeliveries[index].lng = delivery.lng;
+      // Criar um índice por ID para performance
+      const indexById: Record<string, number> = {};
+      parsedDeliveries.forEach((d: any, idx: number) => {
+        if (d && typeof d.id === 'string') indexById[d.id] = idx;
+      });
+      // Atualizar APENAS coordenadas nas entregas salvas casando por ID
+      // NUNCA alterar sequence_number, orderNumber ou status
+      deliveries.forEach((delivery) => {
+        const id = (delivery as any).id;
+        if (!id || !delivery.lat || !delivery.lng) return;
+        const idx = indexById[id];
+        if (typeof idx === 'number' && parsedDeliveries[idx]) {
+          // APENAS atualizar lat/lng - preservar todos os outros campos
+          parsedDeliveries[idx].lat = delivery.lat;
+          parsedDeliveries[idx].lng = delivery.lng;
+          // NÃO alterar: sequence_number, orderNumber, status, etc.
         }
       });
       localStorage.setItem('currentRouteDeliveries', JSON.stringify(parsedDeliveries));
+      console.log('✅ Geocodificação salva - numeração preservada');
     }
   } catch (error) {
     console.error('Erro ao atualizar entregas no localStorage:', error);
@@ -562,6 +538,10 @@ export const optimizeRoute = async (
   origin: MapPosition,
   destinations: DeliveryItem[]
 ): Promise<DeliveryItem[]> => {
+  // IMPORTANTE: Esta função NUNCA altera sequence_number ou orderNumber
+  // Apenas reordena o array para sugerir a melhor ordem de visita
+  // A numeração original da planilha é SEMPRE preservada
+  
   // Filter only pending deliveries for optimization
   const pendingDeliveries = destinations.filter(d => d.status === 'pendente');
   
@@ -628,23 +608,40 @@ export const optimizeRoute = async (
     }
     
     // Now expand the list of unique coordinates back to all deliveries
+    // sequence_number (nº do pacote da planilha) é SEMPRE preservado.
+    // optimizedOrder define a ordem de visita geográfica.
     const optimizedDeliveries: DeliveryItem[] = [];
-    
+    let visitOrder = 1;
+
     // First, add all pending deliveries in the optimized order
     sortedCoordinates.forEach(uniqueAddress => {
       if (!uniqueAddress.endereco) return;
-      
-      // Usar a mesma chave composta (coordenadas + endereço) para manter a consistência
+
       const coordKey = `${uniqueAddress.lat!.toFixed(6)},${uniqueAddress.lng!.toFixed(6)},${uniqueAddress.endereco}`;
       const group = coordinateGroups[coordKey] || [];
-      
-      // Add all deliveries at this coordinate and address
-      optimizedDeliveries.push(...group);
+
+      group.forEach(delivery => {
+        optimizedDeliveries.push({
+          ...delivery,
+          sequence_number: delivery.sequence_number, // nº do pacote — nunca alterar
+          orderNumber: delivery.orderNumber,
+          optimizedOrder: visitOrder, // ordem de visita geográfica
+        });
+        visitOrder++;
+      });
     });
-    
-    // Add other deliveries that aren't pending
+
+    // Add other deliveries that aren't pending (entregues e ocorrências)
     const nonPendingDeliveries = destinations.filter(d => d.status !== 'pendente');
-    optimizedDeliveries.push(...nonPendingDeliveries);
+    nonPendingDeliveries.forEach(delivery => {
+      optimizedDeliveries.push({
+        ...delivery,
+        sequence_number: delivery.sequence_number,
+        orderNumber: delivery.orderNumber,
+      });
+    });
+
+    console.log('✅ Rota otimizada por proximidade geográfica - nº pacotes preservados');
     
     return optimizedDeliveries;
   } catch (error) {

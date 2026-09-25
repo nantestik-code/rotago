@@ -114,14 +114,12 @@ const Index = () => {
   // Handle deliveries import with UI update
   const handleImport = async (importedDeliveries, routeName = 'Nova Rota') => {
     try {
-      // Registrar a criação da rota no histórico antes de processar a importação
       const result = await handleImportComplete(importedDeliveries, routeName);
-      
-      // Só redirecionar após a geocodificação terminar com sucesso
-      if (result?.success) {
+
+      // Navegar para o mapa se há entregas processadas, independente do Supabase
+      if (importedDeliveries.length > 0) {
         setShowFileImport(false);
-        
-        // Registrar a ação no histórico de rotas se a importação foi bem-sucedida
+
         if (result?.routeId) {
           logRouteAction('create', result.routeId, {
             message: `Rota "${routeName}" criada com ${importedDeliveries.length} entregas`,
@@ -131,7 +129,10 @@ const Index = () => {
       }
     } catch (error) {
       console.error('Erro durante importação:', error);
-      // Manter na tela de importação se houver erro
+      // Se der erro mas já tiver entregas no estado, mostrar o mapa mesmo assim
+      if (importedDeliveries.length > 0) {
+        setShowFileImport(false);
+      }
     }
   };
 
@@ -146,6 +147,8 @@ const Index = () => {
     try {
       localStorage.removeItem(STORAGE_KEY);
       localStorage.removeItem('route-finished');
+      localStorage.removeItem('currentRouteDeliveries');
+      localStorage.removeItem('currentRouteId');
     } catch (error) {
       console.error('Erro ao limpar estado salvo:', error);
     }
@@ -173,6 +176,8 @@ const Index = () => {
       // Limpar localStorage
       try {
         localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem('currentRouteDeliveries');
+        localStorage.removeItem('currentRouteId');
       } catch (error) {
         console.error('Erro ao limpar estado salvo:', error);
       }
@@ -191,11 +196,11 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 native-main-container">
+    <div className="dispatch-shell native-main-container">
       <Header />
       <SubscriptionBanner />
       
-      <main className="container max-w-7xl mx-auto px-4 py-6">
+      <main className="mx-auto max-w-7xl px-4 py-6">
         {showFileImport && (
           <ImportSection 
             onImportComplete={handleImport}
@@ -225,6 +230,8 @@ const Index = () => {
               setShowFileImport(true);
               setDeliveries([]);
               setSelectedDeliveryId(null);
+              localStorage.removeItem('currentRouteDeliveries');
+              localStorage.removeItem('currentRouteId');
             }}
             onFinishRoute={handleFinishRoute}
           />

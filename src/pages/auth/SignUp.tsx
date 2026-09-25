@@ -8,8 +8,15 @@ import { smartToast } from '@/hooks/use-smart-toast';
 import { Truck, ArrowLeft, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
-import { trackSubscriptionCreation } from '@/utils/subscription-tracker';
 import { validateCPF, maskCPF } from '@/utils/cpfUtils';
+
+const maskPhone = (value: string) => {
+  const nums = value.replace(/\D/g, '').slice(0, 11);
+  if (nums.length <= 2) return `(${nums}`;
+  if (nums.length <= 7) return `(${nums.slice(0,2)}) ${nums.slice(2)}`;
+  if (nums.length <= 11) return `(${nums.slice(0,2)}) ${nums.slice(2,7)}-${nums.slice(7)}`;
+  return value;
+};
 
 const SignUp = () => {
   const navigate = useNavigate();
@@ -19,6 +26,7 @@ const SignUp = () => {
     fullName: '',
     email: '',
     cpf: '',
+    phone: '',
     password: '',
     confirmPassword: '',
   });
@@ -38,6 +46,11 @@ const SignUp = () => {
       setFormData(prev => ({
         ...prev,
         [name]: maskCPF(value)
+      }));
+    } else if (name === 'phone') {
+      setFormData(prev => ({
+        ...prev,
+        [name]: maskPhone(value)
       }));
     } else {
       setFormData(prev => ({
@@ -75,6 +88,17 @@ const SignUp = () => {
       smartToast({
         title: "CPF inválido",
         description: "Por favor, informe um CPF válido",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validação de telefone
+    const phoneClean = formData.phone.replace(/\D/g, '');
+    if (!phoneClean || phoneClean.length < 10) {
+      smartToast({
+        title: "Telefone inválido",
+        description: "Por favor, informe um WhatsApp válido com DDD",
         variant: "destructive"
       });
       return;
@@ -121,7 +145,23 @@ const SignUp = () => {
         return;
       }
 
-      
+      // Verificar telefone duplicado
+      const phoneClean = formData.phone.replace(/\D/g, '');
+      const { data: phoneExists, error: phoneCheckError } = await supabase
+        .rpc('check_phone_exists', { phone_input: phoneClean });
+
+      if (phoneCheckError) {
+        console.warn('Erro ao verificar telefone:', phoneCheckError);
+      } else if (phoneExists === true) {
+        smartToast({
+          title: "Telefone já cadastrado",
+          description: "Este número de telefone já está em uso. Use um número diferente ou faça login.",
+          variant: "destructive"
+        });
+        setIsLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -167,6 +207,7 @@ const SignUp = () => {
                 id: data.user.id,
                 full_name: formData.fullName,
                 cpf: cpfClean,
+                phone: phoneClean,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
               }
@@ -176,7 +217,7 @@ const SignUp = () => {
             console.error('Erro ao criar perfil:', profileError);
             
             // Tratamento específico para CPF duplicado
-            if (profileError.code === '23505' || (profileError.message && profileError.message.includes('unique_cpf'))) {
+            if (profileError.code === '23505' || (profileError.message && (profileError.message.includes('profiles_cpf_unique') || profileError.message.includes('unique_cpf')))) {
               // CPF duplicado é um erro crítico - precisamos desfazer o cadastro
               
               // Tentar remover o usuário criado no auth
@@ -211,37 +252,8 @@ const SignUp = () => {
             return;
           }
           
-          // Criar assinatura trial para o usuário
-          try {
-            const now = new Date();
-            const trialEndDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 dias
-            
-
-            
-            const trialData = {
-              user_id: data.user.id,
-              status: 'trialing',
-              is_active: true,
-              is_trial: true,
-              trial_ends_at: trialEndDate.toISOString(),
-              current_period_start: now.toISOString(),
-              current_period_end: trialEndDate.toISOString(),
-            };
-            
-            trackSubscriptionCreation('SIGNUP.TSX', trialData);
-            
-            const { data: subscriptionData, error: subscriptionError } = await supabase
-              .from('user_subscriptions')
-              .insert([trialData])
-              .select();
-
-            if (subscriptionError) {
-              console.error('Erro ao criar assinatura trial:', subscriptionError);
-            }
-          } catch (err) {
-            console.error('Erro ao criar assinatura trial:', err);
-            // Não bloquear o fluxo principal se falhar
-          }
+          // Trial não é criado automaticamente no cadastro.
+          // O usuário escolhe o plano na página de assinatura para ativar o trial.
         } catch (err) {
           console.error('Erro ao criar perfil:', err);
           // Não bloquear o fluxo principal se falhar
@@ -342,6 +354,22 @@ const SignUp = () => {
                 autoComplete="off"
               />
               <p className="text-xs text-muted-foreground mt-1">Formato: 123.456.789-00</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="phone">WhatsApp (com DDD)</Label>
+              <Input
+                id="phone"
+                name="phone"
+                type="tel"
+                placeholder="(11) 99999-9999"
+                value={formData.phone}
+                onChange={handleChange}
+                required
+                maxLength={15}
+                autoComplete="tel"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Usado para notificações importantes</p>
             </div>
 
             <div className="space-y-2">

@@ -84,8 +84,8 @@ const Logo: React.FC<LogoProps> = ({
       )}
       {showText && (
         <span className={`
-          font-bold ${currentSize.text} bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent
-          ${interactive ? 'transition-all duration-300' : ''}
+          font-bold tracking-tight ${currentSize.text}
+          ${variant === 'white' ? 'text-white' : 'bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent'}
         `}>
           RotaGo
         </span>

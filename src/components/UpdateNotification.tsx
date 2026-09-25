@@ -102,8 +102,8 @@ export const UpdateNotification: React.FC<UpdateNotificationProps> = ({ classNam
 
   return (
     <>
-      {/* Botão flutuante para verificar atualizações */}
-      <div className="fixed bottom-4 right-4 z-50">
+      {/* Botão flutuante — oculto no mobile para não poluir a UI */}
+      <div className="fixed bottom-4 right-4 z-50 hidden lg:block">
         <Button
           onClick={handleCheckUpdates}
           disabled={isUpdating}

@@ -64,6 +64,9 @@ const MercadoPagoCheckout: React.FC<MercadoPagoCheckoutProps> = ({
       console.log('📋 Dados do pagamento:', paymentData);
       
       const paymentResult = await mercadoPagoService.createPreference(plan, paymentData);
+      localStorage.setItem('pending_payment', 'true');
+      localStorage.setItem('pending_plan_id', plan.id);
+      localStorage.setItem('pending_payment_time', new Date().toISOString());
       
       console.log('✅ Preferência criada:', paymentResult);
       
@@ -119,7 +122,7 @@ const MercadoPagoCheckout: React.FC<MercadoPagoCheckoutProps> = ({
       'Rastreamento em tempo real',
     ];
 
-    if (plan.id !== 'monthly') {
+    if (plan.id !== 'mensal') {
       features.push(
         'Relatórios avançados',
         'Suporte prioritário',
@@ -187,7 +190,7 @@ const MercadoPagoCheckout: React.FC<MercadoPagoCheckoutProps> = ({
                       <Star className="w-5 h-5 text-yellow-500" />
                       {plan.name}
                     </h3>
-                    {plan.id === 'quarterly' && (
+                    {plan.id === 'trimestral' && (
                       <Badge className="bg-primary text-white">
                         Mais Popular
                       </Badge>

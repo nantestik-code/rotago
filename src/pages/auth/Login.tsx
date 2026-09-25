@@ -194,9 +194,7 @@ const Login = () => {
               // Cria o perfil se não existir
               await supabase.from('profiles').insert({
                 id: data.user.id,
-                email: data.user.email,
                 full_name: data.user.user_metadata?.full_name || '',
-                avatar_url: data.user.user_metadata?.avatar_url || '',
                 created_at: new Date().toISOString()
               });
             }

@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/use-toast';
-import { processFile, ProcessedFile, createDeliveryFromRow } from '@/utils/fileUtils';
+import { processFile, ProcessedFile, createDeliveryFromRow, isStructuredRouteSheet } from '@/utils/fileUtils';
 import { DeliveryItem } from '@/utils/deliveryUtils';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -94,7 +94,6 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete, routeName = '
     setImportWarnings([]);
 
     try {
-      console.log("Processando arquivo:", file.name);
       const result: ProcessedFile = await processFile(file);
       setProgress(70);
 
@@ -131,15 +130,11 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete, routeName = '
           atId: result.deliveries.slice(0, 3).map(d => d.orderNumber?.toString() || ''),
           // Usar a sequência real baseada na ordem da planilha
           sequence: result.deliveries.slice(0, 3).map((d, i) => {
-            // Tentar usar o orderNumber se disponível
-            if (d.orderNumber) return d.orderNumber.toString();
-            // Caso contrário, usar o índice + 1
+            if (d.sequence_number) return d.sequence_number.toString();
             return (i + 1).toString();
           }),
           stop: result.deliveries.slice(0, 3).map((d, i) => {
-            // Tentar usar o orderNumber se disponível
             if (d.orderNumber) return d.orderNumber.toString();
-            // Caso contrário, usar o índice + 1
             return (i + 1).toString();
           }),
           spxTn: result.deliveries.slice(0, 3).map(d => {
@@ -163,8 +158,18 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete, routeName = '
         setProcessedDeliveries(result.deliveries);
         setRawRows(result.rawRows || []);
         setHeaders(result.headers || Object.keys(result.deliveries[0] || {}));
-        
-        // Mostrar o diálogo de ajuda na importação
+
+        if (isStructuredRouteSheet(result.headers || [])) {
+          toast({
+            title: "Rota importada",
+            description: `${result.deliveries.length} pacotes prontos para entrega.`,
+          });
+          setProgress(0);
+          setFile(null);
+          onImportComplete(result.deliveries);
+          return;
+        }
+
         setShowHelpDialog(true);
       } else {
         setImportError("Nenhuma entrega foi importada. Verifique se o arquivo contém os dados necessários.");
@@ -235,6 +240,8 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete, routeName = '
     if (mapping['latitude']) internalMapping['latitude'] = mapping['latitude'];
     if (mapping['longitude']) internalMapping['longitude'] = mapping['longitude'];
     if (mapping['cliente']) internalMapping['cliente'] = mapping['cliente'];
+    if (mapping['tracking']) internalMapping['tracking'] = mapping['tracking'];
+    if (mapping['atId']) internalMapping['atId'] = mapping['atId'];
 
     // Recriar as entregas a partir das linhas brutas com o mapeamento escolhido
     let finalDeliveries: DeliveryItem[] = [];
@@ -280,34 +287,17 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete, routeName = '
         headers={headers}
       />
       
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle className="text-lg">Rota Fácil Turbo</CardTitle>
-        </CardHeader>
-        <CardContent>
-        <Tabs defaultValue="import" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-4">
-            <TabsTrigger value="import" className="flex items-center gap-1">
-              <Upload size={16} />
-              Importar Entregas
-            </TabsTrigger>
-            <TabsTrigger value="gps" className="flex items-center gap-1">
-              <Navigation size={16} />
-              Usar GPS
-            </TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="import" className="flex flex-col gap-4">
+      <div className="w-full">
             <div className="grid w-full items-center gap-1.5">
               <div className="relative">
                 <Button 
                   variant="outline" 
-                  className="w-full h-auto py-8 flex flex-col items-center justify-center border-dashed border-2 hover:border-blue-500 hover:bg-blue-50 transition-colors"
+                  className="h-auto w-full flex-col items-center justify-center border-2 border-dashed border-sky-200 bg-sky-50/40 py-10 hover:border-blue-400 hover:bg-blue-50"
                   onClick={() => document.getElementById('file-upload')?.click()}
                 >
                   <Upload size={24} className="mb-2 text-blue-500" />
-                  <span className="font-medium">Selecionar arquivo</span>
-                  <span className="text-xs text-gray-500 mt-1">{file ? file.name : 'Formatos aceitos: CSV, XLS, XLSX'}</span>
+                  <span className="font-medium text-slate-800">Soltar planilha ou clicar para escolher</span>
+                  <span className="mt-1 text-xs text-slate-500">{file ? file.name : 'CSV, XLS, XLSX · SPX entra direto'}</span>
                 </Button>
                 <Input
                   type="file"
@@ -366,34 +356,10 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete, routeName = '
             </Button>
           )}
             
-            <div className="text-xs text-gray-500 mt-2">
-              <p><strong>Dica:</strong> Certifique-se que sua planilha tenha pelo menos duas colunas: uma para o nome do cliente e outra para o endereço.</p>
-              <p>Colunas recomendadas: Cliente, Endereço, Cidade, Estado, CEP, Telefone, Observações</p>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="gps" className="flex flex-col gap-4">
-            <div className="text-center py-6 flex flex-col items-center">
-              <div className="bg-blue-50 p-4 rounded-full mb-4">
-                <MapPin size={48} className="text-blue-500" />
-              </div>
-              <h3 className="text-lg font-medium mb-2">Modo GPS</h3>
-              <p className="text-sm text-gray-600 mb-6 max-w-md">
-                Inicie a navegação GPS sem importar entregas. Você poderá usar o GPS para navegar para qualquer endereço.  
-              </p>
-              
-              <Button 
-                onClick={handleStartGPS}
-                className="w-full max-w-xs bg-green-600 hover:bg-green-700 flex items-center gap-2"
-              >
-                <Navigation size={18} />
-                Iniciar Navegação GPS
-              </Button>
-            </div>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
+            <p className="mt-3 text-center text-xs text-slate-500">
+              Planilha SPX importa na hora. Outros formatos pedem uma confirmação rápida.
+            </p>
+      </div>
     </>
   );
 };

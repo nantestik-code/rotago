@@ -5,8 +5,8 @@ import { clearAllAuthData } from '@/utils/authUtils';
 
 // Usar as credenciais do projeto do .env ou .env.production
 // Você deve atualizar estas credenciais com as do seu novo projeto Supabase
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://seu-novo-projeto.supabase.co";
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "sua-nova-chave-anon";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://dsmbytaxyknrmrxcjsww.supabase.co";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzbWJ5dGF4eWtucm1yeGNqc3d3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxMjczODksImV4cCI6MjEwNTcwMzM4OX0.Fo69eV8YV0TebW9IJamd_hfoehaJjtfEM78l9oWf7b0";
 
 // Função segura para acessar localStorage com fallback para ambientes sem localStorage
 const safeLocalStorage = {
@@ -60,7 +60,7 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, 
     autoRefreshToken: true,     // Renovar o token automaticamente
     detectSessionInUrl: true,   // Detectar sessão na URL (para login via magic link)
     storage: safeLocalStorage,  // Usar localStorage com fallback seguro
-    debug: true,                // Habilitar logs de debug para autenticação
+    debug: import.meta.env.DEV,
     flowType: 'pkce',           // Usar PKCE flow para autenticação mais segura
     storageKey: 'supabase.auth.token', // Chave consistente para armazenamento
     onAuthStateChange: (event, session) => {

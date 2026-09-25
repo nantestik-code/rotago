@@ -6,24 +6,29 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Settings, 
-  Database, 
-  Mail, 
-  CreditCard, 
-  Shield, 
+import {
+  Settings,
+  Database,
+  Mail,
+  CreditCard,
+  Shield,
   Bell,
   Globe,
   Smartphone,
   RefreshCw,
   AlertTriangle,
-  CheckCircle
+  CheckCircle,
+  Eye,
+  EyeOff,
+  Save,
+  Loader2
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { asaasService } from "@/services/asaas";
 
 interface SystemConfig {
   id: string;
@@ -58,9 +63,69 @@ const SystemSettings = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const [asaasCreds, setAsaasCreds] = useState({
+    asaas_api_key: '',
+    asaas_sandbox: 'true',
+    asaas_webhook_token: '',
+  });
+  const [asaasSaving, setAsaasSaving] = useState(false);
+  const [asaasLoading, setAsaasLoading] = useState(true);
+  const [showAccessToken, setShowAccessToken] = useState(false);
+  const [asaasTestResult, setAsaasTestResult] = useState<'idle' | 'ok' | 'error'>('idle');
+  const [asaasKeyConfigured, setAsaasKeyConfigured] = useState(false);
+  const [asaasWebhookUrl, setAsaasWebhookUrl] = useState('');
+
   useEffect(() => {
     fetchSystemData();
+    fetchAsaasCredentials();
   }, []);
+
+  const fetchAsaasCredentials = async () => {
+    try {
+      setAsaasLoading(true);
+      const data = await asaasService.getAdminSettings();
+      setAsaasCreds({
+        asaas_api_key: '',
+        asaas_sandbox: data.asaas_sandbox || 'true',
+        asaas_webhook_token: '',
+      });
+      setAsaasKeyConfigured(Boolean(data.api_key_configured));
+      setAsaasWebhookUrl(data.webhook_url || '');
+    } catch (err: any) {
+      console.warn('Erro ao carregar credenciais Asaas:', err.message);
+    } finally {
+      setAsaasLoading(false);
+    }
+  };
+
+  const saveAsaasCredentials = async () => {
+    try {
+      setAsaasSaving(true);
+      await asaasService.saveAdminSettings(asaasCreds);
+      setAsaasKeyConfigured(true);
+      setAsaasCreds((prev) => ({ ...prev, asaas_api_key: '', asaas_webhook_token: '' }));
+      toast({
+        title: 'Credenciais salvas',
+        description: 'Asaas atualizado. Configure o mesmo token de webhook no painel Asaas.',
+      });
+    } catch (err: any) {
+      toast({ title: 'Erro ao salvar', description: err.message, variant: 'destructive' });
+    } finally {
+      setAsaasSaving(false);
+    }
+  };
+
+  const testAsaasConnection = async () => {
+    try {
+      setAsaasTestResult('idle');
+      await asaasService.testAdminConnection(asaasCreds.asaas_api_key || undefined, asaasCreds.asaas_sandbox);
+      setAsaasTestResult('ok');
+      toast({ title: 'Conexao OK', description: 'API Key Asaas valida.' });
+    } catch (err: any) {
+      setAsaasTestResult('error');
+      toast({ title: 'Erro ao testar', description: err.message, variant: 'destructive' });
+    }
+  };
 
   const fetchSystemData = async () => {
     try {
@@ -255,7 +320,7 @@ const SystemSettings = () => {
         },
         {
           id: '5',
-          key: 'mercadopago_webhook_url',
+          key: 'mp_webhook_url',
           value: 'https://rotago.com/api/webhooks/mercadopago',
           description: 'URL do webhook do Mercado Pago',
           category: 'payment',
@@ -526,37 +591,121 @@ const SystemSettings = () => {
         <TabsContent value="payments">
           <Card>
             <CardHeader>
-              <CardTitle>Configurações de Pagamento</CardTitle>
-              <CardDescription>
-                Configure integrações de pagamento
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {getConfigsByCategory('payment').map((config) => (
-                <ConfigItem 
-                  key={config.id}
-                  config={config}
-                  onSave={handleSaveConfig}
-                  onToggle={handleToggleConfig}
-                  saving={saving}
-                />
-              ))}
-              
-              <Separator />
-              
-              <div className="space-y-4">
-                <h4 className="text-sm font-medium">Ações de Pagamento</h4>
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => handleSystemAction('sync_payments')}
-                    disabled={saving}
-                  >
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Sincronizar Pagamentos
-                  </Button>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <CreditCard className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <CardTitle>Asaas</CardTitle>
+                  <CardDescription>
+                    PIX e cartao recorrente. A chave fica so no servidor.
+                  </CardDescription>
                 </div>
               </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {asaasLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Carregando credenciais...
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-amber-50 border-amber-200">
+                    <div>
+                      <Label className="text-sm font-medium text-amber-800">Sandbox (teste)</Label>
+                      <p className="text-xs text-amber-600 mt-0.5">Use a API Key de sandbox.asaas.com para testes</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={asaasCreds.asaas_sandbox === 'true'}
+                      onChange={(e) => setAsaasCreds((prev) => ({ ...prev, asaas_sandbox: e.target.checked ? 'true' : 'false' }))}
+                      className="h-4 w-4 rounded"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="asaas_api_key" className="flex items-center gap-2">
+                      API Key
+                      <span className="text-xs text-red-500 font-normal">confidencial</span>
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="asaas_api_key"
+                        type={showAccessToken ? 'text' : 'password'}
+                        placeholder={asaasKeyConfigured ? 'Ja configurada. Preencha so para trocar.' : '$aact_...'}
+                        value={asaasCreds.asaas_api_key}
+                        onChange={(e) => setAsaasCreds((prev) => ({ ...prev, asaas_api_key: e.target.value }))}
+                        className="font-mono text-sm pr-10"
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        onClick={() => setShowAccessToken((v) => !v)}
+                      >
+                        {showAccessToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="asaas_webhook_token">Token do webhook</Label>
+                    <Input
+                      id="asaas_webhook_token"
+                      type="password"
+                      placeholder="mesmo valor configurado no Asaas (asaas-access-token)"
+                      value={asaasCreds.asaas_webhook_token}
+                      onChange={(e) => setAsaasCreds((prev) => ({ ...prev, asaas_webhook_token: e.target.value }))}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>URL do webhook</Label>
+                    <Input readOnly value={asaasWebhookUrl} className="font-mono text-sm" />
+                    <p className="text-xs text-muted-foreground">
+                      Cadastre esta URL no Asaas com os eventos PAYMENT_RECEIVED, PAYMENT_CONFIRMED, CHECKOUT_PAID e SUBSCRIPTION_CREATED.
+                    </p>
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      onClick={saveAsaasCredentials}
+                      disabled={asaasSaving}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      {asaasSaving
+                        ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando...</>
+                        : <><Save className="h-4 w-4 mr-2" />Salvar credenciais</>}
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      onClick={testAsaasConnection}
+                      disabled={asaasSaving || (!asaasCreds.asaas_api_key && !asaasKeyConfigured)}
+                    >
+                      {asaasTestResult === 'ok' && <CheckCircle className="h-4 w-4 mr-2 text-green-500" />}
+                      {asaasTestResult === 'error' && <AlertTriangle className="h-4 w-4 mr-2 text-red-500" />}
+                      {asaasTestResult === 'idle' && <RefreshCw className="h-4 w-4 mr-2" />}
+                      Testar conexao
+                    </Button>
+                  </div>
+
+                  {asaasTestResult === 'ok' && (
+                    <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">
+                      <CheckCircle className="h-4 w-4" />
+                      API Key valida
+                    </div>
+                  )}
+                  {asaasTestResult === 'error' && (
+                    <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
+                      <AlertTriangle className="h-4 w-4" />
+                      Nao foi possivel autenticar no Asaas
+                    </div>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

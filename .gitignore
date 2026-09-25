@@ -22,3 +22,28 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Adicionado em 2026-05-14 - garante que .env nao vai pro git
+.env
+.env.production
+.env.development
+
+# MCP local secrets (personal access tokens)
+.mcp.json
+
+# Chaves de assinatura do app Android
+*.keystore
+*.jks
+android/key.properties
+
+# Artefatos de build/deploy (nao versionar)
+*.zip
+
+# Prints e imagens soltas na raiz
+/image.png
+/image copy*.png
+
+# Ferramentas locais de IA
+.claude/settings.local.json
+.grok/
+supabase/.temp/

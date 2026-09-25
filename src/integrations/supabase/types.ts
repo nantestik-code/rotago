@@ -410,30 +410,36 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          cpf: string | null
           created_at: string | null
           full_name: string | null
           id: string
           is_early_adopter: boolean | null
+          phone: string | null
           role: string | null
           subscription_status: string | null
           updated_at: string | null
         }
         Insert: {
           avatar_url?: string | null
+          cpf?: string | null
           created_at?: string | null
           full_name?: string | null
           id: string
           is_early_adopter?: boolean | null
+          phone?: string | null
           role?: string | null
           subscription_status?: string | null
           updated_at?: string | null
         }
         Update: {
           avatar_url?: string | null
+          cpf?: string | null
           created_at?: string | null
           full_name?: string | null
           id?: string
           is_early_adopter?: boolean | null
+          phone?: string | null
           role?: string | null
           subscription_status?: string | null
           updated_at?: string | null
@@ -693,7 +699,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      check_cpf_exists: {
+        Args: { cpf_input: string }
+        Returns: boolean
+      }
+      check_phone_exists: {
+        Args: { phone_input: string }
+        Returns: boolean
+      }
     }
     Enums: {
       tipo:

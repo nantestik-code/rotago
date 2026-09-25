@@ -8,29 +8,26 @@
     <div id="results"></div>
     
     <script type="module">
-        console.log('🔍 Testing environment variables...');
+        console.log('Testing environment variables...');
         
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
         const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
         
-        console.log('📍 SUPABASE_URL:', supabaseUrl);
-        console.log('🔑 ANON_KEY (first 20 chars):', supabaseAnonKey?.substring(0, 20));
-        console.log('🔐 SERVICE_KEY (first 20 chars):', supabaseServiceKey?.substring(0, 20));
+        console.log('SUPABASE_URL:', supabaseUrl);
+        console.log('ANON_KEY (first 20 chars):', supabaseAnonKey?.substring(0, 20));
         
         const results = document.getElementById('results');
         results.innerHTML = `
             <p><strong>SUPABASE_URL:</strong> ${supabaseUrl || 'UNDEFINED'}</p>
             <p><strong>ANON_KEY:</strong> ${supabaseAnonKey ? supabaseAnonKey.substring(0, 20) + '...' : 'UNDEFINED'}</p>
-            <p><strong>SERVICE_KEY:</strong> ${supabaseServiceKey ? supabaseServiceKey.substring(0, 20) + '...' : 'UNDEFINED'}</p>
         `;
         
-        if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
-            console.error('❌ Algumas variáveis de ambiente estão undefined!');
-            results.innerHTML += '<p style="color: red;"><strong>ERRO:</strong> Algumas variáveis estão undefined!</p>';
+        if (!supabaseUrl || !supabaseAnonKey) {
+            console.error('Some environment variables are undefined');
+            results.innerHTML += '<p style="color: red;"><strong>ERROR:</strong> Some variables are undefined.</p>';
         } else {
-            console.log('✅ Todas as variáveis de ambiente estão definidas!');
-            results.innerHTML += '<p style="color: green;"><strong>SUCESSO:</strong> Todas as variáveis estão definidas!</p>';
+            console.log('Environment variables are defined');
+            results.innerHTML += '<p style="color: green;"><strong>OK:</strong> Required variables are defined.</p>';
         }
     </script>
 </body>

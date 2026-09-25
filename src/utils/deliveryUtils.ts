@@ -2,7 +2,8 @@
 export interface DeliveryItem {
   id: string;
   orderNumber?: string | number; // Número da ordem (1, 2, 3, etc.)
-  sequence_number?: number; // Ordem na sequência da rota
+  sequence_number?: number; // Número do pacote na planilha (imutável)
+  optimizedOrder?: number; // Ordem de visita geográfica (definida pelo botão Otimizar)
   // Campos originais
   cliente: string;
   endereco: string;
@@ -11,6 +12,8 @@ export interface DeliveryItem {
   cep: string;
   telefone: string;
   observacoes: string;
+  trackingNumber?: string;
+  atId?: string;
   // Campos para compatibilidade com Supabase
   client?: string;
   address?: string;

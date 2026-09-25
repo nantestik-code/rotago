@@ -26,9 +26,7 @@ export const processFile = async (file: File): Promise<ProcessedFile> => {
 
     // Map headers to standardized fields
     const headers = Object.keys(data[0]);
-    console.log('📊 Headers encontrados na planilha:', headers);
     const fieldMapping = mapFields(headers);
-    console.log('🗺️ Mapeamento de campos:', fieldMapping);
     
 
 
@@ -43,52 +41,9 @@ export const processFile = async (file: File): Promise<ProcessedFile> => {
       }
     }
 
-    // Process each row
     data.forEach((row, index) => {
       try {
-
-
-        // Se o cliente não existe diretamente, tentar encontrar em outras propriedades
-        if (!fieldMapping.cliente || !row[fieldMapping.cliente]) {
-          // Encontrar primeira propriedade não vazia para usar como cliente
-          for (const key of Object.keys(row)) {
-            if (row[key] && typeof row[key] === 'string' && row[key].trim() !== '') {
-              fieldMapping.cliente = key;
-
-              break;
-            }
-          }
-        }
-
-        // Se endereço não existe, usar segunda propriedade não vazia
-        if (!fieldMapping.endereco || !row[fieldMapping.endereco]) {
-          let clienteFound = false;
-          for (const key of Object.keys(row)) {
-            if (clienteFound) {
-              // Essa é a segunda propriedade
-              if (row[key] && typeof row[key] === 'string' && row[key].trim() !== '') {
-                fieldMapping.endereco = key;
-
-                break;
-              }
-            }
-            
-            // Marca quando encontramos a coluna de cliente
-            if (fieldMapping.cliente === key) {
-              clienteFound = true;
-            }
-          }
-        }
-
         const delivery = createDeliveryFromRow(row, fieldMapping, index);
-        console.log(`📦 Entrega ${index + 1} criada:`, {
-          id: delivery.id,
-          cliente: delivery.cliente,
-          endereco: delivery.endereco,
-          bairro: delivery.bairro,
-          sequence_number: delivery.sequence_number,
-          orderNumber: delivery.orderNumber
-        });
         deliveries.push(delivery);
       } catch (error) {
         errors.push(`Erro na linha ${index + 1}: ${error instanceof Error ? error.message : 'Formato inválido'}`);
@@ -150,80 +105,81 @@ const readFile = async (file: File): Promise<any[]> => {
   });
 };
 
+export const isStructuredRouteSheet = (headers: string[] = []): boolean => {
+  const names = headers.map((header) => header.toLowerCase().trim());
+  const hasSequence = names.some((header) => header === 'sequence' || header === 'sequencia' || header === 'sequência');
+  const hasStop = names.some((header) => header === 'stop' || header === 'parada');
+  const hasAddress = names.some((header) => header.includes('address') || header.includes('endere'));
+  return hasSequence && hasStop && hasAddress;
+};
+
+const exactHeaderMap: Record<string, string> = {
+  'at id': 'atId',
+  'sequence': 'sequence',
+  'stop': 'stop',
+  'sequence stop': 'stop',
+  'spx tn': 'tracking',
+  'destination address': 'endereco',
+  'address': 'endereco',
+  'bairro': 'bairro',
+  'city': 'cidade',
+  'zipcode/postal code': 'cep',
+  'zipcode': 'cep',
+  'postal code': 'cep',
+  'latitude': 'latitude',
+  'longitude': 'longitude',
+};
+
 export const mapFields = (headers: string[]) => {
   const mapping: Record<string, string> = {};
   const fieldOptions = {
-    cliente: ['cliente', 'nome', 'name', 'customer', 'razão social', 'razao social', 'razão', 'razao', 
-              'empresa', 'company', 'destinatário', 'destinatario', 'pessoa', 'pessoa física', 'pessoa fisica',
-              'contato', 'contact', 'cliente id', 'id cliente', 'identificação', 'identificacao', 'at id'],
-    endereco: ['endereco', 'endereço', 'address', 'logradouro', 'rua', 'avenida', 'av', 'travessa', 
-               'local', 'location', 'destino', 'destination', 'destination address'],
-    cidade: ['cidade', 'city', 'municipio', 'município', 'localidade', 'locale'],
-    estado: ['estado', 'state', 'uf', 'província', 'provincia', 'region', 'região', 'regiao'],
-    cep: ['cep', 'zip', 'zipcode', 'zip code', 'código postal', 'codigo postal', 'postal', 'postal code', 'zipcode/postal code'],
-    telefone: ['telefone', 'phone', 'tel', 'fone', 'celular', 'mobile', 'contato', 'whatsapp', 'numero', 'spx tn'],
-    observacoes: ['observacoes', 'observações', 'notes', 'obs', 'observacao', 'observação', 
-                  'comentários', 'comentarios', 'descrição', 'descricao', 'description'],
-    // Sequence (ordem) - NÃO incluir 'sequence stop' aqui para não confundir com 'stop'
-    sequence: ['sequence', 'sequencia', 'sequência', 'seq', 'ordem', 'order'],
-    // Stop (parada) - incluir 'sequence stop' como sinônimo
-    stop: ['stop', 'parada', 'stp', 'sequence stop'],
-    // Order synonyms (fallback)
-    order: ['ordem', 'order', 'numero', 'número'],
-    bairro: ['bairro', 'neighborhood', 'district', 'zona', 'area'],
-    // Coordenadas
-    latitude: ['latitude', 'lat', 'geocode/latitude', 'latitude/longitude'],
-    longitude: ['longitude', 'lng', 'lon', 'geocode/longitude', 'longitude']
+    cliente: ['cliente', 'nome', 'customer', 'destinatário', 'destinatario', 'razão social', 'razao social'],
+    endereco: ['endereco', 'endereço', 'address', 'logradouro', 'destination address'],
+    cidade: ['cidade', 'city', 'municipio', 'município'],
+    estado: ['estado', 'state', 'uf'],
+    cep: ['cep', 'zipcode', 'zip code', 'postal code', 'código postal', 'codigo postal'],
+    telefone: ['telefone', 'phone', 'celular', 'whatsapp', 'fone'],
+    tracking: ['spx tn', 'tracking', 'tracking number', 'tn'],
+    atId: ['at id'],
+    observacoes: ['observacoes', 'observações', 'notes', 'obs', 'complemento'],
+    sequence: ['sequence', 'sequencia', 'sequência'],
+    stop: ['stop', 'parada'],
+    bairro: ['bairro', 'neighborhood'],
+    latitude: ['latitude', 'geocode/latitude'],
+    longitude: ['longitude', 'geocode/longitude'],
   };
 
-  // Converte todos os cabeçalhos para minúsculo para comparação
-  const lowerHeaders = headers.map(h => h.toLowerCase());
+  headers.forEach((header) => {
+    const lowerHeader = header.toLowerCase().trim();
+    if (exactHeaderMap[lowerHeader]) {
+      mapping[exactHeaderMap[lowerHeader]] = header;
+    }
+  });
 
-  // Match each header with the most likely field
-  lowerHeaders.forEach((lowerHeader, index) => {
-    const originalHeader = headers[index];
-    
+  headers.forEach((header) => {
+    const lowerHeader = header.toLowerCase().trim();
+    if (Object.values(mapping).includes(header)) return;
+
     for (const [field, options] of Object.entries(fieldOptions)) {
-      if (options.some(option => lowerHeader.includes(option))) {
-        mapping[field] = originalHeader;
+      if (mapping[field]) continue;
+      if (options.some((option) => lowerHeader === option || lowerHeader.includes(option))) {
+        mapping[field] = header;
         break;
       }
     }
   });
 
-  // Mapeamento específico para colunas conhecidas da planilha Gabriela Tapia
-  headers.forEach((header, index) => {
-    const lowerHeader = header.toLowerCase();
-    
-    // Mapeamentos específicos baseados na planilha fornecida
-    if (lowerHeader === 'at id') {
-      mapping['cliente'] = header;
-    } else if (lowerHeader === 'sequence') {
-      // Sequence = ordem/sequência da entrega
-      mapping['sequence'] = header;
-    } else if (lowerHeader === 'stop') {
-      // Stop = número da parada
-      mapping['stop'] = header;
-    } else if (lowerHeader === 'sequence stop') {
-      // Em planilhas com "Sequence Stop", tratar como número da parada (stop)
-      // Não mapear para 'sequence' para evitar duplicar o valor no campo de ordem
-      mapping['stop'] = header;
-    } else if (lowerHeader === 'spx tn') {
-      mapping['telefone'] = header;
-    } else if (lowerHeader === 'destination address') {
-      mapping['endereco'] = header;
-    } else if (lowerHeader === 'bairro') {
-      mapping['bairro'] = header;
-    } else if (lowerHeader === 'city') {
-      mapping['cidade'] = header;
-    } else if (lowerHeader === 'geocode/latitude') {
-      mapping['latitude'] = header;
-    } else if (lowerHeader === 'longitude') {
-      mapping['longitude'] = header;
-    }
-  });
-
   return mapping;
+};
+
+const readMapped = (row: Record<string, any>, key?: string) => {
+  if (!key || row[key] === undefined || row[key] === null) return '';
+  return String(row[key]).trim();
+};
+
+const streetTitle = (address: string) => {
+  const [first] = address.split(',');
+  return (first || address).trim();
 };
 
 export const createDeliveryFromRow = (
@@ -231,43 +187,7 @@ export const createDeliveryFromRow = (
   fieldMapping: Record<string, string>,
   rowIndex: number
 ): DeliveryItem => {
-  // Resolução robusta de campos obrigatórios com fallback
-  // Cliente
-  let clienteValue: string = '';
-  if (fieldMapping.cliente && row[fieldMapping.cliente]) {
-    clienteValue = String(row[fieldMapping.cliente]).trim();
-  }
-  if (!clienteValue) {
-    // Tentar encontrar AT ID ou similar
-    for (const key of Object.keys(row)) {
-      const lowerKey = key.toLowerCase();
-      if (lowerKey.includes('at id') || lowerKey.includes('cliente') || lowerKey.includes('nome')) {
-        const v = row[key];
-        if (v && String(v).trim() !== '') {
-          clienteValue = String(v).trim();
-          break;
-        }
-      }
-    }
-  }
-  if (!clienteValue) {
-    // Fallback: usar primeira coluna não vazia
-    for (const key of Object.keys(row)) {
-      const v = row[key];
-      if (v && String(v).trim() !== '') {
-        clienteValue = String(v).trim();
-        break;
-      }
-    }
-  }
-  if (!clienteValue) {
-    throw new Error('Campo cliente é obrigatório');
-  }
-  // Endereço
-  let enderecoValue: string = '';
-  if (fieldMapping.endereco && row[fieldMapping.endereco]) {
-    enderecoValue = String(row[fieldMapping.endereco]).trim();
-  }
+  let enderecoValue = readMapped(row, fieldMapping.endereco);
   if (!enderecoValue) {
     // tentar detectar coluna de endereço por heurística
     const addrHints = ['address', 'endereco', 'endereço', 'logradouro', 'rua', 'street', 'destination'];
@@ -285,69 +205,78 @@ export const createDeliveryFromRow = (
   if (!enderecoValue) {
     throw new Error('Campo endereço é obrigatório');
   }
+
+  const trackingNumber = readMapped(row, fieldMapping.tracking);
+  const atId = readMapped(row, fieldMapping.atId);
+  let clienteValue = readMapped(row, fieldMapping.cliente);
+  if (!clienteValue || /^AT\d/i.test(clienteValue)) {
+    clienteValue = streetTitle(enderecoValue);
+  }
   
-  // Sequence (ordem da entrega) -> sequence_number no app (para ordenação)
-  // Este é o número que define a ordem de execução das entregas
-  let sequenceNumber = rowIndex + 1;
-  if (fieldMapping.sequence && row[fieldMapping.sequence]) {
-    const sequenceValue = parseInt(String(row[fieldMapping.sequence]).trim());
-    if (!isNaN(sequenceValue)) {
-      sequenceNumber = sequenceValue;
+  // ============================================================================
+  // NUMERAÇÃO BLINDADA - NUNCA ALTERAR APÓS IMPORTAÇÃO
+  // ============================================================================
+  // Baseado na planilha do usuário:
+  // - Sequence (coluna B): NÚMERO DO PACOTE (único para cada entrega: 1, 2, 3...)
+  // - Stop (coluna C): NÚMERO DA PARADA (pode repetir - ex: parada 1 tem pacotes 1 e 2)
+  //
+  // MAPEAMENTO FINAL:
+  // - sequence_number = Sequence = NÚMERO DO PACOTE (identificador único)
+  // - orderNumber = Stop = NÚMERO DA PARADA (agrupamento por local)
+  // ============================================================================
+  
+  // Valores padrão baseados na posição na planilha
+  let sequenceNumber = rowIndex + 1; // Número do pacote
+  let stopNumber = rowIndex + 1;     // Número da parada
+  
+  // 1. LER SEQUENCE (Número do Pacote) - OBRIGATÓRIO
+  // Tentar múltiplas formas de encontrar a coluna Sequence
+  const sequenceFields = ['Sequence', 'sequence', 'SEQUENCE', fieldMapping.sequence].filter(Boolean);
+  for (const field of sequenceFields) {
+    if (field && row[field] !== undefined && row[field] !== null && row[field] !== '') {
+      const value = parseInt(String(row[field]).trim());
+      if (!isNaN(value) && value > 0) {
+        sequenceNumber = value;
+        break;
+      }
     }
   }
   
-  // Stop (número da parada) -> orderNumber no app (para exibição como "Parada X")
-  // Este é o número que aparece na interface como identificação da parada
-  let orderNumber = rowIndex + 1;
-  if (fieldMapping.stop && row[fieldMapping.stop]) {
-    const stopValue = parseInt(String(row[fieldMapping.stop]).trim());
-    if (!isNaN(stopValue)) {
-      orderNumber = stopValue;
-    }
-  } else if (fieldMapping.sequence && row[fieldMapping.sequence]) {
-    // Se não há campo Stop, usar Sequence também para orderNumber
-    const sequenceValue = parseInt(String(row[fieldMapping.sequence]).trim());
-    if (!isNaN(sequenceValue)) {
-      orderNumber = sequenceValue;
-    }
-  } else if (fieldMapping.order && row[fieldMapping.order]) {
-    const parsed = parseInt(String(row[fieldMapping.order]).trim());
-    if (!isNaN(parsed)) {
-      orderNumber = parsed;
+  // 2. LER STOP (Número da Parada) - OBRIGATÓRIO
+  // Tentar múltiplas formas de encontrar a coluna Stop
+  const stopFields = ['Stop', 'stop', 'STOP', fieldMapping.stop].filter(Boolean);
+  for (const field of stopFields) {
+    if (field && row[field] !== undefined && row[field] !== null && row[field] !== '') {
+      const value = parseInt(String(row[field]).trim());
+      if (!isNaN(value) && value > 0) {
+        stopNumber = value;
+        break;
+      }
     }
   }
   
-  // Se sequence_number não foi definido mas temos orderNumber, usar orderNumber
-  // Removido ajuste que copiava orderNumber para sequenceNumber quando ausente,
-  // preservando a sequência real (ou fallback para índice da linha)
+  // Se não encontrou Stop, usar Sequence como fallback
+  if (stopNumber === rowIndex + 1 && sequenceNumber !== rowIndex + 1) {
+    stopNumber = sequenceNumber;
+  }
   
-  // Criar um ID que inclui o número da ordem para facilitar a identificação
-  const orderId = `ordem-${orderNumber}-${generateId()}`;
-  
-  // Debug log para verificar a correção
-  console.log(`📦 Entrega ${rowIndex + 1} criada:`, {
-    id: orderId,
-    cliente: clienteValue,
-    endereco: enderecoValue,
-    bairro: fieldMapping.bairro && row[fieldMapping.bairro] ? String(row[fieldMapping.bairro]).trim() : '',
-    sequence_number: sequenceNumber,
-    orderNumber: orderNumber,
-    sequence_raw: fieldMapping.sequence && row[fieldMapping.sequence] ? row[fieldMapping.sequence] : 'N/A',
-    stop_raw: fieldMapping.stop && row[fieldMapping.stop] ? row[fieldMapping.stop] : 'N/A'
-  });
+  // ID único que NUNCA muda
+  const deliveryId = `pkg-${sequenceNumber}-stop-${stopNumber}-${generateId()}`;
 
   return {
-    id: orderId,
-    orderNumber: orderNumber, // Número da linha na planilha
-    sequence_number: sequenceNumber, // Número da sequência para ordenação
+    id: deliveryId,
+    orderNumber: stopNumber, // Stop = Número da PARADA (pode repetir)
+    sequence_number: sequenceNumber, // Sequence = Número do PACOTE (único)
     cliente: clienteValue,
     endereco: enderecoValue,
-    cidade: fieldMapping.cidade && row[fieldMapping.cidade] ? row[fieldMapping.cidade] : '',
-    estado: fieldMapping.estado && row[fieldMapping.estado] ? row[fieldMapping.estado] : '',
-    cep: fieldMapping.cep && row[fieldMapping.cep] ? row[fieldMapping.cep].toString() : '',
-    telefone: fieldMapping.telefone && row[fieldMapping.telefone] ? row[fieldMapping.telefone].toString() : '',
-    observacoes: fieldMapping.observacoes && row[fieldMapping.observacoes] ? row[fieldMapping.observacoes] : '',
-    bairro: fieldMapping.bairro && row[fieldMapping.bairro] ? String(row[fieldMapping.bairro]).trim() : '',
+    cidade: readMapped(row, fieldMapping.cidade),
+    estado: readMapped(row, fieldMapping.estado),
+    cep: readMapped(row, fieldMapping.cep),
+    telefone: readMapped(row, fieldMapping.telefone),
+    observacoes: readMapped(row, fieldMapping.observacoes),
+    trackingNumber,
+    atId,
+    bairro: readMapped(row, fieldMapping.bairro),
     // Latitude/Longitude, se informados na planilha
     lat: fieldMapping.latitude && row[fieldMapping.latitude] ? Number(row[fieldMapping.latitude]) : undefined,
     lng: fieldMapping.longitude && row[fieldMapping.longitude] ? Number(row[fieldMapping.longitude]) : undefined,

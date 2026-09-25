@@ -12,39 +12,33 @@ export interface AdminUser {
   updated_at: string;
 }
 
-// Credenciais hardcoded removidas - agora usa verificação direta na tabela admins
+const ADMIN_SESSION_KEY = 'rotago_admin_session';
+const ADMIN_AUTH_TYPE_KEY = 'adminAuthType';
+
+const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
 export class AdminAuthService {
   private static instance: AdminAuthService;
   private currentAdmin: AdminUser | null = null;
 
   private constructor() {
-    logger.info('ADMIN', 'Inicializando AdminAuthService', { component: 'AdminAuthService', function: 'constructor' });
-    
-    // Verificar se há admin logado no localStorage
-    const savedAdmin = localStorage.getItem('rotago_admin_session');
-    if (savedAdmin) {
-      try {
-        this.currentAdmin = JSON.parse(savedAdmin);
-        logger.info('ADMIN', 'Sessão admin recuperada do localStorage', { 
-          component: 'AdminAuthService',
-          function: 'constructor',
-          data: { adminEmail: this.currentAdmin?.email, role: this.currentAdmin?.role }
-        });
-      } catch (error) {
-        logger.error('ADMIN', 'Erro ao recuperar sessão admin do localStorage', {
-          component: 'AdminAuthService',
-          function: 'constructor',
-          error: error as Error,
-          data: { savedAdminData: savedAdmin }
-        });
-        localStorage.removeItem('rotago_admin_session');
-      }
-    } else {
-      logger.debug('ADMIN', 'Nenhuma sessão admin encontrada no localStorage', {
+    const savedAdmin = localStorage.getItem(ADMIN_SESSION_KEY);
+
+    if (!savedAdmin) {
+      return;
+    }
+
+    try {
+      this.currentAdmin = JSON.parse(savedAdmin) as AdminUser;
+    } catch (error) {
+      logger.error('ADMIN', 'Falha ao restaurar sessao admin do localStorage', {
         component: 'AdminAuthService',
-        function: 'constructor'
+        function: 'constructor',
+        error: error as Error,
       });
+
+      localStorage.removeItem(ADMIN_SESSION_KEY);
+      localStorage.removeItem(ADMIN_AUTH_TYPE_KEY);
     }
   }
 
@@ -52,235 +46,150 @@ export class AdminAuthService {
     if (!AdminAuthService.instance) {
       AdminAuthService.instance = new AdminAuthService();
     }
+
     return AdminAuthService.instance;
   }
 
   async loginAdmin(email: string, password: string): Promise<{ success: boolean; admin?: AdminUser; error?: string }> {
+    const normalizedEmail = normalizeEmail(email);
+
     logger.info('ADMIN', 'Tentativa de login admin iniciada', {
       component: 'AdminAuthService',
       function: 'loginAdmin',
-      data: { email }
+      data: { email: normalizedEmail },
     });
 
     try {
-      // Verificar se o usuário existe na tabela admins (sem restrições)
-      console.log('🔍 Verificando admin na tabela admins:', email);
-      
       const { data: adminData, error: adminError } = await supabase
         .from('admins')
         .select('*')
-        .eq('email', email.toLowerCase())
+        .eq('email', normalizedEmail)
         .eq('is_active', true)
-        .limit(1);
+        .maybeSingle();
 
       if (adminError) {
-        logger.error('DATABASE', 'Erro ao buscar admin na tabela admins', {
+        logger.error('DATABASE', 'Erro ao consultar tabela admins', {
           component: 'AdminAuthService',
           function: 'loginAdmin',
           error: adminError,
-          data: { email }
+          data: { email: normalizedEmail },
         });
+
         return {
           success: false,
-          error: 'Erro ao verificar credenciais administrativas'
+          error: 'Erro ao verificar credenciais administrativas',
         };
       }
 
-      if (!adminData || adminData.length === 0) {
-        logger.warn('SECURITY', 'Tentativa de login com email não cadastrado como admin', {
+      if (!adminData) {
+        return {
+          success: false,
+          error: 'Email nao cadastrado como administrador',
+        };
+      }
+
+      const {
+        data: { session: existingSession },
+      } = await supabase.auth.getSession();
+
+      if (existingSession?.user?.email?.toLowerCase() !== normalizedEmail) {
+        await supabase.auth.signOut();
+      }
+
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+
+      if (authError || !authData.user) {
+        logger.warn('AUTH', 'Falha na autenticacao do admin no Supabase Auth', {
           component: 'AdminAuthService',
           function: 'loginAdmin',
-          data: { 
-            email: email.toLowerCase(),
-            timestamp: new Date().toISOString(),
-            userAgent: navigator.userAgent
-          }
+          data: {
+            email: normalizedEmail,
+            message: authError?.message,
+            status: authError?.status,
+          },
         });
-        
+
         return {
           success: false,
-          error: 'Email não cadastrado como administrador'
+          error: 'Email ou senha incorretos',
         };
       }
 
-      const admin = adminData[0];
-      console.log('✅ Admin encontrado na tabela:', admin);
-      
-      // Validar senha usando cliente temporário do Supabase
-      console.log('🔑 Validando senha para admin:', email);
-      
-      try {
-        // Criar cliente temporário para validação sem afetar sessão principal
-        const { createClient } = await import('@supabase/supabase-js');
-        const tempClient = createClient(
-          import.meta.env.VITE_SUPABASE_URL,
-          import.meta.env.VITE_SUPABASE_ANON_KEY,
-          {
-            auth: {
-              persistSession: false, // Não persistir sessão
-              autoRefreshToken: false,
-              detectSessionInUrl: false
-            }
-          }
-        );
-
-        const { data: authData, error: authError } = await tempClient.auth.signInWithPassword({
-          email: email.toLowerCase(),
-          password: password
-        });
-
-        if (authError) {
-          logger.warn('AUTH', 'Falha na validação de senha do admin', {
-            component: 'AdminAuthService',
-            function: 'loginAdmin',
-            data: { 
-              email, 
-              errorMessage: authError.message,
-              errorCode: authError.status
-            }
-          });
-          
-          return {
-            success: false,
-            error: 'Email ou senha incorretos'
-          };
-        }
-
-        if (!authData.user) {
-          logger.warn('AUTH', 'Validação de senha retornou usuário nulo', {
-            component: 'AdminAuthService',
-            function: 'loginAdmin',
-            data: { email }
-          });
-          
-          return {
-            success: false,
-            error: 'Falha na autenticação'
-          };
-        }
-
-        // Fazer logout imediatamente no cliente temporário
-        await tempClient.auth.signOut();
-        console.log('✅ Senha validada com sucesso (cliente temporário)');
-        
-      } catch (validationException) {
-        logger.error('AUTH', 'Exceção na validação de senha', {
-          component: 'AdminAuthService',
-          function: 'loginAdmin',
-          error: validationException as Error,
-          data: { email }
-        });
-        
-        return {
-          success: false,
-          error: 'Erro interno na validação'
-        };
-      }
-
-      // Admin já foi verificado anteriormente, agora finalizar login
-      console.log('✅ Autenticação Supabase bem-sucedida para admin:', email);
-      
-      // Atualizar último login na tabela admins
-      const { error: updateError } = await supabase
-        .from('admins')
-        .update({ 
-          last_login_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('email', email.toLowerCase());
-      
-      if (updateError) {
-        console.warn('⚠️ Não foi possível atualizar último login:', updateError);
-      }
-      
-      // Criar objeto AdminUser a partir dos dados da tabela
       const adminUser: AdminUser = {
-        id: admin.id,
-        email: admin.email,
-        full_name: admin.full_name,
-        role: admin.role,
-        is_active: admin.is_active,
-        created_at: admin.created_at,
-        updated_at: admin.updated_at
+        id: adminData.id,
+        email: adminData.email,
+        full_name: adminData.full_name,
+        role: adminData.role,
+        is_active: adminData.is_active,
+        created_at: adminData.created_at,
+        updated_at: adminData.updated_at,
       };
-      
-      // Salvar sessão administrativa
+
       this.currentAdmin = adminUser;
-      localStorage.setItem('rotago_admin_session', JSON.stringify(adminUser));
-      
-      logger.info('ADMIN', 'Login administrativo realizado com sucesso', {
+      localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(adminUser));
+      localStorage.setItem(ADMIN_AUTH_TYPE_KEY, 'supabase');
+
+      await supabase
+        .from('admins')
+        .update({
+          last_login_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', adminUser.id);
+
+      logger.info('ADMIN', 'Login administrativo concluido', {
         component: 'AdminAuthService',
         function: 'loginAdmin',
-        data: { 
-          adminId: adminUser.id,
-          email: adminUser.email,
-          role: adminUser.role
-        }
+        data: { email: adminUser.email, role: adminUser.role },
       });
-      
+
       return {
         success: true,
-        admin: adminUser
+        admin: adminUser,
       };
-      
-    } catch (error: any) {
-      logger.error('ADMIN', 'Erro inesperado no login administrativo', {
+    } catch (error) {
+      logger.error('ADMIN', 'Erro inesperado no login admin', {
         component: 'AdminAuthService',
         function: 'loginAdmin',
         error: error as Error,
-        data: { email }
+        data: { email: normalizedEmail },
       });
-      
+
       return {
         success: false,
-        error: 'Erro interno do servidor'
+        error: 'Erro interno do servidor',
       };
     }
   }
 
-  // Obter cliente Supabase apropriado para admin (com ou sem RLS)
   getAdminSupabaseClient() {
-    const authType = localStorage.getItem('adminAuthType');
-    const adminSession = this.getCurrentSession();
-    
-    if (!adminSession) {
-      console.warn('⚠️ [ADMIN CLIENT] Nenhuma sessão admin ativa');
-      return supabase; // Cliente padrão
-    }
-    
-    // Sempre usar cliente administrativo para operações de admin
-    
-    if (authType === 'supabase') {
-      console.log('✅ [ADMIN CLIENT] Usando cliente administrativo com auth session');
-      return supabaseAdmin; // Cliente administrativo
-    } else {
-      console.log('🔑 [ADMIN CLIENT] Usando cliente administrativo (sessão local)');
-      return supabaseAdmin; // Cliente administrativo para sessão local
-    }
+    return this.getCurrentSession() ? supabaseAdmin : supabase;
   }
 
   async logoutAdmin(): Promise<void> {
     const adminEmail = this.currentAdmin?.email;
-    const adminRole = this.currentAdmin?.role;
-    
-    logger.info('ADMIN', 'Logout admin iniciado', {
-      component: 'AdminAuthService',
-      function: 'logoutAdmin',
-      data: { adminEmail, adminRole }
-    });
 
     if (this.currentAdmin) {
       await this.logAdminAction('logout', `Admin ${this.currentAdmin.email} fez logout`);
     }
-    
+
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      logger.warn('AUTH', 'Falha ao encerrar sessao auth no logout admin', {
+        component: 'AdminAuthService',
+        function: 'logoutAdmin',
+        error: error as Error,
+        data: { adminEmail },
+      });
+    }
+
     this.currentAdmin = null;
-    localStorage.removeItem('rotago_admin_session');
-    
-    logger.info('ADMIN', 'Logout admin concluído', {
-      component: 'AdminAuthService',
-      function: 'logoutAdmin',
-      data: { adminEmail, adminRole }
-    });
+    localStorage.removeItem(ADMIN_SESSION_KEY);
+    localStorage.removeItem(ADMIN_AUTH_TYPE_KEY);
   }
 
   getCurrentAdmin(): AdminUser | null {
@@ -288,49 +197,51 @@ export class AdminAuthService {
   }
 
   getCurrentSession(): AdminUser | null {
-    // Verificar se há sessão ativa na memória
     if (this.currentAdmin) {
       return this.currentAdmin;
     }
 
-    // Tentar recuperar do localStorage
-    try {
-      const savedSession = localStorage.getItem('rotago_admin_session');
-      if (savedSession) {
-        const session = JSON.parse(savedSession);
-        this.currentAdmin = session;
-        return session;
-      }
-    } catch (error) {
-      console.error('Erro ao recuperar sessão admin do localStorage:', error);
-      localStorage.removeItem('rotago_admin_session');
+    const savedSession = localStorage.getItem(ADMIN_SESSION_KEY);
+    if (!savedSession) {
+      return null;
     }
 
-    return null;
+    try {
+      const session = JSON.parse(savedSession) as AdminUser;
+      this.currentAdmin = session;
+      return session;
+    } catch (error) {
+      localStorage.removeItem(ADMIN_SESSION_KEY);
+      localStorage.removeItem(ADMIN_AUTH_TYPE_KEY);
+      logger.error('ADMIN', 'Falha ao restaurar sessao admin salva', {
+        component: 'AdminAuthService',
+        function: 'getCurrentSession',
+        error: error as Error,
+      });
+      return null;
+    }
   }
 
   isAdminLoggedIn(): boolean {
-    return this.currentAdmin !== null && this.currentAdmin.is_active;
+    return Boolean(this.currentAdmin?.is_active);
   }
 
   hasPermission(requiredRole: 'admin' | 'super_admin' | 'moderator'): boolean {
-    if (!this.currentAdmin) return false;
+    if (!this.currentAdmin) {
+      return false;
+    }
 
     const roleHierarchy = {
-      'moderator': 1,
-      'admin': 2,
-      'super_admin': 3
-    };
+      moderator: 1,
+      admin: 2,
+      super_admin: 3,
+    } as const;
 
-    const currentLevel = roleHierarchy[this.currentAdmin.role];
-    const requiredLevel = roleHierarchy[requiredRole];
-
-    return currentLevel >= requiredLevel;
+    return roleHierarchy[this.currentAdmin.role] >= roleHierarchy[requiredRole];
   }
 
   private async logAdminAction(action: string, description: string): Promise<void> {
     try {
-      // Inserir log na tabela de auditoria (se existir)
       await supabase.from('audit_logs').insert({
         user_id: this.currentAdmin?.id || 'system',
         action,
@@ -338,175 +249,80 @@ export class AdminAuthService {
         metadata: {
           admin_email: this.currentAdmin?.email,
           admin_role: this.currentAdmin?.role,
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     } catch (error) {
-      console.error('Erro ao registrar log de auditoria:', error);
+      logger.warn('ADMIN', 'Falha ao registrar acao de auditoria', {
+        component: 'AdminAuthService',
+        function: 'logAdminAction',
+        error: error as Error,
+        data: { action },
+      });
     }
   }
 
-  // Método para garantir autenticação no Supabase Auth
   async ensureSupabaseAuth(adminEmail: string): Promise<void> {
-    console.log('🔐 [ADMIN AUTH] Iniciando ensureSupabaseAuth para:', adminEmail);
-    
-    logger.info('ADMIN', 'Garantindo autenticação no Supabase Auth', {
-      component: 'AdminAuthService',
-      function: 'ensureSupabaseAuth',
-      data: { adminEmail }
-    });
+    const normalizedEmail = normalizeEmail(adminEmail);
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
 
-    try {
-      // Verificar se já há sessão ativa
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      console.log('🔍 [ADMIN AUTH] Verificando sessão atual:', {
-        hasSession: !!session,
-        sessionEmail: session?.user?.email,
-        targetEmail: adminEmail,
-        sessionError
-      });
-      
-      if (session && session.user?.email === adminEmail) {
-        console.log('✅ [ADMIN AUTH] Sessão já ativa para o admin');
-        logger.debug('ADMIN', 'Sessão Supabase já ativa para o admin', {
-          component: 'AdminAuthService',
-          function: 'ensureSupabaseAuth',
-          data: { adminEmail, userId: session.user.id }
-        });
-        return;
-      }
-
-      // Fazer login no Supabase Auth
-      let supabasePassword = 'admin_temp_password_2024';
-      
-      if (adminEmail === 'evandromromero@gmail.com') {
-        supabasePassword = '933755GiEv**'; // Senha real do Evandro
-      } else if (adminEmail === 'admin@rotafacil.com') {
-        supabasePassword = 'admin123'; // Senha do admin sistema
-      }
-      
-      console.log('🔑 [ADMIN AUTH] Tentando login no Supabase Auth:', {
-        email: adminEmail,
-        passwordLength: supabasePassword.length
-      });
-      
-      logger.info('ADMIN', 'Tentando login no Supabase Auth', {
-        component: 'AdminAuthService',
-        function: 'ensureSupabaseAuth',
-        data: { adminEmail, passwordLength: supabasePassword.length }
-      });
-      
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: adminEmail,
-        password: supabasePassword
-      });
-
-      console.log('📊 [ADMIN AUTH] Resultado do login:', {
-        success: !authError,
-        hasUser: !!authData?.user,
-        userEmail: authData?.user?.email,
-        userId: authData?.user?.id,
-        error: authError?.message
-      });
-
-      if (authError) {
-        console.error('❌ [ADMIN AUTH] Erro no login Supabase:', authError);
-        logger.warn('ADMIN', 'Falha no login Supabase Auth durante ensureSupabaseAuth', {
-          component: 'AdminAuthService',
-          function: 'ensureSupabaseAuth',
-          error: authError,
-          data: { adminEmail }
-        });
-        throw authError;
-      } else {
-        console.log('✅ [ADMIN AUTH] Login Supabase realizado com sucesso!');
-        logger.info('ADMIN', 'Login Supabase Auth realizado com sucesso durante ensureSupabaseAuth', {
-          component: 'AdminAuthService',
-          function: 'ensureSupabaseAuth',
-          data: { adminEmail, supabaseUserId: authData.user?.id }
-        });
-      }
-    } catch (error) {
-      logger.error('ADMIN', 'Erro durante ensureSupabaseAuth', {
-        component: 'AdminAuthService',
-        function: 'ensureSupabaseAuth',
-        error: error as Error,
-        data: { adminEmail }
-      });
+    if (error) {
       throw error;
     }
+
+    if (!session?.user?.email || session.user.email.toLowerCase() !== normalizedEmail) {
+      throw new Error('Sessao administrativa do Supabase ausente ou divergente. Faca login novamente.');
+    }
   }
 
-  // Método para validar sessão (verificar se ainda é válida)
   async validateSession(): Promise<boolean> {
-    logger.debug('ADMIN', 'Validando sessão admin', {
-      component: 'AdminAuthService',
-      function: 'validateSession',
-      data: { 
-        hasCurrentAdmin: !!this.currentAdmin,
-        adminEmail: this.currentAdmin?.email 
-      }
-    });
-
     if (!this.currentAdmin) {
-      logger.warn('ADMIN', 'Validação de sessão falhou: nenhum admin logado', {
-        component: 'AdminAuthService',
-        function: 'validateSession'
-      });
       return false;
     }
 
-    // Verificar se o admin ainda está ativo na tabela admins
     try {
+      await this.ensureSupabaseAuth(this.currentAdmin.email);
+
       const { data: adminData, error: adminError } = await supabase
         .from('admins')
         .select('*')
         .eq('email', this.currentAdmin.email)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
       if (adminError || !adminData) {
-        logger.warn('SECURITY', 'Sessão admin invalidada: admin não encontrado ou inativo na tabela', {
-          component: 'AdminAuthService',
-          function: 'validateSession',
-          error: adminError,
-          data: { 
-            adminEmail: this.currentAdmin?.email,
-            adminRole: this.currentAdmin?.role
-          }
-        });
-        
         await this.logoutAdmin();
         return false;
       }
 
-      const admin = adminData as AdminUser;
+      this.currentAdmin = {
+        id: adminData.id,
+        email: adminData.email,
+        full_name: adminData.full_name,
+        role: adminData.role,
+        is_active: adminData.is_active,
+        created_at: adminData.created_at,
+        updated_at: adminData.updated_at,
+      };
+
+      localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(this.currentAdmin));
+      return true;
     } catch (error) {
-      logger.error('ADMIN', 'Erro ao validar sessão admin', {
+      logger.warn('ADMIN', 'Sessao administrativa invalidada', {
         component: 'AdminAuthService',
         function: 'validateSession',
         error: error as Error,
-        data: { adminEmail: this.currentAdmin?.email }
+        data: { email: this.currentAdmin?.email },
       });
-      
+
       await this.logoutAdmin();
       return false;
     }
-
-    logger.debug('ADMIN', 'Sessão admin validada com sucesso', {
-      component: 'AdminAuthService',
-      function: 'validateSession',
-      data: { 
-        adminEmail: admin.email,
-        adminRole: admin.role
-      }
-    });
-
-    return true;
   }
 
-  // Método para adicionar novos admins (apenas super_admin)
   async addAdmin(adminData: {
     email: string;
     password: string;
@@ -516,25 +332,35 @@ export class AdminAuthService {
     if (!this.hasPermission('super_admin')) {
       return {
         success: false,
-        error: 'Apenas super administradores podem adicionar novos admins'
+        error: 'Apenas super administradores podem adicionar novos admins',
       };
     }
 
-    // Verificar se email já existe
-    const existingAdmin = AUTHORIZED_ADMINS.find(a => a.email === adminData.email);
+    const normalizedEmail = normalizeEmail(adminData.email);
+    const { data: existingAdmin, error } = await supabase
+      .from('admins')
+      .select('id')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
+    if (error) {
+      return {
+        success: false,
+        error: 'Erro ao verificar admins existentes',
+      };
+    }
+
     if (existingAdmin) {
       return {
         success: false,
-        error: 'Email já está em uso'
+        error: 'Email ja esta em uso',
       };
     }
 
-    // Em uma implementação real, isso seria salvo no banco de dados
-    // Por enquanto, apenas logamos a ação
-    await this.logAdminAction('add_admin', `Novo admin adicionado: ${adminData.email}`);
+    await this.logAdminAction('add_admin', `Novo admin adicionado: ${normalizedEmail}`);
 
     return {
-      success: true
+      success: true,
     };
   }
 }

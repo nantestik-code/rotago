@@ -5,6 +5,8 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 create table if not exists public.profiles (
   id uuid references auth.users on delete cascade primary key,
   full_name text,
+  cpf text,
+  phone text,
   avatar_url text,
   role text default 'user',
   is_early_adopter boolean default false,

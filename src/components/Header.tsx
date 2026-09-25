@@ -14,6 +14,7 @@ import {
 import { Loader2, User, Settings, LogOut, Shield, History, Crown } from "lucide-react";
 import SyncStatusButton from "./SyncStatusButton";
 import { useDeliveries } from "@/hooks/use-deliveries";
+import { useSubscription } from "@/hooks/useSubscription";
 import Logo from "./Logo";
 
 export function Header({ onNewRouteClick, onExportClick }: { 
@@ -21,6 +22,7 @@ export function Header({ onNewRouteClick, onExportClick }: {
   onExportClick?: () => void;
 }) {
   const { user, profile, signOut, isLoading } = useAuth();
+  const { isTrialActive, trialTimeRemainingLabel, isSubscriptionActive, currentPlan } = useSubscription();
   const [initials, setInitials] = useState<string>("");
   const deliveriesContext = useDeliveries();
 
@@ -36,14 +38,30 @@ export function Header({ onNewRouteClick, onExportClick }: {
   }, [user, profile]);
 
   return (
-    <header className="bg-white shadow native-header">
-      <div className="container max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+    <header className="native-header border-b border-sky-100 bg-white/80 backdrop-blur-xl">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
         <Logo size="md" variant="default" interactive={true} to="/app" />
 
         {isLoading ? (
-          <Loader2 className="h-5 w-5 animate-spin" />
+          <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
         ) : user ? (
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center gap-3">
+            {isTrialActive && (
+              <Link
+                to="/subscription"
+                className="hidden items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 sm:flex"
+              >
+                Trial · {trialTimeRemainingLabel}
+              </Link>
+            )}
+            {isSubscriptionActive && !isTrialActive && currentPlan && (
+              <Link
+                to="/subscription"
+                className="hidden items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 sm:flex"
+              >
+                {currentPlan.name}
+              </Link>
+            )}
             {/* Botão de sincronização que só aparece quando há alterações pendentes */}
             {deliveriesContext && (
               <SyncStatusButton syncFunction={deliveriesContext.syncPendingStatusChanges} />
@@ -104,9 +122,6 @@ export function Header({ onNewRouteClick, onExportClick }: {
                     console.log('🔐 Header: Botão Sair clicado - Executando logout forçado');
                     
                     // Notificar usuário
-                    alert('Saindo do sistema. Você será redirecionado para a tela de login.');
-                    
-                    // Executar logout
                     signOut();
                     
                     // Backup: Forçar redirecionamento caso o signOut falhe

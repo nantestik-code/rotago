@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -44,6 +54,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { logger } from "@/utils/logger";
+import { asaasService } from "@/services/asaas";
 
 interface SubscriptionPlan {
   id: string;
@@ -91,6 +102,12 @@ const SubscriptionManagement = () => {
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [editingSubscription, setEditingSubscription] = useState<UserSubscription | null>(null);
   const [isSubscriptionDialogOpen, setIsSubscriptionDialogOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<{
+    subscriptionId: string;
+    userName: string;
+    actionLabel: string;
+    action: () => void;
+  } | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -471,37 +488,91 @@ const SubscriptionManagement = () => {
     }
   };
 
-  const handleUpdateSubscriptionStatus = async (subscriptionId: string, newStatus: string) => {
+  const handleExtendTrial = async (subscriptionId: string, days: number) => {
+    try {
+      const now = new Date();
+      const trialEnd = new Date(now);
+      trialEnd.setDate(trialEnd.getDate() + days);
+
+      const { error } = await supabase
+        .from('user_subscriptions')
+        .update({
+          status: 'active',
+          is_active: true,
+          is_trial: true,
+          current_period_start: now.toISOString(),
+          current_period_end: trialEnd.toISOString(),
+          trial_ends_at: trialEnd.toISOString(),
+          canceled_at: null,
+          cancel_at_period_end: false,
+          updated_at: now.toISOString()
+        })
+        .eq('id', subscriptionId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Trial estendido",
+        description: `Período gratuito configurado para ${days} dias a partir de hoje.`,
+      });
+      fetchData();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao estender trial",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUpdateSubscriptionStatus = async (subscriptionId: string, newStatus: string, durationMonths: number = 1) => {
     try {
       logger.info('ADMIN', 'Iniciando atualização de status de assinatura', {
         component: 'SubscriptionManagement',
         function: 'handleUpdateSubscriptionStatus',
         subscriptionId: subscriptionId,
         newStatus: newStatus,
+        durationMonths: durationMonths,
         isActive: newStatus === 'active'
       });
 
+      const now = new Date();
+      
       // Calcular datas baseadas no status
       let updateData: any = {
         status: newStatus,
         is_active: newStatus === 'active',
-        updated_at: new Date().toISOString()
+        updated_at: now.toISOString()
       };
 
       // Se ativando a assinatura, definir datas apropriadas
       if (newStatus === 'active') {
-        const now = new Date();
-        const oneMonthLater = new Date(now);
-        oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
+        const periodEnd = new Date(now);
+        periodEnd.setMonth(periodEnd.getMonth() + durationMonths);
         
         updateData = {
           ...updateData,
           current_period_start: now.toISOString(),
-          current_period_end: oneMonthLater.toISOString(),
+          current_period_end: periodEnd.toISOString(),
           is_trial: false,
           trial_ends_at: null,
           canceled_at: null,
           cancel_at_period_end: false
+        };
+        
+        logger.info('ADMIN', 'Ativando assinatura com período definido', {
+          component: 'SubscriptionManagement',
+          function: 'handleUpdateSubscriptionStatus',
+          subscriptionId: subscriptionId,
+          periodStart: now.toISOString(),
+          periodEnd: periodEnd.toISOString(),
+          durationMonths: durationMonths
+        });
+      } else if (newStatus === 'cancelled' || newStatus === 'expired') {
+        updateData = {
+          ...updateData,
+          is_active: false,
+          canceled_at: newStatus === 'cancelled' ? now.toISOString() : null
         };
       }
 
@@ -533,7 +604,7 @@ const SubscriptionManagement = () => {
 
       toast({
         title: "Status atualizado",
-        description: `Assinatura ${newStatus === 'active' ? 'ativada' : 'atualizada'} com sucesso.`,
+        description: `Assinatura ${newStatus === 'active' ? `ativada por ${durationMonths} ${durationMonths === 1 ? 'mês' : 'meses'}` : 'atualizada'} com sucesso.`,
       });
 
       fetchData();
@@ -553,6 +624,22 @@ const SubscriptionManagement = () => {
       });
     }
   };
+
+  const requestConfirm = useCallback((
+    subscriptionId: string,
+    userName: string,
+    actionLabel: string,
+    action: () => void
+  ) => {
+    setConfirmAction({ subscriptionId, userName, actionLabel, action });
+  }, []);
+
+  const handleConfirmAction = useCallback(() => {
+    if (confirmAction) {
+      confirmAction.action();
+      setConfirmAction(null);
+    }
+  }, [confirmAction]);
 
   const filteredSubscriptions = subscriptions.filter(sub => {
     const userName = sub.profiles?.full_name || sub.email || sub.user_id || '';
@@ -706,8 +793,12 @@ const SubscriptionManagement = () => {
                         <TableCell>
                           {subscription.is_trial ? (
                             <Badge variant="outline">Trial</Badge>
-                          ) : (
+                          ) : subscription.status === 'active' && subscription.is_active ? (
                             <Badge variant="default">Pago</Badge>
+                          ) : subscription.status === 'pending_payment' ? (
+                            <Badge variant="outline" className="border-amber-400 text-amber-600">Aguardando Pagamento</Badge>
+                          ) : (
+                            <Badge variant="secondary">Não Pago</Badge>
                           )}
                         </TableCell>
                         <TableCell>{formatDate(subscription.current_period_start || subscription.created_at)}</TableCell>
@@ -721,30 +812,187 @@ const SubscriptionManagement = () => {
                               Modo Demo
                             </Badge>
                           ) : (
-                            <div className="flex gap-2">
-                              <Select
-                                value={subscription.status || (subscription.is_active ? 'active' : 'inactive')}
-                                onValueChange={(value) => handleUpdateSubscriptionStatus(subscription.id, value)}
-                              >
-                                <SelectTrigger className="w-[120px]">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="active">Ativo</SelectItem>
-                                  <SelectItem value="pending_payment">Pendente</SelectItem>
-                                  <SelectItem value="cancelled">Cancelado</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setEditingSubscription(subscription);
-                                  setIsSubscriptionDialogOpen(true);
-                                }}
-                              >
-                                <Edit className="w-3 h-3" />
-                              </Button>
+                            <div className="flex flex-col gap-2">
+                              <div className="flex gap-1 flex-wrap">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs"
+                                  onClick={async () => {
+                                    try {
+                                      await asaasService.adminActivate(subscription.id);
+                                      toast({ title: 'Acesso liberado' });
+                                      window.location.reload();
+                                    } catch (error: any) {
+                                      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+                                    }
+                                  }}
+                                >
+                                  Liberar acesso
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs"
+                                  onClick={async () => {
+                                    try {
+                                      const result = await asaasService.adminSync(subscription.id);
+                                      toast({ title: 'Sincronizado', description: `Status: ${result.status}` });
+                                      window.location.reload();
+                                    } catch (error: any) {
+                                      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+                                    }
+                                  }}
+                                >
+                                  Sync Asaas
+                                </Button>
+                              </div>
+                              <div className="flex gap-1 flex-wrap">
+                                <span className="text-xs text-gray-400 self-center w-full">Pago:</span>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700 text-xs px-2"
+                                  onClick={() => requestConfirm(
+                                    subscription.id,
+                                    subscription.profiles?.full_name || 'Usuário sem nome',
+                                    `Ativar assinatura paga por 1 mês para ${subscription.profiles?.full_name || 'Usuário sem nome'}?`,
+                                    () => handleUpdateSubscriptionStatus(subscription.id, 'active', 1)
+                                  )}
+                                  title="Ativar como pago por 1 mês"
+                                >
+                                  +1M
+                                </Button>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700 text-xs px-2"
+                                  onClick={() => requestConfirm(
+                                    subscription.id,
+                                    subscription.profiles?.full_name || 'Usuário sem nome',
+                                    `Ativar assinatura paga por 3 meses para ${subscription.profiles?.full_name || 'Usuário sem nome'}?`,
+                                    () => handleUpdateSubscriptionStatus(subscription.id, 'active', 3)
+                                  )}
+                                  title="Ativar como pago por 3 meses"
+                                >
+                                  +3M
+                                </Button>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700 text-xs px-2"
+                                  onClick={() => requestConfirm(
+                                    subscription.id,
+                                    subscription.profiles?.full_name || 'Usuário sem nome',
+                                    `Ativar assinatura paga por 6 meses para ${subscription.profiles?.full_name || 'Usuário sem nome'}?`,
+                                    () => handleUpdateSubscriptionStatus(subscription.id, 'active', 6)
+                                  )}
+                                  title="Ativar como pago por 6 meses"
+                                >
+                                  +6M
+                                </Button>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700 text-xs px-2"
+                                  onClick={() => requestConfirm(
+                                    subscription.id,
+                                    subscription.profiles?.full_name || 'Usuário sem nome',
+                                    `Ativar assinatura paga por 12 meses para ${subscription.profiles?.full_name || 'Usuário sem nome'}?`,
+                                    () => handleUpdateSubscriptionStatus(subscription.id, 'active', 12)
+                                  )}
+                                  title="Ativar como pago por 12 meses"
+                                >
+                                  +1A
+                                </Button>
+                              </div>
+                              {/* Conceder trial gratuito (dias) */}
+                              <div className="flex gap-1 flex-wrap">
+                                <span className="text-xs text-gray-400 self-center w-full">Trial:</span>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-blue-300 text-blue-700 hover:bg-blue-50 text-xs px-2"
+                                  onClick={() => requestConfirm(
+                                    subscription.id,
+                                    subscription.profiles?.full_name || 'Usuário sem nome',
+                                    `Estender trial por 7 dias para ${subscription.profiles?.full_name || 'Usuário sem nome'}?`,
+                                    () => handleExtendTrial(subscription.id, 7)
+                                  )}
+                                  title="Conceder 7 dias grátis"
+                                >
+                                  7d
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-blue-300 text-blue-700 hover:bg-blue-50 text-xs px-2"
+                                  onClick={() => requestConfirm(
+                                    subscription.id,
+                                    subscription.profiles?.full_name || 'Usuário sem nome',
+                                    `Estender trial por 15 dias para ${subscription.profiles?.full_name || 'Usuário sem nome'}?`,
+                                    () => handleExtendTrial(subscription.id, 15)
+                                  )}
+                                  title="Conceder 15 dias grátis"
+                                >
+                                  15d
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-blue-300 text-blue-700 hover:bg-blue-50 text-xs px-2"
+                                  onClick={() => requestConfirm(
+                                    subscription.id,
+                                    subscription.profiles?.full_name || 'Usuário sem nome',
+                                    `Estender trial por 30 dias para ${subscription.profiles?.full_name || 'Usuário sem nome'}?`,
+                                    () => handleExtendTrial(subscription.id, 30)
+                                  )}
+                                  title="Conceder 30 dias grátis"
+                                >
+                                  30d
+                                </Button>
+                              </div>
+                              <div className="flex gap-1">
+                                <Select
+                                  value={subscription.status || (subscription.is_active ? 'active' : 'inactive')}
+                                  onValueChange={(value) => {
+                                    const statusLabels: Record<string, string> = {
+                                      active: 'Ativo',
+                                      pending_payment: 'Pendente',
+                                      cancelled: 'Cancelado',
+                                      expired: 'Expirado'
+                                    };
+                                    requestConfirm(
+                                      subscription.id,
+                                      subscription.profiles?.full_name || 'Usuário sem nome',
+                                      `Alterar status para ${statusLabels[value] || value} para ${subscription.profiles?.full_name || 'Usuário sem nome'}?`,
+                                      () => handleUpdateSubscriptionStatus(subscription.id, value, 1)
+                                    );
+                                  }}
+                                >
+                                  <SelectTrigger className="w-[110px] h-7 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="active">Ativo</SelectItem>
+                                    <SelectItem value="pending_payment">Pendente</SelectItem>
+                                    <SelectItem value="cancelled">Cancelado</SelectItem>
+                                    <SelectItem value="expired">Expirado</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7"
+                                  onClick={() => {
+                                    setEditingSubscription(subscription);
+                                    setIsSubscriptionDialogOpen(true);
+                                  }}
+                                  title="Editar detalhes completos"
+                                >
+                                  <Edit className="w-3 h-3" />
+                                </Button>
+                              </div>
                             </div>
                           )}
                         </TableCell>
@@ -877,6 +1125,30 @@ const SubscriptionManagement = () => {
           }}
         />
       </Dialog>
+
+      {/* Dialog de Confirmação de Ação */}
+      <AlertDialog open={!!confirmAction} onOpenChange={(open) => { if (!open) setConfirmAction(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar ação</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmAction?.actionLabel}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogDescription className="text-amber-600 text-sm font-medium">
+            Esta ação não pode ser desfeita automaticamente.
+          </AlertDialogDescription>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmAction}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
@@ -1227,7 +1499,7 @@ const PlanDialog = ({
         </div>
         
         <div>
-          <Label htmlFor="mercadopago_plan_id">ID do Plano Mercado Pago</Label>
+          <Label htmlFor="mercadopago_plan_id">ID externo do plano (opcional)</Label>
           <Input
             id="mercadopago_plan_id"
             value={formData.mercadopago_plan_id}

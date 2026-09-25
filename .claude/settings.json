@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep:*)",
+      "Bash(xargs head:*)",
+      "mcp__plugin_supabase_supabase__list_projects",
+      "Read(//c/Users/vitor/.claude/**)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\vitor\\.claude"
+    ]
+  }
+}
