@@ -129,42 +129,12 @@ const SignUp = () => {
     setIsLoading(true);
 
     try {
-      // VALIDAÇÃO PRÉVIA: Verificar se CPF já existe na tabela profiles
+      // CPF e telefone duplicados sao recusados pelo gatilho handle_new_user e
+      // pelos indices unicos de profiles; o tratamento de erro abaixo traduz
+      // isso em mensagem. Nao ha pre-checagem por RPC: ela era aberta a
+      // visitantes e permitia varrer a base perguntando "este CPF existe?".
       const cpfClean = formData.cpf.replace(/[^0-9]/g, '');
-      
-      // Usar função RPC criada no banco para validação de CPF
-      const { data: cpfExists, error: checkError } = await supabase
-        .rpc('check_cpf_exists', { cpf_input: cpfClean });
-      
-      if (checkError) {
-        // Se der erro na validação, continua mas com aviso
-        console.warn('Erro ao verificar CPF:', checkError);
-      } else if (cpfExists === true) {
-        smartToast({
-          title: "CPF já cadastrado",
-          description: "Este CPF já está em uso por outra conta. Use um CPF diferente ou faça login na conta existente.",
-          variant: "destructive"
-        });
-        setIsLoading(false);
-        return;
-      }
-
-      // Verificar telefone duplicado
       const phoneClean = formData.phone.replace(/\D/g, '');
-      const { data: phoneExists, error: phoneCheckError } = await supabase
-        .rpc('check_phone_exists', { phone_input: phoneClean });
-
-      if (phoneCheckError) {
-        console.warn('Erro ao verificar telefone:', phoneCheckError);
-      } else if (phoneExists === true) {
-        smartToast({
-          title: "Telefone já cadastrado",
-          description: "Este número de telefone já está em uso. Use um número diferente ou faça login.",
-          variant: "destructive"
-        });
-        setIsLoading(false);
-        return;
-      }
 
       const { data, error } = await supabase.auth.signUp({
         email: formData.email,
