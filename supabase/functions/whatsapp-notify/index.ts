@@ -398,7 +398,7 @@ function buildTrialExpiredMessage(name: string): string {
   const firstName = name.split(' ')[0];
   return `Olá, ${firstName}! 👋
 
-Seu período de teste gratuito do *RotaFacil* expirou.
+Seu período de teste gratuito do *RotaGo* expirou.
 
 🚚 Para continuar organizando suas rotas de entrega sem interrupções, ative seu plano agora:
 
@@ -406,7 +406,7 @@ Seu período de teste gratuito do *RotaFacil* expirou.
 
 Escolha o plano que melhor se encaixa na sua operação. Se tiver dúvidas, é só responder essa mensagem!
 
-Equipe RotaFacil 🗺️`;
+Equipe RotaGo 🗺️`;
 }
 
 function buildExpiringSoonMessage(name: string, hoursLeft: number): string {
@@ -414,11 +414,11 @@ function buildExpiringSoonMessage(name: string, hoursLeft: number): string {
   const timeLabel = hoursLeft <= 24 ? `${hoursLeft} horas` : `${Math.ceil(hoursLeft / 24)} dias`;
   return `Olá, ${firstName}! ⏰
 
-Seu período de teste gratuito do *RotaFacil* vai expirar em *${timeLabel}*.
+Seu período de teste gratuito do *RotaGo* vai expirar em *${timeLabel}*.
 
 Não perca o acesso às suas rotas! Assine agora e continue sem interrupções:
 
 👉 https://rotago.site/subscription
 
-Equipe RotaFacil 🗺️`;
+Equipe RotaGo 🗺️`;
 }
