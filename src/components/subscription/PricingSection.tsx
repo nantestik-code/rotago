@@ -148,7 +148,7 @@ const PricingSection = () => {
             viewport={{ once: true }}
           >
             <Badge className="mb-4 bg-primary/10 text-primary hover:bg-primary/20">
-              💎 Teste Grátis por 15 Dias
+              💎 Teste Grátis por 10 Dias
             </Badge>
             <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
               Plano RotaGo
@@ -277,12 +277,12 @@ const PricingSection = () => {
         >
           <div className="bg-white rounded-2xl shadow-lg p-8 max-w-4xl mx-auto border">
             <h3 className="text-2xl font-bold text-gray-900 mb-4">
-              🎯 Teste completamente grátis por 15 dias
+              🎯 Teste completamente grátis por 10 dias
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-gray-600">
               <div className="flex items-center justify-center">
                 <Check className="w-4 h-4 text-green-500 mr-2" />
-                Teste completamente grátis por 15 dias
+                Teste completamente grátis por 10 dias
               </div>
               <div className="flex items-center justify-center">
                 <Check className="w-4 h-4 text-green-500 mr-2" />

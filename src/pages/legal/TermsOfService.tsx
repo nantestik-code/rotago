@@ -35,7 +35,7 @@ const TermsOfService = () => (
     <Section title="3. Período de teste, planos e pagamento">
       <Bullets
         items={[
-          'Oferecemos um período de teste gratuito de 15 dias, sem cobrança e sem necessidade de cartão para iniciar.',
+          'Oferecemos um período de teste gratuito de 10 dias, sem cobrança e sem necessidade de cartão para iniciar. Cupons promocionais podem estender esse período; o prazo concedido aparece no momento do resgate.',
           'Ao fim do teste, o acesso às funções pagas só continua com a contratação de um plano.',
           'A assinatura é mensal e renova automaticamente até que você cancele.',
           'Os pagamentos são processados pela Asaas. O RotaGo não armazena dados de cartão.',

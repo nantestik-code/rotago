@@ -80,7 +80,7 @@ const LandingPage = () => {
               </div>
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
                 <Button size="lg" onClick={handleGetStarted} className="px-8 py-6 text-base bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">
-                  Começar Grátis - 15 dias <ChevronRight className="ml-2 h-4 w-4" />
+                  Começar Grátis - 10 dias <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
                 <Button size="lg" variant="outline" className="py-6 text-base border-2 border-blue-200 hover:bg-blue-50" onClick={() => toast({
                   title: "Demonstração em vídeo",
@@ -91,7 +91,7 @@ const LandingPage = () => {
               </div>
               <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl border border-green-200">
                 <p className="text-sm text-center">
-                  <span className="font-semibold text-green-700">✨ Oferta de lançamento:</span> <span className="text-gray-700">15 dias grátis, depois</span> <span className="text-2xl font-bold text-green-600">R$ 19,90/mês</span> <span className="text-gray-700">nos 2 primeiros meses — após, R$ 29,90/mês</span>
+                  <span className="font-semibold text-green-700">✨ Oferta de lançamento:</span> <span className="text-gray-700">10 dias grátis, depois</span> <span className="text-2xl font-bold text-green-600">R$ 19,90/mês</span> <span className="text-gray-700">nos 2 primeiros meses — após, R$ 29,90/mês</span>
                 </p>
                 <p className="text-xs text-gray-600 text-center mt-1">Sem taxas de setup • Cancele quando quiser • Suporte incluído</p>
               </div>
