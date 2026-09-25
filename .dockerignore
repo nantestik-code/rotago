@@ -6,6 +6,23 @@ dist
 .env
 .env.production
 .env.local
+
+# Token pessoal do Supabase (sbp_). Sem esta linha ele era copiado para
+# dentro do estagio de build da imagem.
+.mcp.json
+
+# Chaves de assinatura do Android
+*.keystore
+*.jks
+
+# Credenciais SMTP em scripts PHP de teste
+diagnose-smtp.php
+test-email-simple.php
+test-hostinger-email.php
+test-email-form.html
+test-env-debug.html
+test-env.js
+
 *.zip
 image*.png
 "image copy.png"
