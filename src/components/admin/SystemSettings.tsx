@@ -321,7 +321,7 @@ const SystemSettings = () => {
         {
           id: '5',
           key: 'mp_webhook_url',
-          value: 'https://rotago.com/api/webhooks/mercadopago',
+          value: 'https://rotago.site/api/webhooks/mercadopago',
           description: 'URL do webhook do Mercado Pago',
           category: 'payment',
           is_active: true

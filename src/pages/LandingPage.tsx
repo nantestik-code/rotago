@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { 
   ChevronRight, 
@@ -485,10 +485,14 @@ const LandingPage = () => {
             <div>
               <h3 className="text-lg font-medium text-white mb-4">Contato</h3>
               <ul className="space-y-3">
-                <li><a href="#" className="hover:text-primary transition-colors">Suporte</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Vendas</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Sobre Nós</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Blog</a></li>
+                <li><a href="mailto:contato@rotago.site" className="hover:text-primary transition-colors">Suporte</a></li>
+                <li><a href="mailto:contato@rotago.site" className="hover:text-primary transition-colors">Vendas</a></li>
+              </ul>
+              <h3 className="text-lg font-medium text-white mt-8 mb-4">Legal</h3>
+              <ul className="space-y-3">
+                <li><Link to="/privacidade" className="hover:text-primary transition-colors">Política de Privacidade</Link></li>
+                <li><Link to="/termos" className="hover:text-primary transition-colors">Termos de Uso</Link></li>
+                <li><Link to="/excluir-conta" className="hover:text-primary transition-colors">Excluir conta</Link></li>
               </ul>
             </div>
           </div>

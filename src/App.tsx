@@ -22,7 +22,9 @@ import AdminPanel from "./pages/admin/AdminPanel";
 import AdminLogin from "./pages/auth/AdminLogin";
 import RouteHistoryPage from "./pages/RouteHistoryPage";
 import SubscriptionPage from "./pages/SubscriptionPage";
-import UpdateNotification from "./components/UpdateNotification";
+import PrivacyPolicy from "./pages/legal/PrivacyPolicy";
+import TermsOfService from "./pages/legal/TermsOfService";
+import DeleteAccount from "./pages/legal/DeleteAccount";
 
 const queryClient = new QueryClient();
 
@@ -40,6 +42,11 @@ const AppContent = () => {
       <Route path="/auth/forgot-password" element={<ForgotPassword />} />
       <Route path="/auth/reset-password" element={<ResetPassword />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
+
+      {/* Legal Routes */}
+      <Route path="/privacidade" element={<PrivacyPolicy />} />
+      <Route path="/termos" element={<TermsOfService />} />
+      <Route path="/excluir-conta" element={<DeleteAccount />} />
       
       {/* Admin Routes */}
       <Route path="/admin/login" element={<AdminLogin />} />
@@ -101,9 +108,6 @@ const App = () => (
             </AdminAuthProvider>
           </RouteHistoryProvider>
         </AuthProvider>
-        
-        {/* Componente de notificação de atualizações */}
-        <UpdateNotification />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

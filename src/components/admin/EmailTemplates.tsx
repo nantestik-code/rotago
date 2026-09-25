@@ -4,7 +4,7 @@ import React from 'react';
 export const WelcomeEmailTemplate = ({
   userName,
   userEmail,
-  loginUrl = 'https://rotago.com.br/login'
+  loginUrl = 'https://rotago.site/login'
 }: {
   userName: string;
   userEmail: string;
@@ -289,7 +289,7 @@ export const AdminNotificationTemplate = ({
   userCpf,
   registrationDate,
   subscriptionPlan = 'trial',
-  adminPanelUrl = 'https://rotago.com.br/admin'
+  adminPanelUrl = 'https://rotago.site/admin'
 }: {
   userName: string;
   userEmail: string;
