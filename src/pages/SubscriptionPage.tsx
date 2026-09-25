@@ -41,6 +41,7 @@ const SubscriptionPage = () => {
     isSubscriptionActive,
     currentPlan,
     activateTrial,
+    redeemCoupon,
     cancelSubscription,
     refetch,
   } = useSubscription();
@@ -48,6 +49,8 @@ const SubscriptionPage = () => {
   const [processingPayment, setProcessingPayment] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [activatingTrial, setActivatingTrial] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const [redeemingCoupon, setRedeemingCoupon] = useState(false);
   const [syncingReturn, setSyncingReturn] = useState(false);
   const [hasUsedTrial, setHasUsedTrial] = useState(false);
   const [checkingTrialHistory, setCheckingTrialHistory] = useState(true);
@@ -207,6 +210,29 @@ const SubscriptionPage = () => {
     } finally {
       setActivatingTrial(false);
       setSelectedPlanId(null);
+    }
+  };
+
+  const handleRedeemCoupon = async () => {
+    if (!user || !couponCode.trim()) return;
+
+    setRedeemingCoupon(true);
+    try {
+      await redeemCoupon(couponCode);
+      toast({
+        title: 'Cupom aplicado',
+        description: 'Seu período gratuito foi liberado. Bom uso!',
+      });
+      setCouponCode('');
+      navigate('/app', { replace: true });
+    } catch (couponError: any) {
+      toast({
+        title: 'Não foi possível aplicar o cupom',
+        description: couponError?.message || 'Verifique o código e tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setRedeemingCoupon(false);
     }
   };
 
@@ -531,6 +557,57 @@ const SubscriptionPage = () => {
               </CardContent>
             </Card>
           </motion.div>
+
+          {showPlanSelector && !isSubscriptionActive && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.25 }}
+              className="mt-8"
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Gift className="h-5 w-5 text-green-600" />
+                    Tem um cupom?
+                  </CardTitle>
+                  <CardDescription>
+                    Se você recebeu um código promocional, use-o aqui para liberar seu
+                    período gratuito.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <input
+                      type="text"
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleRedeemCoupon();
+                      }}
+                      placeholder="Digite seu cupom"
+                      autoComplete="off"
+                      spellCheck={false}
+                      maxLength={40}
+                      disabled={redeemingCoupon}
+                      aria-label="Código do cupom"
+                      className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm uppercase tracking-wider ring-offset-background placeholder:normal-case placeholder:tracking-normal placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
+                    />
+                    <Button
+                      onClick={handleRedeemCoupon}
+                      disabled={redeemingCoupon || !couponCode.trim()}
+                      className="sm:w-40"
+                    >
+                      {redeemingCoupon ? 'Aplicando...' : 'Aplicar cupom'}
+                    </Button>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Cada cupom pode ser usado uma vez por pessoa.
+                  </p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
 
           {showPlanSelector && (
             <motion.div

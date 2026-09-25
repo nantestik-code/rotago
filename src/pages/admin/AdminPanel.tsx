@@ -26,7 +26,8 @@ import {
   Bell,
   Home,
   Mail,
-  MessageCircle
+  MessageCircle,
+  Gift
 } from "lucide-react";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import UsersManagement from "@/components/admin/UsersManagement";
@@ -40,6 +41,7 @@ import AuditLogs from "@/components/admin/AuditLogs";
 import LogsViewer from "@/components/admin/LogsViewer";
 import EmailManager from "@/components/admin/EmailManager";
 import WhatsAppManager from "@/components/admin/WhatsAppManager";
+import CouponsManager from "@/components/admin/CouponsManager";
 
 const AdminPanel = () => {
   const { admin, logoutAdmin } = useAdminAuth();
@@ -53,6 +55,7 @@ const AdminPanel = () => {
     { id: 'analytics', label: 'Análises', icon: BarChart3, color: 'blue' },
     { id: 'financial', label: 'Financeiro', icon: DollarSign, color: 'green' },
     { id: 'subscriptions', label: 'Assinaturas', icon: CreditCard, color: 'purple' },
+    { id: 'coupons', label: 'Cupons', icon: Gift, color: 'emerald' },
     { id: 'users', label: 'Usuários', icon: Users, color: 'orange' },
     { id: 'emails', label: 'E-mails', icon: Mail, color: 'cyan' },
     { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, color: 'green' },
@@ -180,6 +183,12 @@ const AdminPanel = () => {
           <TabsContent value="subscriptions" className="mt-0">
             <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
               <SubscriptionManagement />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="coupons" className="mt-0">
+            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+              <CouponsManager />
             </div>
           </TabsContent>
 

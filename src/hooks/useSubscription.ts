@@ -326,6 +326,29 @@ export const useSubscription = () => {
     return data;
   };
 
+  /**
+   * Resgata um cupom de periodo gratuito.
+   *
+   * Toda a validacao esta na RPC `redeem_coupon`: cupom existe e esta ativo,
+   * o CPF e valido e ainda nao resgatou este cupom. O limite e por CPF, nao
+   * por conta, entao trocar de email nao permite resgatar de novo.
+   */
+  const redeemCoupon = async (code: string) => {
+    if (!user) throw new Error('Usuário não autenticado');
+
+    const trimmed = code.trim();
+    if (!trimmed) throw new Error('Informe o código do cupom');
+
+    const { data, error } = await supabase.rpc('redeem_coupon', {
+      coupon_code: trimmed,
+    });
+
+    if (error) throw error;
+
+    await fetchUserSubscription();
+    return data;
+  };
+
   const createSubscription = async (planId: string) => {
     if (!user) throw new Error('Usuário não autenticado');
 
@@ -479,6 +502,7 @@ export const useSubscription = () => {
     currentPlan: getCurrentPlan(),
     createSubscription,
     activateTrial,
+    redeemCoupon,
     updateSubscriptionStatus,
     cancelSubscription,
     refetch: fetchUserSubscription,

@@ -53,7 +53,7 @@ const LandingPage = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div className="text-center lg:text-left">
               <div className="bg-gradient-to-r from-green-100 to-blue-100 px-4 py-2 rounded-full inline-block mb-6">
-                <span className="text-sm font-semibold text-green-800">🚀 Revolucione suas entregas por apenas R$ 29,90/mês</span>
+                <span className="text-sm font-semibold text-green-800">🚀 Revolucione suas entregas por R$ 19,90/mês nos 2 primeiros meses</span>
               </div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight mb-6">
                 Otimize suas <span className="bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">rotas</span> e <span className="bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">economize</span> tempo
@@ -80,7 +80,7 @@ const LandingPage = () => {
               </div>
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
                 <Button size="lg" onClick={handleGetStarted} className="px-8 py-6 text-base bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">
-                  Começar Grátis - 7 dias <ChevronRight className="ml-2 h-4 w-4" />
+                  Começar Grátis - 15 dias <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
                 <Button size="lg" variant="outline" className="py-6 text-base border-2 border-blue-200 hover:bg-blue-50" onClick={() => toast({
                   title: "Demonstração em vídeo",
@@ -91,7 +91,7 @@ const LandingPage = () => {
               </div>
               <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl border border-green-200">
                 <p className="text-sm text-center">
-                  <span className="font-semibold text-green-700">✨ Oferta especial:</span> <span className="text-gray-700">7 dias grátis + apenas</span> <span className="text-2xl font-bold text-green-600">R$ 29,90/mês</span>
+                  <span className="font-semibold text-green-700">✨ Oferta de lançamento:</span> <span className="text-gray-700">15 dias grátis, depois</span> <span className="text-2xl font-bold text-green-600">R$ 19,90/mês</span> <span className="text-gray-700">nos 2 primeiros meses — após, R$ 29,90/mês</span>
                 </p>
                 <p className="text-xs text-gray-600 text-center mt-1">Sem taxas de setup • Cancele quando quiser • Suporte incluído</p>
               </div>

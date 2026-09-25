@@ -12,6 +12,9 @@ interface SubscriptionPlan {
   name: string;
   description: string;
   price: string;
+  /** Valor cobrado nos primeiros promo_cycles ciclos. Nulo = sem promoção. */
+  promo_price?: string | null;
+  promo_cycles?: number;
   frequency: number;
   frequency_type: string;
   discount: number;
@@ -29,20 +32,11 @@ const PricingSection = () => {
     fetchPlans();
   }, []);
 
+  // A leitura do banco estava desativada porque o RLS bloqueava a consulta.
+  // A policy subscription_plans_read agora libera a leitura do catalogo para
+  // visitantes nao autenticados, entao os precos vem do banco e param de
+  // divergir do que e cobrado.
   const fetchPlans = async () => {
-    console.log('🔄 Iniciando busca de planos...');
-    
-    // Por enquanto, usar dados estáticos devido ao RLS
-    // TODO: Configurar políticas RLS adequadas no Supabase
-    console.log('⚠️ Usando dados estáticos devido a restrições de RLS');
-    const fallbackPlans = getFallbackPlans();
-    console.log('✅ Planos carregados (estáticos):', fallbackPlans);
-    setPlans(fallbackPlans);
-    setLoading(false);
-    return;
-    
-    // Código original comentado até resolver RLS
-    /*
     try {
       const { data, error } = await supabase
         .from('subscription_plans')
@@ -50,95 +44,36 @@ const PricingSection = () => {
         .eq('is_active', true)
         .order('price', { ascending: true });
 
-      console.log('📊 Resposta do Supabase:', { data, error });
+      if (error) throw error;
 
-      if (error) {
-        console.error('❌ Erro ao buscar planos:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        });
-        // Usar dados de fallback se houver erro
-        const fallbackPlans = getFallbackPlans();
-        console.log('🔄 Usando dados de fallback:', fallbackPlans);
-        setPlans(fallbackPlans);
-      } else {
-        const finalPlans = data || getFallbackPlans();
-        console.log('✅ Planos carregados:', finalPlans);
-        setPlans(finalPlans);
-      }
+      setPlans(data?.length ? (data as SubscriptionPlan[]) : getFallbackPlans());
     } catch (error) {
-      console.error('💥 Erro crítico ao buscar planos:', {
-        error,
-        message: error instanceof Error ? error.message : 'Erro desconhecido',
-        stack: error instanceof Error ? error.stack : undefined
-      });
-      // Usar dados de fallback em caso de erro
-      const fallbackPlans = getFallbackPlans();
-      console.log('🔄 Usando dados de fallback após erro:', fallbackPlans);
-      setPlans(fallbackPlans);
+      console.error('Erro ao buscar planos, usando fallback:', error);
+      setPlans(getFallbackPlans());
     } finally {
-      console.log('🏁 Finalizando carregamento de planos');
       setLoading(false);
     }
-    */
   };
 
+  // Usado apenas se o banco estiver fora do ar. Precisa refletir o plano real.
   const getFallbackPlans = (): SubscriptionPlan[] => [
     {
       id: 'mensal',
       name: 'Mensal',
-      description: 'Plano mensal padrão',
+      description: 'R$ 19,90/mês nos 2 primeiros meses, depois R$ 29,90/mês',
       price: '29.90',
+      promo_price: '19.90',
+      promo_cycles: 2,
       frequency: 1,
       frequency_type: 'month',
       discount: 0,
       total: '29.90',
       is_active: true,
-      gateway_plan_id: '2c9380849788f4e40197a261c7eb08c9'
-    },
-    {
-      id: 'trimestral',
-      name: 'Trimestral',
-      description: 'Plano trimestral com desconto',
-      price: '26.90',
-      frequency: 3,
-      frequency_type: 'month',
-      discount: 10,
-      total: '80.70',
-      is_active: true,
-      gateway_plan_id: '2c9380849788f4e40197a2f0374c090d'
-    },
-    {
-      id: 'semestral',
-      name: 'Semestral',
-      description: 'Plano semestral com desconto',
-      price: '23.90',
-      frequency: 6,
-      frequency_type: 'month',
-      discount: 20,
-      total: '143.40',
-      is_active: true,
-      gateway_plan_id: '2c9380849788f4e40197a2f29a4c090e'
-    },
-    {
-      id: 'anual',
-      name: 'Anual',
-      description: 'Plano anual com desconto',
-      price: '19.90',
-      frequency: 12,
-      frequency_type: 'month',
-      discount: 33,
-      total: '238.80',
-      is_active: true,
-      gateway_plan_id: '2c938084979341770197a2f36199055c'
+      gateway_plan_id: ''
     }
   ];
 
-  const getPopularPlan = () => {
-    return plans.find(plan => plan.id === 'trimestral') || plans[1];
-  };
+  const getPopularPlan = () => plans[0];
 
   const getPlanFeatures = (planId: string) => {
     const baseFeatures = [
@@ -261,29 +196,44 @@ const PricingSection = () => {
                       {plan.description}
                     </CardDescription>
                     
-                    <div className="mt-4">
-                      <div className="flex items-center justify-center">
-                        <span className="text-3xl font-bold text-gray-900">
-                          {formatPrice(plan.price)}
-                        </span>
-                        <span className="text-gray-600 ml-1">/mês</span>
-                      </div>
-                      
-                      {plan.discount > 0 && (
-                        <div className="mt-2">
-                          <Badge variant="secondary" className="bg-green-100 text-green-800">
-                            {plan.discount}% desconto
-                          </Badge>
-                          <p className="text-sm text-gray-600 mt-1">
-                            Economize {formatPrice((parseFloat(plan.price) * plan.frequency * (plan.discount / 100)).toString())}
-                          </p>
+                    {(() => {
+                      const promoCycles = plan.promo_cycles ?? 0;
+                      const hasPromo = promoCycles > 0 && !!plan.promo_price;
+                      const displayPrice = hasPromo ? plan.promo_price! : plan.price;
+
+                      return (
+                        <div className="mt-4">
+                          <div className="flex items-baseline justify-center gap-2">
+                            {hasPromo && (
+                              <span className="text-lg text-gray-400 line-through">
+                                {formatPrice(plan.price)}
+                              </span>
+                            )}
+                            <span className="text-3xl font-bold text-gray-900">
+                              {formatPrice(displayPrice)}
+                            </span>
+                            <span className="text-gray-600">/mês</span>
+                          </div>
+
+                          {hasPromo ? (
+                            <div className="mt-2">
+                              <Badge variant="secondary" className="bg-green-100 text-green-800">
+                                Promoção de lançamento
+                              </Badge>
+                              <p className="text-sm text-gray-600 mt-1">
+                                Nos {promoCycles} primeiros meses. Depois,{' '}
+                                {formatPrice(plan.price)}/mês.
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-600 mt-2">
+                              Cobrança a cada {plan.frequency}{' '}
+                              {plan.frequency === 1 ? 'mês' : 'meses'}
+                            </p>
+                          )}
                         </div>
-                      )}
-                      
-                      <p className="text-sm text-gray-600 mt-2">
-                        por {plan.frequency} {plan.frequency_type === 'month' ? 'mês' : 'meses'} completos
-                      </p>
-                    </div>
+                      );
+                    })()}
                   </CardHeader>
                   
                   <CardContent className="pt-0">
