@@ -457,10 +457,23 @@ export function useDeliveries() {
         setSelectedDeliveryId(firstPending.id);
       }
       
-      smartToast({
-        title: 'Entregas importadas',
-        description: `${deliveriesWithIds.length} entregas foram processadas com sucesso.`,
-      });
+      const notFound = stabilizedDeliveries.filter(d => d.geocodeStatus === 'nao_encontrado').length;
+      const approximate = stabilizedDeliveries.filter(d => d.geocodeStatus === 'aproximada').length;
+      if (notFound > 0 || approximate > 0) {
+        const parts = [
+          notFound > 0 ? `${notFound} não encontrada${notFound > 1 ? 's' : ''} no mapa` : '',
+          approximate > 0 ? `${approximate} com posição aproximada` : '',
+        ].filter(Boolean);
+        smartToast({
+          title: `${deliveriesWithIds.length} entregas importadas`,
+          description: `Confira: ${parts.join(' e ')}. Elas aparecem marcadas na lista.`,
+        });
+      } else {
+        smartToast({
+          title: 'Entregas importadas',
+          description: `${deliveriesWithIds.length} entregas, todas localizadas no mapa.`,
+        });
+      }
 
       // Definir o resultado com sucesso e informações da rota
       result = {

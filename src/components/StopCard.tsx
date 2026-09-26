@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, Navigation, RotateCcw } from 'lucide-react';
+import { AlertTriangle, Check, MapPinOff, Navigation, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DeliveryItem } from '@/utils/deliveryUtils';
 
@@ -87,6 +87,19 @@ const StopCard = ({
           )}
         </div>
       </div>
+
+      {first.geocodeStatus === 'nao_encontrado' && (
+        <p className="mt-2 flex items-center gap-1.5 rounded-lg bg-red-50 px-2 py-1 text-xs font-medium text-red-700">
+          <MapPinOff size={13} />
+          Endereço não encontrado no mapa. Confira na planilha.
+        </p>
+      )}
+      {first.geocodeStatus === 'aproximada' && (
+        <p className="mt-2 flex items-center gap-1.5 rounded-lg bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800">
+          <AlertTriangle size={13} />
+          Posição aproximada: o número não foi localizado.
+        </p>
+      )}
 
       {notes.map((note, index) => (
         <p key={`${note}-${index}`} className="mt-2 rounded-lg bg-amber-50 px-2 py-1 text-xs text-amber-800">

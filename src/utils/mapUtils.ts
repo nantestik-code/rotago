@@ -7,6 +7,7 @@ export interface MapPosition {
   lng: number;
   addressKey?: string;
   isGps?: boolean;
+  approximate?: boolean;
 }
 
 // Campo Grande, MS
@@ -180,16 +181,14 @@ export const geocodeAddress = async (address: string, retryCount = 0): Promise<M
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         return null;
       }
-      const relevance = feature.properties?.match_code?.confidence === 'exact' ? 1 : 0.7;
-      
-      // Verificar se a relevância do resultado é alta o suficiente
-      if (relevance < 0.5) {
-        console.warn(`Baixa relevância (${relevance}) para o endereço: ${address}`);
-      }
-      
+      // O Mapbox só devolve feature_type 'address' quando achou o número
+      const featureType = feature.properties?.feature_type;
+      const confidence = feature.properties?.match_code?.confidence;
+      const approximate = featureType !== 'address' || confidence === 'low';
+
       // Criar a chave de endereço para cache
       const addressKey = address.toLowerCase().trim();
-      const result = { lat, lng, addressKey };
+      const result: MapPosition = { lat, lng, addressKey, approximate };
       
       // Salvar no cache em memória
       geocodeMemoryCache[cacheKey] = result;
@@ -207,8 +206,9 @@ export const geocodeAddress = async (address: string, retryCount = 0): Promise<M
         .trim();
       
       if (simplifiedAddress !== address) {
-        console.log(`Tentando geocodificar com endereço simplificado: ${simplifiedAddress}`);
-        return geocodeAddress(simplifiedAddress, retryCount + 1);
+        // Sem número o resultado cai no meio da rua: marca como aproximado
+        const approx = await geocodeAddress(simplifiedAddress, retryCount + 1);
+        return approx ? { ...approx, approximate: true } : null;
       }
     }
     
@@ -348,144 +348,70 @@ export const createCurrentLocationMarker = (lat: number, lng: number): mapboxgl.
 // Backward compatibility for old function name
 export const createFixedMarker = createDeliveryMarker;
 
-// FUNÇÃO OTIMIZADA: Geocodificação em segundo plano
+// Monta a busca com tudo o que a planilha trouxe, pulando campos vazios
+export const buildGeocodeQuery = (delivery: DeliveryItem): string =>
+  [delivery.endereco, delivery.bairro, delivery.cidade, delivery.estado, delivery.cep, 'Brasil']
+    .map((part) => (part == null ? '' : String(part).trim()))
+    .filter(Boolean)
+    .join(', ');
+
+// Geocodifica todas as entregas sem coordenadas e só retorna quando termina.
+// Antes rodava em segundo plano, parava em 50 endereços e as coordenadas se
+// perdiam porque a rota era salva antes; agora quem chama recebe tudo pronto.
 export const geocodeAddresses = async (
   deliveries: DeliveryItem[],
   onProgress?: (progress: number) => void
 ): Promise<DeliveryItem[]> => {
-  const updatedDeliveries = [...deliveries];
-  const needsGeocode = updatedDeliveries.some(
-    (delivery) => !Number.isFinite(delivery.lat) || !Number.isFinite(delivery.lng)
+  const hasCoords = (d: DeliveryItem) =>
+    Number.isFinite(d.lat) && Number.isFinite(d.lng) && !(d.lat === 0 && d.lng === 0);
+
+  const updated = deliveries.map((d) =>
+    hasCoords(d) ? { ...d, geocodeStatus: d.geocodeStatus ?? ('exata' as const) } : { ...d }
   );
 
-  if (needsGeocode) {
-    setTimeout(() => {
-      backgroundGeocode(updatedDeliveries, onProgress);
-    }, 100);
-  } else if (onProgress) {
-    onProgress(100);
+  const queries = Array.from(
+    new Set(updated.filter((d) => !hasCoords(d)).map(buildGeocodeQuery))
+  );
+  if (queries.length === 0) {
+    onProgress?.(100);
+    return updated;
   }
 
-  return updatedDeliveries;
-};
+  const results: Record<string, MapPosition | null> = {};
+  const CONCURRENCY = 5;
+  let done = 0;
+  let cursor = 0;
 
-// Função que executa a geocodificação em segundo plano
-const backgroundGeocode = async (
-  deliveries: DeliveryItem[],
-  onProgress?: (progress: number) => void
-) => {
-  const geocodeCache: Record<string, MapPosition> = { ...geocodeMemoryCache };
-
-  // Identificar endereços únicos que precisam ser geocodificados
-  const uniqueAddresses: Record<string, boolean> = {};
-  const addressesToGeocode: string[] = [];
-  
-  deliveries.forEach(delivery => {
-    if (!delivery.lat || !delivery.lng) {
-      const addressKey = `${delivery.endereco}, ${delivery.cidade}, ${delivery.estado}, ${delivery.cep}`.toLowerCase().trim();
-      
-      // Se não está no cache e ainda não foi adicionado para geocodificação
-      if (!geocodeCache[addressKey] && !uniqueAddresses[addressKey]) {
-        uniqueAddresses[addressKey] = true;
-        addressesToGeocode.push(addressKey);
-      }
-    }
-  });
-  
-  // Limite de geocodificações em paralelo
-  const BATCH_SIZE = 5;
-  const MAX_GEOCODING = 50;
-  let geocodingCount = 0;
-  
-  // Processar em lotes para não sobrecarregar a API
-  for (let i = 0; i < addressesToGeocode.length && geocodingCount < MAX_GEOCODING; i += BATCH_SIZE) {
-    const batch = addressesToGeocode.slice(i, i + BATCH_SIZE).slice(0, MAX_GEOCODING - geocodingCount);
-    geocodingCount += batch.length;
-    
-    // Geocodificar em paralelo
-    const promises = batch.map(async (addressKey) => {
+  const worker = async () => {
+    while (cursor < queries.length) {
+      const query = queries[cursor++];
       try {
-        // Extrair partes do endereço da chave
-        const parts = addressKey.split(',').map(p => p.trim());
-        const fullAddress = `${parts[0]}, ${parts.length > 1 ? parts[1] : ''}, ${parts.length > 2 ? parts[2] : ''}, Brasil`;
-        
-        const location = await geocodeAddress(fullAddress);
-        
-        if (location) {
-          geocodeCache[addressKey] = {
-            lat: location.lat,
-            lng: location.lng,
-          };
-          geocodeMemoryCache[addressKey] = geocodeCache[addressKey];
-          
-          // Atualizar entregas com esse endereço
-          deliveries.forEach((delivery, deliveryIndex) => {
-            const deliveryAddressKey = `${delivery.endereco}, ${delivery.cidade}, ${delivery.estado}, ${delivery.cep}`.toLowerCase().trim();
-            if (deliveryAddressKey === addressKey) {
-              // Aplicar pequena variação para evitar sobreposição total
-              const variation = 0.0001; // ~11 metros de variação
-              const offsetLat = (deliveryIndex % 5) * variation * 0.1;
-              const offsetLng = (Math.floor(deliveryIndex / 5) % 5) * variation * 0.1;
-              
-              delivery.lat = location.lat + offsetLat;
-              delivery.lng = location.lng + offsetLng;
-            }
-          });
-        }
-      } catch (error) {
-        console.warn(`Erro ao geocodificar endereço: ${addressKey}`, error);
+        results[query] = await geocodeAddress(query);
+      } catch {
+        results[query] = null;
       }
-    });
-    
-    // Aguardar geocodificação do lote atual
-    await Promise.all(promises);
-    
-    // Atualizar progresso
-    if (onProgress) {
-      onProgress(Math.min(100, (i + batch.length) / Math.min(addressesToGeocode.length, MAX_GEOCODING) * 100));
+      done++;
+      onProgress?.(Math.round((done / queries.length) * 100));
     }
-    
-    // Pequena pausa entre lotes para não sobrecarregar
-    if (i + BATCH_SIZE < addressesToGeocode.length) {
-      await new Promise(resolve => setTimeout(resolve, 200)); // Reduzido de 300ms para 200ms
-    }
-  }
-  
-  // Salvar entregas atualizadas no localStorage (por ID, não por índice)
-  // IMPORTANTE: Apenas atualizar coordenadas, NUNCA alterar sequence_number ou orderNumber
-  try {
-    const currentDeliveries = localStorage.getItem('currentRouteDeliveries');
-    if (currentDeliveries) {
-      const parsedDeliveries = JSON.parse(currentDeliveries);
-      // Criar um índice por ID para performance
-      const indexById: Record<string, number> = {};
-      parsedDeliveries.forEach((d: any, idx: number) => {
-        if (d && typeof d.id === 'string') indexById[d.id] = idx;
-      });
-      // Atualizar APENAS coordenadas nas entregas salvas casando por ID
-      // NUNCA alterar sequence_number, orderNumber ou status
-      deliveries.forEach((delivery) => {
-        const id = (delivery as any).id;
-        if (!id || !delivery.lat || !delivery.lng) return;
-        const idx = indexById[id];
-        if (typeof idx === 'number' && parsedDeliveries[idx]) {
-          // APENAS atualizar lat/lng - preservar todos os outros campos
-          parsedDeliveries[idx].lat = delivery.lat;
-          parsedDeliveries[idx].lng = delivery.lng;
-          // NÃO alterar: sequence_number, orderNumber, status, etc.
-        }
-      });
-      localStorage.setItem('currentRouteDeliveries', JSON.stringify(parsedDeliveries));
-      console.log('✅ Geocodificação salva - numeração preservada');
-    }
-  } catch (error) {
-    console.error('Erro ao atualizar entregas no localStorage:', error);
-  }
-  
-  // Finalizar progresso
-  if (onProgress) {
-    onProgress(100);
-  }
+  };
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queries.length) }, worker));
+
+  // Entregas no mesmo endereço ganham um deslocamento mínimo (~1 m) para os
+  // pinos não ficarem exatamente um em cima do outro
+  const seen: Record<string, number> = {};
+  return updated.map((delivery) => {
+    if (hasCoords(delivery)) return delivery;
+    const query = buildGeocodeQuery(delivery);
+    const location = results[query];
+    if (!location) return { ...delivery, geocodeStatus: 'nao_encontrado' as const };
+    const n = (seen[query] = (seen[query] ?? -1) + 1);
+    return {
+      ...delivery,
+      lat: location.lat + (n % 5) * 0.00001,
+      lng: location.lng + Math.floor(n / 5) * 0.00001,
+      geocodeStatus: location.approximate ? ('aproximada' as const) : ('exata' as const),
+    };
+  });
 };
 
 // Obter rota entre dois pontos usando a API de direções do Mapbox

@@ -25,6 +25,8 @@ export interface DeliveryItem {
   lat?: number;
   lng?: number;
   position?: { lat: number; lng: number } | null;
+  // Resultado da geocodificação: 'aproximada' quando só achou a rua/bairro
+  geocodeStatus?: 'exata' | 'aproximada' | 'nao_encontrado';
   // Campos de status
   status: 'pendente' | 'entregue' | 'ocorrencia';
   statusChanged?: boolean; // Track if status was recently changed

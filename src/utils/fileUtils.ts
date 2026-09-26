@@ -2,109 +2,6 @@
 import { DeliveryItem, generateId } from './deliveryUtils';
 import * as XLSX from 'xlsx';
 
-export interface ProcessedFile {
-  deliveries: DeliveryItem[];
-  errors?: string[];
-  // Novos campos opcionais para permitir mapeamento manual pelo usuário
-  headers?: string[];
-  rawRows?: any[];
-}
-
-export const processFile = async (file: File): Promise<ProcessedFile> => {
-  const deliveries: DeliveryItem[] = [];
-  const errors: string[] = [];
-
-  try {
-    const data = await readFile(file);
-    
-    if (!data || !Array.isArray(data) || data.length === 0) {
-      errors.push('Nenhum dado encontrado no arquivo.');
-      return { deliveries, errors };
-    }
-
-
-
-    // Map headers to standardized fields
-    const headers = Object.keys(data[0]);
-    const fieldMapping = mapFields(headers);
-    
-
-
-    // Verificar se campos obrigatórios foram mapeados
-    if (!fieldMapping.cliente && !fieldMapping.endereco) {
-      // Tentar configuração de mapeamento direta
-      if (headers.length >= 2) {
-        // Usar as duas primeiras colunas como cliente e endereço
-        fieldMapping.cliente = headers[0];
-        fieldMapping.endereco = headers[1];
-
-      }
-    }
-
-    data.forEach((row, index) => {
-      try {
-        const delivery = createDeliveryFromRow(row, fieldMapping, index);
-        deliveries.push(delivery);
-      } catch (error) {
-        errors.push(`Erro na linha ${index + 1}: ${error instanceof Error ? error.message : 'Formato inválido'}`);
-      }
-    });
-
-    return { 
-      deliveries, 
-      errors: errors.length > 0 ? errors : undefined,
-      headers,
-      rawRows: data
-    };
-  } catch (error) {
-    errors.push(`Erro ao processar o arquivo: ${error instanceof Error ? error.message : 'Desconhecido'}`);
-    return { deliveries, errors };
-  }
-};
-
-const readFile = async (file: File): Promise<any[]> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    
-    reader.onload = (e) => {
-      try {
-        const data = e.target?.result;
-        
-        if (!data) {
-          reject(new Error('Falha ao ler o arquivo.'));
-          return;
-        }
-        
-        let parsedData: any[] = [];
-        
-        if (file.name.endsWith('.csv')) {
-          const workbook = XLSX.read(data, { type: 'binary' });
-          const firstSheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[firstSheetName];
-          parsedData = XLSX.utils.sheet_to_json(worksheet);
-        } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-          const workbook = XLSX.read(data, { type: 'binary' });
-          const firstSheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[firstSheetName];
-          parsedData = XLSX.utils.sheet_to_json(worksheet);
-        } else {
-          reject(new Error('Formato de arquivo não suportado.'));
-        }
-        
-        resolve(parsedData);
-      } catch (error) {
-        reject(error);
-      }
-    };
-    
-    reader.onerror = () => {
-      reject(new Error('Erro ao ler o arquivo.'));
-    };
-    
-    reader.readAsBinaryString(file);
-  });
-};
-
 export const isStructuredRouteSheet = (headers: string[] = []): boolean => {
   const names = headers.map((header) => header.toLowerCase().trim());
   const hasSequence = names.some((header) => header === 'sequence' || header === 'sequencia' || header === 'sequência');
@@ -130,46 +27,91 @@ const exactHeaderMap: Record<string, string> = {
   'longitude': 'longitude',
 };
 
+// Remove acentos e pontuação para comparar cabeçalhos
+export const normalizeHeader = (value: string) =>
+  String(value ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[º°]/g, 'o')
+    .replace(/[^a-z0-9/ ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+// Sinônimos por campo, já normalizados. A comparação é por palavra inteira,
+// então "tn" não casa com "atendimento" e "nome" não casa com "nome da rua".
+export const FIELD_SYNONYMS: Record<string, string[]> = {
+  endereco: ['endereco', 'endereco completo', 'endereco de entrega', 'address', 'destination address', 'logradouro', 'rua', 'street', 'end'],
+  numero: ['numero', 'no', 'n', 'num', 'nro', 'number'],
+  complemento: ['complemento', 'compl', 'apto', 'apartamento'],
+  bairro: ['bairro', 'neighborhood', 'district'],
+  cidade: ['cidade', 'city', 'municipio'],
+  estado: ['estado', 'state', 'uf'],
+  cep: ['cep', 'zipcode', 'zip code', 'zip', 'postal code', 'zipcode/postal code', 'codigo postal'],
+  cliente: ['cliente', 'nome', 'nome do cliente', 'nome cliente', 'customer', 'destinatario', 'recebedor', 'razao social'],
+  telefone: ['telefone', 'phone', 'celular', 'whatsapp', 'fone', 'contato', 'tel'],
+  observacoes: ['observacoes', 'observacao', 'obs', 'notes', 'nota', 'referencia', 'ponto de referencia'],
+  tracking: ['spx tn', 'tracking', 'tracking number', 'tn', 'rastreio', 'codigo de rastreio', 'pedido', 'numero do pedido'],
+  atId: ['at id'],
+  sequence: ['sequence', 'sequencia', 'pacote'],
+  stop: ['stop', 'parada', 'sequence stop'],
+  latitude: ['latitude', 'lat', 'geocode/latitude'],
+  longitude: ['longitude', 'lng', 'lon', 'long', 'geocode/longitude'],
+};
+
+// Palavras que, se aparecerem, impedem o cabeçalho de ser "cliente"
+const NOT_CLIENT = ['rua', 'logradouro', 'endereco', 'address', 'street', 'bairro', 'cidade'];
+
+const headerMatches = (header: string, option: string) => {
+  if (header === option) return 3;
+  const words = header.split(' ');
+  const optionWords = option.split(' ');
+  // Sinônimo com várias palavras: precisa aparecer como sequência inteira
+  if (optionWords.length > 1) return ` ${header} `.includes(` ${option} `) ? 2 : 0;
+  // Sinônimos muito curtos (n, no, tn, end, lat...) só valem como palavra isolada no início
+  if (option.length <= 3) return words[0] === option && words.length <= 2 ? 1 : 0;
+  return words.includes(option) ? 1 : 0;
+};
+
 export const mapFields = (headers: string[]) => {
   const mapping: Record<string, string> = {};
-  const fieldOptions = {
-    cliente: ['cliente', 'nome', 'customer', 'destinatário', 'destinatario', 'razão social', 'razao social'],
-    endereco: ['endereco', 'endereço', 'address', 'logradouro', 'destination address'],
-    cidade: ['cidade', 'city', 'municipio', 'município'],
-    estado: ['estado', 'state', 'uf'],
-    cep: ['cep', 'zipcode', 'zip code', 'postal code', 'código postal', 'codigo postal'],
-    telefone: ['telefone', 'phone', 'celular', 'whatsapp', 'fone'],
-    tracking: ['spx tn', 'tracking', 'tracking number', 'tn'],
-    atId: ['at id'],
-    observacoes: ['observacoes', 'observações', 'notes', 'obs', 'complemento'],
-    sequence: ['sequence', 'sequencia', 'sequência'],
-    stop: ['stop', 'parada'],
-    bairro: ['bairro', 'neighborhood'],
-    latitude: ['latitude', 'geocode/latitude'],
-    longitude: ['longitude', 'geocode/longitude'],
-  };
+  const used = new Set<string>();
 
   headers.forEach((header) => {
-    const lowerHeader = header.toLowerCase().trim();
-    if (exactHeaderMap[lowerHeader]) {
-      mapping[exactHeaderMap[lowerHeader]] = header;
+    const exact = exactHeaderMap[header.toLowerCase().trim()];
+    if (exact && !mapping[exact]) {
+      mapping[exact] = header;
+      used.add(header);
     }
   });
 
-  headers.forEach((header) => {
-    const lowerHeader = header.toLowerCase().trim();
-    if (Object.values(mapping).includes(header)) return;
-
-    for (const [field, options] of Object.entries(fieldOptions)) {
-      if (mapping[field]) continue;
-      if (options.some((option) => lowerHeader === option || lowerHeader.includes(option))) {
-        mapping[field] = header;
-        break;
-      }
+  // Para cada campo, pega o cabeçalho de maior pontuação ainda livre
+  for (const [field, options] of Object.entries(FIELD_SYNONYMS)) {
+    if (mapping[field]) continue;
+    let best: { header: string; score: number } | null = null;
+    for (const header of headers) {
+      if (used.has(header)) continue;
+      const normalized = normalizeHeader(header);
+      if (field === 'cliente' && NOT_CLIENT.some((word) => normalized.includes(word))) continue;
+      const score = Math.max(0, ...options.map((option) => headerMatches(normalized, option)));
+      if (score > 0 && (!best || score > best.score)) best = { header, score };
     }
-  });
+    if (best) {
+      mapping[field] = best.header;
+      used.add(best.header);
+    }
+  }
 
   return mapping;
+};
+
+// Aceita vírgula decimal e só devolve coordenadas plausíveis para o Brasil
+export const parseCoordinates = (latRaw: string, lngRaw: string): { lat?: number; lng?: number } => {
+  if (!latRaw || !lngRaw) return {};
+  const lat = Number(latRaw.replace(',', '.'));
+  const lng = Number(lngRaw.replace(',', '.'));
+  const valid = Number.isFinite(lat) && Number.isFinite(lng) && lat >= -34 && lat <= 6 && lng >= -74.5 && lng <= -28;
+  return valid ? { lat, lng } : {};
 };
 
 const readMapped = (row: Record<string, any>, key?: string) => {
@@ -189,21 +131,13 @@ export const createDeliveryFromRow = (
 ): DeliveryItem => {
   let enderecoValue = readMapped(row, fieldMapping.endereco);
   if (!enderecoValue) {
-    // tentar detectar coluna de endereço por heurística
-    const addrHints = ['address', 'endereco', 'endereço', 'logradouro', 'rua', 'street', 'destination'];
-    for (const key of Object.keys(row)) {
-      const lower = key.toLowerCase();
-      if (addrHints.some(h => lower.includes(h))) {
-        const v = row[key];
-        if (typeof v === 'string' && v.trim() !== '') {
-          enderecoValue = v.trim();
-          break;
-        }
-      }
-    }
+    throw new Error('Endereço vazio');
   }
-  if (!enderecoValue) {
-    throw new Error('Campo endereço é obrigatório');
+  // Número em coluna separada: junta ao endereço se ainda não estiver lá
+  const numeroValue = readMapped(row, fieldMapping.numero);
+  const addressTokens = enderecoValue.split(/[\s,.-]+/);
+  if (numeroValue && !addressTokens.includes(numeroValue)) {
+    enderecoValue = `${enderecoValue}, ${numeroValue}`;
   }
 
   const trackingNumber = readMapped(row, fieldMapping.tracking);
@@ -273,13 +207,17 @@ export const createDeliveryFromRow = (
     estado: readMapped(row, fieldMapping.estado),
     cep: readMapped(row, fieldMapping.cep),
     telefone: readMapped(row, fieldMapping.telefone),
-    observacoes: readMapped(row, fieldMapping.observacoes),
+    observacoes: [
+      readMapped(row, fieldMapping.complemento) && `Compl.: ${readMapped(row, fieldMapping.complemento)}`,
+      readMapped(row, fieldMapping.observacoes),
+    ].filter(Boolean).join(' · '),
+    numero: numeroValue || undefined,
+    complemento: readMapped(row, fieldMapping.complemento) || undefined,
     trackingNumber,
     atId,
     bairro: readMapped(row, fieldMapping.bairro),
     // Latitude/Longitude, se informados na planilha
-    lat: fieldMapping.latitude && row[fieldMapping.latitude] ? Number(row[fieldMapping.latitude]) : undefined,
-    lng: fieldMapping.longitude && row[fieldMapping.longitude] ? Number(row[fieldMapping.longitude]) : undefined,
+    ...parseCoordinates(readMapped(row, fieldMapping.latitude), readMapped(row, fieldMapping.longitude)),
     status: 'pendente',
   };
 };
