@@ -24,7 +24,7 @@ const DeleteAccount = () => (
         <p className="m-0">
           <a
             href={`mailto:${SUPPORT_EMAIL}?subject=Excluir%20minha%20conta&body=Solicito%20a%20exclus%C3%A3o%20da%20minha%20conta%20no%20RotaGo%20e%20de%20todos%20os%20dados%20associados%20a%20ela.`}
-            className="text-blue-600 underline font-medium"
+            className="text-brand-600 underline font-medium"
           >
             Abrir um e-mail de solicitação já preenchido
           </a>
@@ -85,7 +85,7 @@ const DeleteAccount = () => (
       <p>
         Fale com a gente em <strong>{SUPPORT_EMAIL}</strong>. Para entender como tratamos seus dados,
         veja a{' '}
-        <a href="/privacidade" className="text-blue-600 underline">Política de Privacidade</a>.
+        <a href="/privacidade" className="text-brand-600 underline">Política de Privacidade</a>.
       </p>
     </Section>
   </LegalLayout>

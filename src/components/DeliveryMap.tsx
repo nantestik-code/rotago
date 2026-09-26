@@ -581,7 +581,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           'line-cap': 'round'
         },
         paint: {
-          'line-color': '#10b981', // Verde
+          'line-color': '#eab308', // Amarelo (acento), contrasta com os pinos verdes
           'line-width': 6,
           'line-opacity': 0.8,
           'line-dasharray': [0.5, 1.5] // Linha tracejada
@@ -724,7 +724,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
             'line-cap': 'round'
           },
           paint: {
-            'line-color': '#10b981', // Verde
+            'line-color': '#eab308', // Amarelo (acento), contrasta com os pinos verdes
             'line-width': 6,
             'line-opacity': 0.8,
             'line-dasharray': [0.5, 1.5] // Linha tracejada
@@ -1100,7 +1100,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
             <Button
               size="sm"
               variant="default"
-              className="shadow-md bg-blue-600 hover:bg-blue-700"
+              className="shadow-md bg-brand-600 hover:bg-brand-700"
               onClick={handleOptimizeAndNavigate}
               title="Otimizar rota por proximidade"
             >
@@ -1158,7 +1158,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           min-width: 26px;
           height: 20px;
           padding: 0 5px;
-          background: #3b82f6;
+          background: #047857;
           color: white;
           display: flex;
           align-items: center;
@@ -1177,15 +1177,15 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           box-shadow: 0 3px 8px rgba(0,0,0,0.3);
         }
 
-        /* PENDENTE — azul */
+        /* PENDENTE: verde da marca */
         .delivery-marker.marker-pending {
-          background: #2563eb;
+          background: #047857;
         }
 
-        /* ENTREGUE — verde */
+        /* ENTREGUE: neutro apagado, já saiu da fila */
         .delivery-marker.marker-delivered {
-          background: #86efac;
-          color: #14532d;
+          background: #c8d1cc;
+          color: #374039;
           opacity: 0.55;
           border-color: rgba(255,255,255,0.5);
         }
@@ -1214,7 +1214,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         }
 
         .delivery-marker.marker-delivered .marker-number {
-          color: #14532d;
+          color: #374039;
           text-shadow: none;
         }
 
@@ -1293,7 +1293,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
           top: 50%;
           left: 50%;
           transform: translate(-50%, -50%);
-          background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+          background: linear-gradient(135deg, #047857 0%, #065f46 100%);
           border-radius: 50%;
           border: 3px solid white;
           box-shadow: 
@@ -1364,7 +1364,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         }
         
         .mini-marker-pending {
-          background-color: #3b82f6;
+          background-color: #047857;
         }
         
         .mini-marker-delivered {
@@ -1402,7 +1402,7 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         }
         
         .status-badge.status-pendente {
-          background-color: #2563EB;
+          background-color: #047857;
         }
         
         .status-badge.status-entregue {
@@ -1419,11 +1419,11 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         
         /* Estilos para diferentes status */
         .status-entregue {
-          background-color: #10B981; /* Verde para entregue */
+          background-color: #94a39b; /* Neutro para entregue */
         }
         
         .status-pendente {
-          background-color: #3b82f6; /* Azul para pendente */
+          background-color: #047857; /* Verde da marca para pendente */
         }
         
         .status-ocorrencia {
@@ -1524,8 +1524,12 @@ const DeliveryMap: React.FC<DeliveryMapProps> = ({
         <div className="absolute bottom-8 left-3 z-10 rounded-lg bg-white/95 p-2.5 text-sm shadow-md backdrop-blur-sm">
           <div className="flex flex-col space-y-2">
             <div className="flex items-center gap-1.5">
-              <div className="w-4 h-4 bg-[#3b82f6] border border-white rounded-full"></div>
+              <div className="w-4 h-4 bg-[#047857] border border-white rounded-full"></div>
               <span className="text-xs">Pendente</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-4 h-4 bg-[#c8d1cc] border border-white rounded-full"></div>
+              <span className="text-xs">Entregue</span>
             </div>
             <div className="flex items-center gap-1.5">
               <div className="w-4 h-4 bg-[#EF4444] border border-white rounded-full"></div>

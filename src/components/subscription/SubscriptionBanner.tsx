@@ -76,11 +76,11 @@ const SubscriptionBanner = () => {
 
   if (loading && user) {
     return (
-      <Alert className="mb-4 border-blue-200 bg-blue-50">
-        <Clock className="h-4 w-4 text-blue-600" />
+      <Alert className="mb-4 border-brand-200 bg-brand-50">
+        <Clock className="h-4 w-4 text-brand-600" />
         <AlertDescription className="flex items-center gap-2">
-          <span className="text-blue-800">Carregando sua assinatura...</span>
-          <Badge className="bg-blue-100 text-blue-800">Aguarde</Badge>
+          <span className="text-brand-800">Carregando sua assinatura...</span>
+          <Badge className="bg-brand-100 text-brand-800">Aguarde</Badge>
         </AlertDescription>
       </Alert>
     );
@@ -92,16 +92,16 @@ const SubscriptionBanner = () => {
 
   if (!subscription) {
     return (
-      <Alert className="mb-4 border-blue-200 bg-blue-50">
-        <Gift className="h-4 w-4 text-blue-600" />
+      <Alert className="mb-4 border-brand-200 bg-brand-50">
+        <Gift className="h-4 w-4 text-brand-600" />
         <AlertDescription className="flex items-center justify-between gap-3">
-          <span className="text-blue-800">
+          <span className="text-brand-800">
             <strong>Escolha um plano.</strong> O trial so inicia depois da escolha do plano.
           </span>
           <Button
             size="sm"
             onClick={() => navigate('/subscription')}
-            className="bg-blue-600 text-white hover:bg-blue-700"
+            className="bg-brand-600 text-white hover:bg-brand-700"
           >
             Ativar Agora
             <ArrowRight className="ml-1 h-3 w-3" />
@@ -119,40 +119,40 @@ const SubscriptionBanner = () => {
         className={`mb-4 p-4 ${
           isLastDays
             ? 'border-orange-200 bg-gradient-to-r from-orange-50 to-orange-100'
-            : 'border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100'
+            : 'border-brand-200 bg-gradient-to-r from-brand-50 to-brand-100'
         }`}
       >
         <div className="flex w-full items-start gap-3">
           <Gift
             className={`mt-0.5 h-5 w-5 flex-shrink-0 ${
-              isLastDays ? 'text-orange-600' : 'text-blue-600'
+              isLastDays ? 'text-orange-600' : 'text-brand-600'
             }`}
           />
           <div className="min-w-0 flex-1">
             <div className="mb-1 flex flex-wrap items-center gap-2">
-              <span className={`text-sm font-semibold ${isLastDays ? 'text-orange-800' : 'text-blue-800'}`}>
+              <span className={`text-sm font-semibold ${isLastDays ? 'text-orange-800' : 'text-brand-800'}`}>
                 {isLastDays ? 'Trial terminando' : 'Trial ativo'}
               </span>
-              <Badge className={isLastDays ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'}>
+              <Badge className={isLastDays ? 'bg-orange-100 text-orange-800' : 'bg-brand-100 text-brand-800'}>
                 {trialDaysRemaining} {trialDaysRemaining === 1 ? 'dia restante' : 'dias restantes'}
               </Badge>
-              <Badge className={isLastDays ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'}>
+              <Badge className={isLastDays ? 'bg-orange-100 text-orange-800' : 'bg-brand-100 text-brand-800'}>
                 {trialTimeRemainingLabel}
               </Badge>
               {currentPlan && (
-                <Badge className={isLastDays ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'}>
+                <Badge className={isLastDays ? 'bg-orange-100 text-orange-800' : 'bg-brand-100 text-brand-800'}>
                   {currentPlan.name}
                 </Badge>
               )}
             </div>
-            <p className={`text-sm leading-relaxed ${isLastDays ? 'text-orange-700' : 'text-blue-700'}`}>
+            <p className={`text-sm leading-relaxed ${isLastDays ? 'text-orange-700' : 'text-brand-700'}`}>
               Seu acesso premium gratuito segue ativo por {trialTimeRemainingLabel}.
             </p>
             <div className="mt-3">
               <Button
                 size="sm"
                 onClick={() => navigate('/subscription')}
-                className={`${isLastDays ? 'bg-orange-600 hover:bg-orange-700' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
+                className={`${isLastDays ? 'bg-orange-600 hover:bg-orange-700' : 'bg-brand-600 hover:bg-brand-700'} text-white`}
               >
                 Assinar Agora
                 <ArrowRight className="ml-1 h-3 w-3" />

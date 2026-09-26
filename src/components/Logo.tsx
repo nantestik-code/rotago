@@ -74,7 +74,7 @@ const Logo: React.FC<LogoProps> = ({
         `}>
           <div className="relative">
             <div className={`${size === 'lg' ? 'w-10 h-10' : size === 'xl' ? 'w-12 h-12' : size === 'sm' ? 'w-6 h-6' : 'w-8 h-8'} bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center shadow-lg`}>
-              <div className={`${size === 'lg' ? 'w-6 h-6' : size === 'xl' ? 'w-7 h-7' : size === 'sm' ? 'w-4 h-4' : 'w-5 h-5'} bg-blue-600 rounded-full flex items-center justify-center`}>
+              <div className={`${size === 'lg' ? 'w-6 h-6' : size === 'xl' ? 'w-7 h-7' : size === 'sm' ? 'w-4 h-4' : 'w-5 h-5'} bg-brand-600 rounded-full flex items-center justify-center`}>
                 <div className={`${size === 'lg' ? 'w-2 h-2' : size === 'xl' ? 'w-2.5 h-2.5' : size === 'sm' ? 'w-1 h-1' : 'w-1.5 h-1.5'} bg-white rounded-full`}></div>
               </div>
             </div>
@@ -85,7 +85,7 @@ const Logo: React.FC<LogoProps> = ({
       {showText && (
         <span className={`
           font-bold tracking-tight ${currentSize.text}
-          ${variant === 'white' ? 'text-white' : 'bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent'}
+          ${variant === 'white' ? 'text-white' : 'bg-gradient-to-r from-brand-600 to-brand-800 bg-clip-text text-transparent'}
         `}>
           RotaGo
         </span>

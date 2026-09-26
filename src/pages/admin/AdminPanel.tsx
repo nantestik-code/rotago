@@ -67,14 +67,14 @@ const AdminPanel = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-brand-50 to-brand-100 flex">
         <div className="w-64 bg-white/90 backdrop-blur-sm border-r border-white/20 shadow-xl flex flex-col">
           <div className="p-6 border-b border-gray-200/50">
             <div className="flex items-center gap-3">
               <div className="relative">
-                <Avatar className="w-12 h-12 border-2 border-blue-200">
+                <Avatar className="w-12 h-12 border-2 border-brand-200">
                   <AvatarImage src="/placeholder.svg" />
-                  <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold">
+                  <AvatarFallback className="bg-gradient-to-br from-brand-500 to-purple-600 text-white font-bold">
                     {admin?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2) || 'AD'}
                   </AvatarFallback>
                 </Avatar>
@@ -87,7 +87,7 @@ const AdminPanel = () => {
             </div>
             <Badge 
               variant="secondary" 
-              className="mt-3 bg-blue-50 text-blue-700 border-blue-200 w-full justify-center"
+              className="mt-3 bg-brand-50 text-brand-700 border-brand-200 w-full justify-center"
             >
               <Shield className="w-3 h-3 mr-1" />
               {admin?.role === 'super_admin' ? 'Super Admin' : 
@@ -124,7 +124,7 @@ const AdminPanel = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                className="flex-1 text-gray-600 hover:bg-blue-50 hover:text-blue-600"
+                className="flex-1 text-gray-600 hover:bg-brand-50 hover:text-brand-600"
                 title="Notificações"
               >
                 <Bell className="w-4 h-4" />

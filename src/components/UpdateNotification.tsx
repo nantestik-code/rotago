@@ -119,11 +119,11 @@ export const UpdateNotification: React.FC<UpdateNotificationProps> = ({ classNam
       {/* Notificação de atualização */}
       {isVisible && updateInfo && (
         <div className="fixed top-4 right-4 z-50 max-w-sm">
-          <Card className="bg-white shadow-lg border-l-4 border-l-blue-500">
+          <Card className="bg-white shadow-lg border-l-4 border-l-brand-500">
             <CardContent className="p-4">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <Download className="h-5 w-5 text-blue-500" />
+                  <Download className="h-5 w-5 text-brand-500" />
                   <h3 className="font-semibold text-gray-900">
                     Atualização Disponível
                   </h3>

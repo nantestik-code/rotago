@@ -32,13 +32,13 @@ const LandingPage = () => {
         <div className="flex items-center space-x-3">
           <div className="relative">
             <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
-              <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+              <div className="w-6 h-6 bg-brand-600 rounded-full flex items-center justify-center">
                 <div className="w-2 h-2 bg-white rounded-full"></div>
               </div>
             </div>
             <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-yellow-400 rounded transform rotate-45"></div>
           </div>
-          <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">RotaGo</span>
+          <span className="text-2xl font-bold bg-gradient-to-r from-brand-600 to-brand-800 bg-clip-text text-transparent">RotaGo</span>
         </div>
         <div className="space-x-2">
           <Button variant="outline" onClick={() => navigate('/auth/login')}>Entrar</Button>
@@ -47,16 +47,16 @@ const LandingPage = () => {
       </header>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-green-50 to-white py-16 md:py-20">
+      <section className="relative overflow-hidden bg-gradient-to-br from-brand-50 via-green-50 to-white py-16 md:py-20">
         <div className="absolute inset-0 bg-grid-pattern opacity-5 pointer-events-none"></div>
         <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-6xl">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div className="text-center lg:text-left">
-              <div className="bg-gradient-to-r from-green-100 to-blue-100 px-4 py-2 rounded-full inline-block mb-6">
+              <div className="bg-gradient-to-r from-green-100 to-brand-100 px-4 py-2 rounded-full inline-block mb-6">
                 <span className="text-sm font-semibold text-green-800">🚀 Revolucione suas entregas por R$ 19,90/mês nos 2 primeiros meses</span>
               </div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight mb-6">
-                Otimize suas <span className="bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">rotas</span> e <span className="bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">economize</span> tempo
+                Otimize suas <span className="bg-gradient-to-r from-green-600 to-brand-600 bg-clip-text text-transparent">rotas</span> e <span className="bg-gradient-to-r from-brand-600 to-green-600 bg-clip-text text-transparent">economize</span> tempo
               </h1>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
                 <div className="flex items-center space-x-3 bg-white/80 backdrop-blur-sm p-4 rounded-xl shadow-sm">
@@ -69,8 +69,8 @@ const LandingPage = () => {
                   </div>
                 </div>
                 <div className="flex items-center space-x-3 bg-white/80 backdrop-blur-sm p-4 rounded-xl shadow-sm">
-                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                    <Clock className="h-5 w-5 text-blue-600" />
+                  <div className="w-10 h-10 bg-brand-100 rounded-full flex items-center justify-center">
+                    <Clock className="h-5 w-5 text-brand-600" />
                   </div>
                   <div>
                     <p className="font-semibold text-gray-900">-30% combustível</p>
@@ -79,17 +79,17 @@ const LandingPage = () => {
                 </div>
               </div>
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                <Button size="lg" onClick={handleGetStarted} className="px-8 py-6 text-base bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">
+                <Button size="lg" onClick={handleGetStarted} className="px-8 py-6 text-base bg-gradient-to-r from-green-600 to-brand-600 hover:from-green-700 hover:to-brand-700">
                   Começar Grátis - 10 dias <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
-                <Button size="lg" variant="outline" className="py-6 text-base border-2 border-blue-200 hover:bg-blue-50" onClick={() => toast({
+                <Button size="lg" variant="outline" className="py-6 text-base border-2 border-brand-200 hover:bg-brand-50" onClick={() => toast({
                   title: "Demonstração em vídeo",
                   description: "Recurso em desenvolvimento. Em breve você poderá assistir a um vídeo demonstrativo!",
                 })}>
                   Ver demonstração
                 </Button>
               </div>
-              <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl border border-green-200">
+              <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-brand-50 rounded-xl border border-green-200">
                 <p className="text-sm text-center">
                   <span className="font-semibold text-green-700">✨ Oferta de lançamento:</span> <span className="text-gray-700">10 dias grátis, depois</span> <span className="text-2xl font-bold text-green-600">R$ 19,90/mês</span> <span className="text-gray-700">nos 2 primeiros meses — após, R$ 29,90/mês</span>
                 </p>
@@ -171,7 +171,7 @@ const LandingPage = () => {
       <PricingSection />
 
       {/* Visual Demo Section - NOVO */}
-      <section className="py-20 bg-gradient-to-b from-blue-50 to-white">
+      <section className="py-20 bg-gradient-to-b from-brand-50 to-white">
         <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-6xl">
           <div className="text-center mb-12">
             <span className="px-3 py-1 text-sm font-medium bg-primary/10 text-primary rounded-full">
@@ -203,17 +203,17 @@ const LandingPage = () => {
             <div className="bg-white p-4 rounded-xl shadow-xl">
               <h3 className="font-semibold text-lg mb-3">Dashboard de Acompanhamento</h3>
               <AspectRatio ratio={16/9} className="bg-gray-100 rounded-lg overflow-hidden mb-3">
-                <div className="flex items-center justify-center h-full bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg">
+                <div className="flex items-center justify-center h-full bg-gradient-to-br from-brand-50 to-brand-100 rounded-lg">
                   <div className="bg-white w-[90%] h-[90%] rounded-lg shadow-md p-4 flex flex-col">
                     <div className="flex justify-between items-center mb-4 border-b pb-2">
                       <div className="flex items-center">
-                        <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white mr-2">
+                        <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center text-white mr-2">
                           <Truck className="w-4 h-4" />
                         </div>
                         <span className="font-bold">Painel de Entregas</span>
                       </div>
                       <div className="flex space-x-2">
-                        <div className="px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-xs">Pendentes: 15</div>
+                        <div className="px-2 py-1 bg-brand-100 text-brand-700 rounded-md text-xs">Pendentes: 15</div>
                         <div className="px-2 py-1 bg-green-100 text-green-700 rounded-md text-xs">Concluídas: 27</div>
                       </div>
                     </div>
@@ -223,7 +223,7 @@ const LandingPage = () => {
                           <div className="text-xs text-gray-500">Cliente #{item}</div>
                           <div className="text-sm font-medium truncate">Entrega #{item * 10}</div>
                           <div className="flex items-center mt-1">
-                            <div className="w-2 h-2 rounded-full bg-blue-500 mr-1"></div>
+                            <div className="w-2 h-2 rounded-full bg-brand-500 mr-1"></div>
                             <span className="text-xs">Pendente</span>
                           </div>
                         </div>
@@ -244,13 +244,13 @@ const LandingPage = () => {
               <AspectRatio ratio={16/9} className="bg-gray-100 rounded-lg overflow-hidden mb-3">
                 <div className="bg-slate-100 w-full h-full rounded-lg flex items-center justify-center overflow-hidden">
                   <div className="relative w-full h-full">
-                    <div className="absolute top-[20%] left-[30%] w-10 h-10 bg-blue-500 rounded-lg rotate-45 flex items-center justify-center shadow-md">
+                    <div className="absolute top-[20%] left-[30%] w-10 h-10 bg-brand-500 rounded-lg rotate-45 flex items-center justify-center shadow-md">
                       <span className="text-white font-bold rotate-[315deg]">12</span>
                     </div>
                     <div className="absolute top-[50%] left-[60%] w-10 h-10 bg-orange-500 border-2 border-white rounded-lg rotate-45 flex items-center justify-center shadow-md">
                       <span className="text-white font-bold rotate-[315deg]">8</span>
                     </div>
-                    <div className="absolute top-[30%] left-[70%] w-10 h-10 bg-blue-500 rounded-lg rotate-45 flex items-center justify-center shadow-md">
+                    <div className="absolute top-[30%] left-[70%] w-10 h-10 bg-brand-500 rounded-lg rotate-45 flex items-center justify-center shadow-md">
                       <span className="text-white font-bold rotate-[315deg]">3</span>
                     </div>
                     <div className="absolute top-[60%] left-[20%] w-10 h-10 bg-green-500 rounded-lg rotate-45 flex items-center justify-center shadow-md">
@@ -287,12 +287,12 @@ const LandingPage = () => {
                         <span className="text-xs text-green-700">Concluído às 11:05</span>
                       </div>
                     </div>
-                    <div className="p-2 border-l-4 border-blue-500 bg-blue-50 rounded">
+                    <div className="p-2 border-l-4 border-brand-500 bg-brand-50 rounded">
                       <div className="text-xs text-gray-500">Entrega #127</div>
                       <div className="text-sm">Farmácia Popular</div>
                       <div className="flex items-center mt-1">
-                        <Clock className="w-3 h-3 text-blue-500 mr-1" />
-                        <span className="text-xs text-blue-700">Em andamento</span>
+                        <Clock className="w-3 h-3 text-brand-500 mr-1" />
+                        <span className="text-xs text-brand-700">Em andamento</span>
                       </div>
                     </div>
                   </div>
@@ -307,8 +307,8 @@ const LandingPage = () => {
                 <div className="bg-white w-full h-full p-4 flex flex-col">
                   <h4 className="text-sm font-semibold mb-2">Desempenho de Entregas</h4>
                   <div className="flex-1 grid grid-cols-2 gap-2">
-                    <div className="bg-blue-50 rounded p-2 flex flex-col items-center justify-center">
-                      <div className="text-3xl font-bold text-blue-600">94%</div>
+                    <div className="bg-brand-50 rounded p-2 flex flex-col items-center justify-center">
+                      <div className="text-3xl font-bold text-brand-600">94%</div>
                       <div className="text-xs text-gray-600">Entregas no prazo</div>
                     </div>
                     <div className="bg-green-50 rounded p-2 flex flex-col items-center justify-center">
@@ -377,7 +377,7 @@ const LandingPage = () => {
       </section>
 
       {/* How It Works */}
-      <section className="py-20 bg-gradient-to-b from-blue-50 to-white">
+      <section className="py-20 bg-gradient-to-b from-brand-50 to-white">
         <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-6xl">
           <div className="text-center mb-16">
             <span className="px-3 py-1 text-sm font-medium bg-primary/10 text-primary rounded-full">
@@ -457,7 +457,7 @@ const LandingPage = () => {
               <div className="flex items-center space-x-3 mb-4">
                 <div className="relative">
                   <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
-                    <div className="w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
+                    <div className="w-5 h-5 bg-brand-600 rounded-full flex items-center justify-center">
                       <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
                     </div>
                   </div>

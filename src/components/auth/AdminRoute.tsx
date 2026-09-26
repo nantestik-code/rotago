@@ -17,7 +17,7 @@ export default function AdminRoute({ children, requiredRole = 'admin' }: AdminRo
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
           <p className="text-sm text-muted-foreground">
             Verificando permissões de administrador...
           </p>

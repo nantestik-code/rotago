@@ -880,7 +880,7 @@ const SubscriptionManagement = () => {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="border-blue-300 text-blue-700 hover:bg-blue-50 text-xs px-2"
+                                  className="border-brand-300 text-brand-700 hover:bg-brand-50 text-xs px-2"
                                   onClick={() => requestConfirm(
                                     subscription.id,
                                     subscription.profiles?.full_name || 'Usuário sem nome',
@@ -894,7 +894,7 @@ const SubscriptionManagement = () => {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="border-blue-300 text-blue-700 hover:bg-blue-50 text-xs px-2"
+                                  className="border-brand-300 text-brand-700 hover:bg-brand-50 text-xs px-2"
                                   onClick={() => requestConfirm(
                                     subscription.id,
                                     subscription.profiles?.full_name || 'Usuário sem nome',
@@ -908,7 +908,7 @@ const SubscriptionManagement = () => {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="border-blue-300 text-blue-700 hover:bg-blue-50 text-xs px-2"
+                                  className="border-brand-300 text-brand-700 hover:bg-brand-50 text-xs px-2"
                                   onClick={() => requestConfirm(
                                     subscription.id,
                                     subscription.profiles?.full_name || 'Usuário sem nome',
@@ -1259,8 +1259,8 @@ const SubscriptionEditDialog = ({
           </div>
         )}
 
-        <div className="bg-blue-50 p-4 rounded-lg">
-          <h4 className="font-medium text-blue-900 mb-2">Ativação Rápida</h4>
+        <div className="bg-brand-50 p-4 rounded-lg">
+          <h4 className="font-medium text-brand-900 mb-2">Ativação Rápida</h4>
           <div className="grid grid-cols-2 gap-2">
             <Button
               type="button"

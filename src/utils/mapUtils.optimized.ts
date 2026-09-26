@@ -242,12 +242,12 @@ export const getMarkerCssClassByStatus = (status: string): string => {
 export const getMarkerColorByStatus = (status: string): string => {
   switch (status) {
     case 'entregue':
-      return '#10B981'; // Verde
+      return '#94a39b'; // Neutro (entregue)
     case 'ocorrencia':
       return '#EF4444'; // Vermelho
     case 'pendente':
     default:
-      return '#3b82f6'; // Azul
+      return '#047857'; // Verde da marca
   }
 };
 

@@ -302,7 +302,7 @@ const PricingSection = () => {
         {/* Botão para acessar o app */}
         <div className="flex justify-center mt-10">
           <Button
-            className="bg-blue-600 hover:bg-blue-700 text-white text-lg px-8 py-4 rounded-full shadow-lg transition-all duration-200"
+            className="bg-brand-600 hover:bg-brand-700 text-white text-lg px-8 py-4 rounded-full shadow-lg transition-all duration-200"
             onClick={() => navigate('/app')}
           >
             Ir para o Painel do App

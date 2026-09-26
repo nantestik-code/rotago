@@ -147,7 +147,7 @@ const Analytics = () => {
           value: totalUsers,
           icon: <Users className="h-4 w-4" />,
           description: `${totalUsers} usuários cadastrados`,
-          gradient: "from-blue-500 to-cyan-500",
+          gradient: "from-brand-500 to-cyan-500",
           progress: Math.min((totalUsers / 50) * 100, 100)
         },
         {
@@ -210,7 +210,7 @@ const Analytics = () => {
           value: "--",
           icon: <Users className="h-4 w-4" />,
           description: "Erro ao carregar dados",
-          gradient: "from-blue-500 to-cyan-500",
+          gradient: "from-brand-500 to-cyan-500",
           progress: 0
         },
         {
@@ -271,7 +271,7 @@ const Analytics = () => {
     <div className="space-y-8">
       {/* Header com título */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+        <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-purple-600 rounded-lg flex items-center justify-center">
           <Activity className="w-6 h-6 text-white" />
         </div>
         <div>
@@ -320,7 +320,7 @@ const Analytics = () => {
         <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
           <CardHeader className="pb-4">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-lg flex items-center justify-center">
                 <TrendingUp className="w-4 h-4 text-white" />
               </div>
               <div>
@@ -337,8 +337,8 @@ const Analytics = () => {
               >
                 <defs>
                   <linearGradient id="userGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                    <stop offset="5%" stopColor="#047857" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#047857" stopOpacity={0.1}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -362,10 +362,10 @@ const Analytics = () => {
                 <Line 
                   type="monotone" 
                   dataKey="users" 
-                  stroke="#3b82f6" 
+                  stroke="#047857" 
                   strokeWidth={3}
                   fill="url(#userGradient)"
-                  activeDot={{ r: 6, fill: '#1d4ed8' }} 
+                  activeDot={{ r: 6, fill: '#065f46' }} 
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -396,8 +396,8 @@ const Analytics = () => {
                     <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.6}/>
                   </linearGradient>
                   <linearGradient id="barGradient2" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.6}/>
+                    <stop offset="5%" stopColor="#047857" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#047857" stopOpacity={0.6}/>
                   </linearGradient>
                   <linearGradient id="barGradient3" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>

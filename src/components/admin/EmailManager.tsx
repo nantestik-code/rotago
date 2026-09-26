@@ -123,10 +123,10 @@ const EmailManager: React.FC = () => {
 
   const getStatusIcon = (status: string) => {
     const iconConfig = {
-      sent: <Send className="w-4 h-4 text-blue-500" />,
+      sent: <Send className="w-4 h-4 text-brand-500" />,
       delivered: <CheckCircle className="w-4 h-4 text-green-500" />,
       opened: <Eye className="w-4 h-4 text-purple-500" />,
-      clicked: <TrendingUp className="w-4 h-4 text-indigo-500" />,
+      clicked: <TrendingUp className="w-4 h-4 text-brand-500" />,
       failed: <XCircle className="w-4 h-4 text-red-500" />,
       pending: <Clock className="w-4 h-4 text-yellow-500" />,
       bounced: <AlertCircle className="w-4 h-4 text-orange-500" />,
@@ -186,7 +186,7 @@ const EmailManager: React.FC = () => {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Enviados</CardTitle>
-                <Mail className="h-4 w-4 text-blue-600" />
+                <Mail className="h-4 w-4 text-brand-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{statistics?.total_sent || 0}</div>
@@ -371,7 +371,7 @@ const EmailManager: React.FC = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Users className="w-5 h-5 text-blue-600" />
+                  <Users className="w-5 h-5 text-brand-600" />
                   Boas-vindas
                 </CardTitle>
                 <CardDescription>Email enviado para novos usuários</CardDescription>
@@ -397,7 +397,7 @@ const EmailManager: React.FC = () => {
                     ) : template.id === 'password_reset' ? (
                       <Shield className="w-5 h-5 text-purple-600" />
                     ) : (
-                      <Users className="w-5 h-5 text-blue-600" />
+                      <Users className="w-5 h-5 text-brand-600" />
                     )}
                     {template.name}
                   </CardTitle>
@@ -481,7 +481,7 @@ const EmailManager: React.FC = () => {
               <div className="space-y-4">
                 {isLoadingLogs ? (
                   <div className="text-center py-8">
-                    <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin text-blue-500" />
+                    <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin text-brand-500" />
                     <p className="text-gray-500">Carregando logs...</p>
                   </div>
                 ) : filteredLogs.length === 0 ? (
@@ -545,7 +545,7 @@ const EmailManager: React.FC = () => {
                       )}
                       
                       {log.clicked_at && (
-                        <div className="mt-1 text-xs text-indigo-600">
+                        <div className="mt-1 text-xs text-brand-600">
                           Clicado em {new Date(log.clicked_at).toLocaleString('pt-BR')}
                         </div>
                       )}

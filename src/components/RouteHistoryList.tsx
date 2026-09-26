@@ -97,7 +97,7 @@ const getActionColor = (action: RouteAction) => {
     case 'create':
       return 'bg-green-100 text-green-800';
     case 'optimize':
-      return 'bg-blue-100 text-blue-800';
+      return 'bg-brand-100 text-brand-800';
     case 'complete':
       return 'bg-purple-100 text-purple-800';
     case 'status_change':
@@ -517,8 +517,8 @@ export const RouteHistoryList = ({ showUserInfo = false, routeId, limit = 10 }: 
                 <span className="text-2xl font-bold text-green-600">{routeStats.entregue}</span>
                 <span className="text-sm text-gray-500">Entregues</span>
               </div>
-              <div className="flex flex-col items-center p-3 border rounded-md bg-blue-50">
-                <span className="text-2xl font-bold text-blue-600">{routeStats.pendente}</span>
+              <div className="flex flex-col items-center p-3 border rounded-md bg-brand-50">
+                <span className="text-2xl font-bold text-brand-600">{routeStats.pendente}</span>
                 <span className="text-sm text-gray-500">Pendentes</span>
               </div>
               <div className="flex flex-col items-center p-3 border rounded-md bg-yellow-50">

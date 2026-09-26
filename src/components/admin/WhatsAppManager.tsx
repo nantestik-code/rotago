@@ -455,7 +455,7 @@ const WhatsAppManager = () => {
                         <CardTitle className="text-base flex items-center gap-2">
                           Detalhamento
                           {results.dryRun && (
-                            <Badge variant="outline" className="text-xs border-blue-300 text-blue-600">Simulação</Badge>
+                            <Badge variant="outline" className="text-xs border-brand-300 text-brand-600">Simulação</Badge>
                           )}
                         </CardTitle>
                       </CardHeader>

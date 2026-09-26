@@ -283,7 +283,7 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
                 <div
                   key={`stop-${stopNum}-${delivery.id}`}
                   ref={el => deliveryItemRefs.current[delivery.id] = el}
-                  className={`mb-2 border-l-4 ${groupStatus === 'pendente' ? 'border-l-blue-500' : groupStatus === 'entregue' ? 'border-l-green-500' : 'border-l-red-500'} ${isGroupSelected ? 'bg-gray-50 ring-2 ring-blue-200' : 'bg-white'} rounded shadow-sm hover:shadow-md transition-all`}
+                  className={`mb-2 border-l-4 ${groupStatus === 'pendente' ? 'border-l-brand-500' : groupStatus === 'entregue' ? 'border-l-green-500' : 'border-l-red-500'} ${isGroupSelected ? 'bg-gray-50 ring-2 ring-brand-200' : 'bg-white'} rounded shadow-sm hover:shadow-md transition-all`}
                   onClick={(e) => {
                     const target = e.target as HTMLElement;
                     const isButtonClick = target.tagName === 'BUTTON' ||
@@ -322,7 +322,7 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
                         </div>
                       )}
                       {isMultiple && (
-                        <div className="text-xs text-blue-600 truncate">
+                        <div className="text-xs text-brand-600 truncate">
                           Pacotes {sequences.map(s => `#${s}`).join(' · ')}
                         </div>
                       )}
@@ -336,7 +336,7 @@ const DeliveryList: React.FC<DeliveryListProps> = ({
                     <div className="flex space-x-1 sm:space-x-2">
                       {groupStatus !== 'pendente' && (
                         <button
-                          className="p-2 sm:p-1.5 rounded-full text-blue-600 hover:bg-blue-50 active:bg-blue-100 border border-blue-100 touch-manipulation"
+                          className="p-2 sm:p-1.5 rounded-full text-brand-600 hover:bg-brand-50 active:bg-brand-100 border border-brand-100 touch-manipulation"
                           onClick={(e) => { e.stopPropagation(); e.preventDefault(); group.forEach(d => handleStatusChange(d.id, 'pendente')); }}
                           title="Marcar como pendente"
                           aria-label="Marcar como pendente"

@@ -140,7 +140,7 @@ const SignUp = () => {
       // O e-mail de boas-vindas com o link de confirmacao sai pela nossa
       // edge function (Resend). O gatilho handle_new_user cria o perfil a
       // partir destes campos e recusa CPF/telefone invalido ou duplicado.
-      const { error } = await authEmail({
+      const { data, error } = await authEmail({
         action: 'signup',
         email: formData.email,
         password: formData.password,
@@ -202,6 +202,12 @@ const SignUp = () => {
             variant: "destructive",
           });
         }
+      } else if (data?.email_sent === false) {
+        smartToast({
+          title: "Conta criada!",
+          description: "Não conseguimos enviar o email de confirmação agora. Na tela de login, use \"Reenviar confirmação\".",
+        });
+        navigate('/auth/login');
       } else {
         smartToast({
           title: "Cadastro quase completo!",
@@ -222,7 +228,7 @@ const SignUp = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-b from-brand-50 to-white flex flex-col items-center justify-center p-4">
       <Button
         variant="ghost"
         className="absolute top-4 left-4 flex items-center"

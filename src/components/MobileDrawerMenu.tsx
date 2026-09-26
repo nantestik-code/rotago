@@ -140,7 +140,7 @@ const MobileDrawerMenu: React.FC<MobileDrawerMenuProps> = ({
                           className="w-full justify-between text-left p-3 mb-1 hover:bg-gray-100"
                         >
                           <div className="flex items-center">
-                            <Route size={16} className="mr-2 text-blue-500" />
+                            <Route size={16} className="mr-2 text-brand-500" />
                             <div>
                               <div className="font-medium text-sm">{route.name}</div>
                               <div className="text-xs text-gray-500">{formatDate(route.date)}</div>

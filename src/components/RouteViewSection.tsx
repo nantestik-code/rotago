@@ -831,10 +831,10 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
               {/* Abas de navegação */}
               <div className="flex flex-wrap gap-1 space-x-1 mb-2 border-b border-gray-200 pb-2 overflow-x-auto px-2">
                 <button 
-                  className={`px-2 py-1 rounded-md text-xs font-medium flex items-center whitespace-nowrap ${activeTab === 'pendente' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
+                  className={`px-2 py-1 rounded-md text-xs font-medium flex items-center whitespace-nowrap ${activeTab === 'pendente' ? 'bg-brand-100 text-brand-700' : 'text-gray-600 hover:bg-gray-100'}`}
                   onClick={() => setActiveTab('pendente')}
                 >
-                  <Clock size={14} className="mr-1 text-blue-500" />
+                  <Clock size={14} className="mr-1 text-brand-500" />
                   <span>Pend.</span>
                   <span className="ml-1">({groupedPendingDeliveries.length})</span>
                 </button>
@@ -995,10 +995,10 @@ const RouteViewSection: React.FC<RouteViewSectionProps> = ({
                 {/* Abas de navegação */}
                 <div className="flex flex-wrap gap-1 lg:space-x-2 mb-4 border-b border-gray-200 pb-2 overflow-x-auto">
                   <button 
-                    className={`px-2 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium flex items-center whitespace-nowrap ${activeTab === 'pendente' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
+                    className={`px-2 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium flex items-center whitespace-nowrap ${activeTab === 'pendente' ? 'bg-brand-100 text-brand-700' : 'text-gray-600 hover:bg-gray-100'}`}
                     onClick={() => setActiveTab('pendente')}
                   >
-                    <Clock size={16} className="mr-1 lg:mr-2 text-blue-500" />
+                    <Clock size={16} className="mr-1 lg:mr-2 text-brand-500" />
                     <span className="hidden sm:inline">Paradas</span>
                     <span className="sm:hidden">Pend.</span>
                     <span className="ml-1">({groupedPendingDeliveries.length})</span>

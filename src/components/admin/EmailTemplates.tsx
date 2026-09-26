@@ -41,7 +41,7 @@ export const WelcomeEmailTemplate = ({
         }
         
         .header {
-            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            background: linear-gradient(135deg, #047857 0%, #065f46 100%);
             padding: 40px 30px;
             text-align: center;
             color: white;
@@ -131,7 +131,7 @@ export const WelcomeEmailTemplate = ({
         
         .cta-button {
             display: inline-block;
-            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            background: linear-gradient(135deg, #047857 0%, #065f46 100%);
             color: white;
             text-decoration: none;
             padding: 16px 32px;
@@ -363,7 +363,7 @@ export const AdminNotificationTemplate = ({
             border-radius: 8px;
             padding: 25px;
             margin: 25px 0;
-            border-left: 4px solid #3b82f6;
+            border-left: 4px solid #047857;
         }
         
         .info-row {
@@ -410,12 +410,12 @@ export const AdminNotificationTemplate = ({
         
         .plan-basic {
             background-color: #dbeafe;
-            color: #1d4ed8;
+            color: #065f46;
         }
         
         .cta-button {
             display: inline-block;
-            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            background: linear-gradient(135deg, #047857 0%, #065f46 100%);
             color: white;
             text-decoration: none;
             padding: 14px 28px;

@@ -613,7 +613,7 @@ const UsersManagement = () => {
   const chartData = [
     { name: "Administradores", value: userStats.admin, color: "#8b5cf6" },
     { name: "Premium", value: userStats.premium, color: "#10b981" },
-    { name: "Trial", value: userStats.trial, color: "#3b82f6" },
+    { name: "Trial", value: userStats.trial, color: "#047857" },
     { name: "Expirados", value: userStats.expired, color: "#ef4444" },
     { name: "Pendentes", value: userStats.pending, color: "#f59e0b" },
     { name: "Gratuitos", value: userStats.free, color: "#6b7280" },
@@ -683,7 +683,7 @@ const UsersManagement = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 rounded-xl p-6 text-white">
+      <div className="bg-gradient-to-r from-purple-600 via-brand-600 to-cyan-600 rounded-xl p-6 text-white">
         <div className="flex items-center gap-3 mb-2">
           <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
             <Users className="h-6 w-6" />
@@ -720,10 +720,10 @@ const UsersManagement = () => {
       
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+        <Card className="bg-gradient-to-br from-brand-500 to-brand-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-blue-100">
+              <CardTitle className="text-sm font-medium text-brand-100">
                 Total
               </CardTitle>
               <Users className="h-4 w-4 text-white" />
@@ -731,7 +731,7 @@ const UsersManagement = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold mb-1">{userStats.total}</div>
-            <div className="text-xs text-blue-100">Usuários</div>
+            <div className="text-xs text-brand-100">Usuários</div>
           </CardContent>
         </Card>
         
@@ -769,10 +769,10 @@ const UsersManagement = () => {
           </CardContent>
         </Card>
         
-        <Card className="bg-gradient-to-br from-sky-500 to-sky-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+        <Card className="bg-gradient-to-br from-brand-500 to-brand-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-sky-100">
+              <CardTitle className="text-sm font-medium text-brand-100">
                 Trial
               </CardTitle>
               <UserCheck className="h-4 w-4 text-white" />
@@ -780,7 +780,7 @@ const UsersManagement = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold mb-1">{userStats.trial}</div>
-            <div className="text-xs text-sky-100">
+            <div className="text-xs text-brand-100">
               {userStats.total > 0 ? ((userStats.trial / userStats.total) * 100).toFixed(1) : 0}%
             </div>
           </CardContent>
@@ -823,8 +823,8 @@ const UsersManagement = () => {
 
       <div className="flex flex-col md:flex-row gap-6">
         {/* Chart Section */}
-        <Card className="w-full md:w-1/3 bg-gradient-to-br from-indigo-50 to-purple-50 border-0 shadow-lg">
-          <CardHeader className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-t-lg">
+        <Card className="w-full md:w-1/3 bg-gradient-to-br from-brand-50 to-purple-50 border-0 shadow-lg">
+          <CardHeader className="bg-gradient-to-r from-brand-500 to-purple-600 text-white rounded-t-lg">
             <CardTitle className="text-lg flex items-center">
               <div className="p-1 bg-white/20 rounded-md mr-3">
                 <PieChart className="h-5 w-5" />
@@ -837,7 +837,7 @@ const UsersManagement = () => {
               config={{
                 admin: { color: "#8b5cf6", label: "Administradores" },
                 premium: { color: "#10b981", label: "Premium" },
-                trial: { color: "#3b82f6", label: "Trial" },
+                trial: { color: "#047857", label: "Trial" },
                 expired: { color: "#ef4444", label: "Expirados" },
                 pending: { color: "#f59e0b", label: "Pendentes" },
                 free: { color: "#64748b", label: "Gratuito" },
@@ -918,7 +918,7 @@ const UsersManagement = () => {
                 </div>
                 <Button
                   variant="outline"
-                  className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white border-0 hover:from-blue-600 hover:to-purple-700 shadow-md"
+                  className="flex items-center gap-2 bg-gradient-to-r from-brand-500 to-purple-600 text-white border-0 hover:from-brand-600 hover:to-purple-700 shadow-md"
                   onClick={exportToCSV}
                 >
                   <Download className="h-4 w-4" />
@@ -957,7 +957,7 @@ const UsersManagement = () => {
                           className={(() => {
                             const ds = getSubscriptionStatus(user);
                             switch (ds) {
-                              case "trial": return "bg-blue-100 text-blue-700";
+                              case "trial": return "bg-brand-100 text-brand-700";
                               case "premium": return "bg-emerald-100 text-emerald-700";
                               case "expired": return "bg-red-100 text-red-700";
                               case "pending": return "bg-amber-100 text-amber-700";
@@ -999,7 +999,7 @@ const UsersManagement = () => {
                               <Button 
                                 variant="outline" 
                                 size="sm"
-                                className="bg-gradient-to-r from-blue-500 to-blue-600 text-white border-0 hover:from-blue-600 hover:to-blue-700 shadow-sm"
+                                className="bg-gradient-to-r from-brand-500 to-brand-600 text-white border-0 hover:from-brand-600 hover:to-brand-700 shadow-sm"
                                 onClick={() => setSelectedUser(user)}
                               >
                                 Detalhes
@@ -1014,8 +1014,8 @@ const UsersManagement = () => {
                               {selectedUser && (
                                 <div className="space-y-6 py-4">
                                   {/* Informações Pessoais */}
-                                  <div className="bg-blue-50 p-4 rounded-lg">
-                                    <h3 className="font-semibold text-blue-800 mb-3 flex items-center">
+                                  <div className="bg-brand-50 p-4 rounded-lg">
+                                    <h3 className="font-semibold text-brand-800 mb-3 flex items-center">
                                       <Users className="h-4 w-4 mr-2" />
                                       Informações Pessoais
                                     </h3>
@@ -1027,7 +1027,7 @@ const UsersManagement = () => {
                                       <div className="font-medium text-gray-700">Nome Completo:</div>
                                       <div className="font-medium">{selectedUser.full_name || "Não informado"}</div>
                                       <div className="font-medium text-gray-700">CPF:</div>
-                                      <div className="font-medium text-blue-600">
+                                      <div className="font-medium text-brand-600">
                                         {selectedUser.cpf || "Não informado"}
                                       </div>
                                       <div className="font-medium text-gray-700">Role/Função:</div>
@@ -1059,7 +1059,7 @@ const UsersManagement = () => {
                                           };
                                           const colorMap: Record<DerivedSubscriptionStatus, string> = {
                                             free: "bg-slate-100 text-slate-700",
-                                            trial: "bg-blue-100 text-blue-700",
+                                            trial: "bg-brand-100 text-brand-700",
                                             premium: "bg-emerald-100 text-emerald-700",
                                             expired: "bg-red-100 text-red-700",
                                             pending: "bg-amber-100 text-amber-700",
@@ -1260,7 +1260,7 @@ const UsersManagement = () => {
                           <TableCell className="font-medium">{a.full_name}</TableCell>
                           <TableCell className="text-sm text-slate-600">{a.email}</TableCell>
                           <TableCell>
-                            <Badge className={a.role === 'super_admin' ? 'bg-purple-600 text-white' : 'bg-blue-500 text-white'}>
+                            <Badge className={a.role === 'super_admin' ? 'bg-purple-600 text-white' : 'bg-brand-500 text-white'}>
                               {a.role === 'super_admin' ? 'Super Admin' : a.role === 'moderator' ? 'Moderador' : 'Admin'}
                             </Badge>
                           </TableCell>

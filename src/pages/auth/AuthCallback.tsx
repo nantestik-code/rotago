@@ -112,7 +112,7 @@ const AuthCallback = () => {
   }, [navigate]);
   
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-blue-50 to-white p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-brand-50 to-white p-4">
       <div className="text-center">
         {status === 'loading' && (
           <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />

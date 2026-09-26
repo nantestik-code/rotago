@@ -103,7 +103,7 @@ const ColumnMappingDialog: React.FC<ColumnMappingDialogProps> = ({
           
           <Button
             onClick={handleContinue}
-            className="bg-blue-600 text-white hover:bg-blue-700"
+            className="bg-brand-600 text-white hover:bg-brand-700"
           >
             Continuar
           </Button>

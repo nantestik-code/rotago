@@ -36,8 +36,8 @@ const StopCard = ({
 
   const tone = {
     pendente: {
-      badge: selected ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-800',
-      ring: selected ? 'ring-2 ring-blue-500/40' : 'ring-1 ring-slate-200',
+      badge: selected ? 'bg-brand-600 text-white' : 'bg-brand-100 text-brand-800',
+      ring: selected ? 'ring-2 ring-brand-500/40' : 'ring-1 ring-slate-200',
     },
     entregue: {
       badge: 'bg-emerald-600 text-white',
@@ -64,7 +64,7 @@ const StopCard = ({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-500">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-500">
             Parada {stopNum}
             {group.length > 1 ? ` · ${group.length} pacotes` : ''}
           </p>

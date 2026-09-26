@@ -58,7 +58,7 @@ export const getStatusColor = (status: string, isMultiple?: boolean): string => 
       return 'bg-red-500';
     case 'pendente':
     default:
-      return 'bg-blue-500';
+      return 'bg-brand-500';
   }
 };
 

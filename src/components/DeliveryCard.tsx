@@ -35,7 +35,7 @@ const DeliveryCard = forwardRef<HTMLDivElement, DeliveryCardProps>(({ delivery, 
         return 'bg-red-500';
       case 'pendente':
       default:
-        return 'bg-blue-500';
+        return 'bg-brand-500';
     }
   };
 
@@ -75,7 +75,7 @@ const DeliveryCard = forwardRef<HTMLDivElement, DeliveryCardProps>(({ delivery, 
     <Card 
       ref={ref}
       className={`transition-all hover:shadow-md cursor-pointer 
-        ${isSelected ? 'ring-2 ring-blue-500 shadow-lg' : ''}
+        ${isSelected ? 'ring-2 ring-brand-500 shadow-lg' : ''}
         ${getStatusClasses()}
         ${delivery.statusChanged ? 'animate-pulse scale-[1.02]' : ''}
       `}
@@ -129,7 +129,7 @@ const DeliveryCard = forwardRef<HTMLDivElement, DeliveryCardProps>(({ delivery, 
           <Button 
             size="sm" 
             variant={delivery.status === 'pendente' ? 'default' : 'outline'}
-            className={`flex items-center gap-1 h-7 px-1.5 text-xs ${delivery.status === 'pendente' ? 'bg-blue-500 hover:bg-blue-600' : ''}`}
+            className={`flex items-center gap-1 h-7 px-1.5 text-xs ${delivery.status === 'pendente' ? 'bg-brand-500 hover:bg-brand-600' : ''}`}
             onClick={(e) => handleStatusChange(e, 'pendente')}
           >
             <RotateCcw size={12} />

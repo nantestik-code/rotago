@@ -38,18 +38,18 @@ export function Header({ onNewRouteClick, onExportClick }: {
   }, [user, profile]);
 
   return (
-    <header className="native-header border-b border-sky-100 bg-white/80 backdrop-blur-xl">
+    <header className="native-header border-b border-brand-100 bg-white/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
         <Logo size="md" variant="default" interactive={true} to="/app" />
 
         {isLoading ? (
-          <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+          <Loader2 className="h-5 w-5 animate-spin text-brand-600" />
         ) : user ? (
           <div className="flex items-center gap-3">
             {isTrialActive && (
               <Link
                 to="/subscription"
-                className="hidden items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 sm:flex"
+                className="hidden items-center gap-2 rounded-full border border-brand-100 bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700 sm:flex"
               >
                 Trial · {trialTimeRemainingLabel}
               </Link>

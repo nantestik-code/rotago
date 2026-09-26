@@ -292,10 +292,10 @@ const FileImport: React.FC<FileImportProps> = ({ onImportComplete, routeName = '
               <div className="relative">
                 <Button 
                   variant="outline" 
-                  className="h-auto w-full flex-col items-center justify-center border-2 border-dashed border-sky-200 bg-sky-50/40 py-10 hover:border-blue-400 hover:bg-blue-50"
+                  className="h-auto w-full flex-col items-center justify-center border-2 border-dashed border-brand-200 bg-brand-50/40 py-10 hover:border-brand-400 hover:bg-brand-50"
                   onClick={() => document.getElementById('file-upload')?.click()}
                 >
-                  <Upload size={24} className="mb-2 text-blue-500" />
+                  <Upload size={24} className="mb-2 text-brand-500" />
                   <span className="font-medium text-slate-800">Soltar planilha ou clicar para escolher</span>
                   <span className="mt-1 text-xs text-slate-500">{file ? file.name : 'CSV, XLS, XLSX · SPX entra direto'}</span>
                 </Button>

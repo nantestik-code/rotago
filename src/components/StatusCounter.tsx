@@ -16,9 +16,9 @@ const cards = [
     label: 'Pacotes',
     valueKey: 'pendente',
     icon: Clock3,
-    valueClass: 'text-blue-600',
-    accentClass: 'bg-blue-500',
-    chipClass: 'bg-blue-50 text-blue-700 border-blue-100',
+    valueClass: 'text-brand-600',
+    accentClass: 'bg-brand-500',
+    chipClass: 'bg-brand-50 text-brand-700 border-brand-100',
   },
   {
     key: 'entregue',

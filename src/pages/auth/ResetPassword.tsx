@@ -9,6 +9,7 @@ import { smartToast } from '@/hooks/use-smart-toast';
 import { Truck, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
+import { authEmail } from '@/lib/auth-email';
 
 const ResetPassword = () => {
   const navigate = useNavigate();
@@ -79,6 +80,13 @@ const ResetPassword = () => {
         return;
       }
 
+      // Aviso de seguranca por e-mail. Falha aqui nao desfaz a troca de senha.
+      // Precisa terminar antes do signOut, que invalida o token da sessao.
+      await authEmail({ action: 'password_changed' }).catch(() => {});
+
+      // Encerra a sessao aberta pelo link: a pessoa entra com a senha nova.
+      await supabase.auth.signOut();
+
       smartToast({
         title: "Senha redefinida com sucesso",
         description: "Você já pode entrar com sua nova senha",
@@ -100,7 +108,7 @@ const ResetPassword = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-b from-brand-50 to-white flex flex-col items-center justify-center p-4">
       <div className="flex items-center mb-8">
         <Truck className="h-10 w-10 text-primary mr-2" />
         <span className="text-3xl font-bold">RotaGo</span>

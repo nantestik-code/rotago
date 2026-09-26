@@ -152,16 +152,16 @@ const ImportSection: React.FC<ImportSectionProps> = ({
     <div className="mx-auto max-w-2xl py-8 pb-20">
       {/* Usuário sem assinatura: convidar a escolher um plano para trial */}
       {!subscriptionLoading && !canAccessImport && !subscription && (
-        <Alert className="mb-5 rounded-2xl border-blue-200/80 bg-[linear-gradient(180deg,rgba(239,246,255,0.98)_0%,rgba(219,234,254,0.9)_100%)] shadow-[0_18px_36px_-28px_rgba(37,99,235,0.35)]">
-          <Crown className="h-4 w-4 text-blue-600" />
+        <Alert className="mb-5 rounded-2xl border-brand-200/80 bg-[linear-gradient(180deg,rgba(239,246,255,0.98)_0%,rgba(219,234,254,0.9)_100%)] shadow-[0_18px_36px_-28px_rgba(37,99,235,0.35)]">
+          <Crown className="h-4 w-4 text-brand-600" />
           <AlertDescription className="flex items-center justify-between">
-            <span className="text-blue-800">
+            <span className="text-brand-800">
               <strong>Bem-vindo!</strong> Escolha um plano para ativar seu período gratuito.
             </span>
             <Button
               size="sm"
               onClick={goToSubscription}
-              className="bg-blue-600 hover:bg-blue-700 text-white ml-3 shrink-0"
+              className="bg-brand-600 hover:bg-brand-700 text-white ml-3 shrink-0"
             >
               Ver Planos
             </Button>
@@ -193,9 +193,9 @@ const ImportSection: React.FC<ImportSectionProps> = ({
         </Alert>
       )}
       
-      <section className="overflow-hidden rounded-3xl border border-sky-100 bg-white shadow-[0_30px_60px_-36px_rgba(37,99,235,0.25)]">
-        <div className="border-b border-sky-100 bg-gradient-to-r from-emerald-50 via-white to-sky-50 px-6 py-5">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-600">Nova rota</p>
+      <section className="overflow-hidden rounded-3xl border border-brand-100 bg-white shadow-[0_30px_60px_-36px_rgba(37,99,235,0.25)]">
+        <div className="border-b border-brand-100 bg-gradient-to-r from-emerald-50 via-white to-brand-50 px-6 py-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-600">Nova rota</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">Importar planilha</h1>
           <p className="mt-1 text-sm text-slate-500">Um arquivo. Sem telas extras para planilha SPX.</p>
         </div>
@@ -225,19 +225,19 @@ const ImportSection: React.FC<ImportSectionProps> = ({
           {canAccessImport ? (
             <FileImport onImportComplete={handleImportComplete} routeName={routeName} />
           ) : (
-            <div className="rounded-2xl border border-dashed border-sky-200 bg-sky-50/60 p-8 text-center">
+            <div className="rounded-2xl border border-dashed border-brand-200 bg-brand-50/60 p-8 text-center">
               <p className="text-sm text-slate-600">Assine para importar rotas.</p>
-              <Button onClick={goToSubscription} className="mt-4 bg-blue-600 text-white hover:bg-blue-700">
+              <Button onClick={goToSubscription} className="mt-4 bg-brand-600 text-white hover:bg-brand-700">
                 Ver planos
               </Button>
             </div>
           )}
           <div className="mt-4 flex gap-3 text-xs text-slate-500">
-            <button type="button" className="hover:text-blue-700 hover:underline" onClick={() => { setActiveTab('create'); handleCreateEmptyRoute(); }}>
+            <button type="button" className="hover:text-brand-700 hover:underline" onClick={() => { setActiveTab('create'); handleCreateEmptyRoute(); }}>
               Adicionar endereços na mão
             </button>
             <span>·</span>
-            <button type="button" className="hover:text-blue-700 hover:underline" onClick={handleCreateEmptyRoute}>
+            <button type="button" className="hover:text-brand-700 hover:underline" onClick={handleCreateEmptyRoute}>
               Só GPS
             </button>
           </div>

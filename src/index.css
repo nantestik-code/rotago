@@ -84,100 +84,104 @@ html, body {
 }
 
 .dispatch-shell {
-  --dispatch-bg: #f4f8fc;
+  --dispatch-bg: #f7f9f8;
   --dispatch-panel: #ffffff;
-  --dispatch-panel-2: #f8fbff;
-  --dispatch-line: #e2eaf3;
-  --dispatch-ink: #16324f;
-  --dispatch-muted: #6b849c;
-  --dispatch-accent: #2563eb;
-  --dispatch-go: #16a34a;
-  --dispatch-stop: #e11d48;
+  --dispatch-panel-2: hsl(var(--delivered) / 0.08);
+  --dispatch-line: #e1e7e4;
+  --dispatch-ink: #052e16;
+  --dispatch-muted: #4b5563;
+  --dispatch-accent: #047857;
+  --dispatch-go: #15803d;
+  --dispatch-stop: hsl(var(--occurrence));
   min-height: 100vh;
   background:
-    radial-gradient(900px 420px at 0% -10%, rgba(34, 197, 94, 0.12), transparent 50%),
-    radial-gradient(800px 380px at 100% 0%, rgba(37, 99, 235, 0.12), transparent 48%),
-    linear-gradient(180deg, #f7fbff 0%, #eef4fa 100%);
+    radial-gradient(900px 420px at 0% -10%, rgba(4, 120, 87, 0.10), transparent 50%),
+    radial-gradient(800px 380px at 100% 0%, rgba(250, 204, 21, 0.10), transparent 48%),
+    linear-gradient(180deg, #f7faf8 0%, #eef3f0 100%);
   color: var(--dispatch-ink);
-  font-family: "Instrument Sans", "Segoe UI", sans-serif;
-}
-
-.dispatch-shell input,
-.dispatch-shell button,
-.dispatch-shell textarea {
-  font-family: inherit;
 }
 
 .dispatch-num {
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 @layer base {
+  /* Verde Rota: modo claro */
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 146 80% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 146 80% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 146 80% 10%;
 
-    --primary: 221 83% 53%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 163 94% 24%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 150 25% 95%;
+    --secondary-foreground: 146 80% 10%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 150 20% 95%;
+    --muted-foreground: 220 9% 34%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 138 76% 97%;
+    --accent-foreground: 163 94% 20%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 150 12% 89%;
+    --input: 150 12% 86%;
+    --ring: 163 94% 24%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    --pending: 221 83% 53%;
-    --delivered: 142 71% 45%;
-    --occurrence: 0 84% 60%;
-    --current-location: 47 100% 50%;
+    --pending: 163 94% 24%;
+    --delivered: 142 72% 29%;
+    --success: 142 72% 29%;
+    --warning: 32 95% 37%;
+    --occurrence: 0 72% 51%;
+    --current-location: 48 96% 53%;
   }
 
+  /* Verde Rota: modo escuro */
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 147 50% 5%;
+    --foreground: 152 81% 96%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 150 35% 9%;
+    --card-foreground: 152 81% 96%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 150 35% 9%;
+    --popover-foreground: 152 81% 96%;
 
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 158 64% 52%;
+    --primary-foreground: 147 50% 5%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 150 25% 14%;
+    --secondary-foreground: 152 81% 96%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 150 25% 14%;
+    --muted-foreground: 150 10% 65%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 150 25% 14%;
+    --accent-foreground: 158 64% 52%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 91% 71%;
+    --destructive-foreground: 147 50% 5%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --border: 150 20% 18%;
+    --input: 150 20% 18%;
+    --ring: 158 64% 52%;
+
+    --pending: 158 64% 52%;
+    --delivered: 142 69% 58%;
+    --success: 142 69% 58%;
+    --warning: 43 96% 56%;
+    --occurrence: 0 91% 71%;
   }
 }
 
@@ -187,7 +191,15 @@ html, body {
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  h1, h2, h3 {
+    letter-spacing: -0.02em;
+  }
+
+  input, button, textarea, select {
+    font-family: inherit;
   }
 }
 
@@ -218,9 +230,9 @@ html, body {
 }
 
 /* Map marker status colors (fallback — main styles in DeliveryMap.tsx) */
-.delivery-marker.marker-pending   { background: #2563eb; }
-.delivery-marker.marker-delivered { background: #86efac; opacity: 0.55; }
-.delivery-marker.marker-occurrence{ background: #dc2626; }
+.delivery-marker.marker-pending   { background: hsl(var(--pending)); }
+.delivery-marker.marker-delivered { background: hsl(var(--delivered)); opacity: 0.55; }
+.delivery-marker.marker-occurrence{ background: hsl(var(--occurrence)); }
 .delivery-marker.multiple-deliveries { border-color: #f97316; }
 
 /* Mapbox popup styling */
@@ -233,17 +245,17 @@ html, body {
 .mapboxgl-popup-close-button {
   font-size: 18px;
   padding: 4px;
-  color: #6b7280;
+  color: hsl(var(--muted-foreground));
 }
 
 /* Current location marker styles */
 .current-location-marker {
   width: 20px;
   height: 20px;
-  background-color: #3b82f6;
+  background-color: hsl(var(--current-location));
   border-radius: 50%;
   border: 2px solid white;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.5);
   position: relative;
 }
 
@@ -252,7 +264,7 @@ html, body {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background-color: rgba(59, 130, 246, 0.2);
+  background-color: rgba(250, 204, 21, 0.25);
   top: -12px;
   left: -12px;
   animation: pulse 2s infinite;
@@ -298,7 +310,7 @@ html, body {
   left: 0;
   right: 0;
   bottom: 0;
-  background: white;
+  background: hsl(var(--card));
   z-index: 10;
   display: flex;
   flex-direction: column;
@@ -311,7 +323,7 @@ html, body {
   left: 0;
   right: 0;
   z-index: 20;
-  background: white;
+  background: hsl(var(--card));
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   padding: 8px 16px;
   display: flex;
@@ -336,7 +348,7 @@ html, body {
 .route-name {
   font-size: 16px;
   font-weight: 600;
-  color: #1f2937;
+  color: hsl(var(--foreground));
 }
 
 .status-badges {
@@ -348,7 +360,7 @@ html, body {
   display: flex;
   align-items: center;
   gap: 4px;
-  background: #f3f4f6;
+  background: hsl(var(--muted));
   padding: 4px 8px;
   border-radius: 12px;
   font-size: 12px;
@@ -359,21 +371,21 @@ html, body {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #3b82f6;
+  background: hsl(var(--primary));
 }
 
 .status-badge.status-delivered .status-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #10b981;
+  background: hsl(var(--delivered));
 }
 
 .status-badge.status-occurrence .status-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #ef4444;
+  background: hsl(var(--occurrence));
 }
 
 /* Mobile Map Container */
@@ -392,8 +404,8 @@ html, body {
   bottom: 100px;
   right: 16px;
   z-index: 30;
-  background: #3b82f6;
-  color: white;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
   border-radius: 16px;
   padding: 12px 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -419,8 +431,8 @@ html, body {
   bottom: 30px;
   right: 16px;
   z-index: 30;
-  background: #1f2937;
-  color: white;
+  background: hsl(var(--foreground));
+  color: hsl(var(--primary-foreground));
   border-radius: 50%;
   width: 56px;
   height: 56px;
@@ -441,8 +453,8 @@ html, body {
   position: absolute;
   top: -4px;
   right: -4px;
-  background: #ef4444;
-  color: white;
+  background: hsl(var(--occurrence));
+  color: hsl(var(--primary-foreground));
   border-radius: 50%;
   width: 20px;
   height: 20px;
@@ -467,7 +479,7 @@ html, body {
 }
 
 .bottom-sheet {
-  background: white;
+  background: hsl(var(--card));
   border-radius: 16px 16px 0 0;
   width: 100%;
   max-height: 85vh;
@@ -488,14 +500,14 @@ html, body {
 
 .bottom-sheet-header {
   padding: 16px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid hsl(var(--muted));
   position: relative;
 }
 
 .bottom-sheet-handle {
   width: 32px;
   height: 4px;
-  background: #d1d5db;
+  background: hsl(var(--input));
   border-radius: 2px;
   margin: 0 auto 16px;
 }
@@ -503,7 +515,7 @@ html, body {
 .sheet-tabs {
   display: flex;
   gap: 4px;
-  background: #f9fafb;
+  background: hsl(var(--muted));
   border-radius: 8px;
   padding: 4px;
 }
@@ -516,13 +528,13 @@ html, body {
   background: transparent;
   font-size: 14px;
   font-weight: 500;
-  color: #6b7280;
+  color: hsl(var(--muted-foreground));
   transition: all 0.2s ease;
 }
 
 .tab-btn.active {
-  background: white;
-  color: #1f2937;
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
@@ -557,8 +569,8 @@ html, body {
 /* Mobile Delivery Cards */
 .mobile-delivery-card,
 .mobile-status-card {
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
   border-radius: 12px;
   padding: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -567,14 +579,14 @@ html, body {
 
 .mobile-delivery-card.delivered,
 .mobile-status-card.delivered {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
+  background: hsl(var(--delivered) / 0.08);
+  border-color: hsl(var(--delivered) / 0.3);
 }
 
 .mobile-delivery-card.occurrence,
 .mobile-status-card.occurrence {
-  background: #fef2f2;
-  border-color: #fecaca;
+  background: hsl(var(--occurrence) / 0.06);
+  border-color: hsl(var(--occurrence) / 0.3);
 }
 
 .card-header {
@@ -588,8 +600,8 @@ html, body {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #3b82f6;
-  color: white;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -599,11 +611,11 @@ html, body {
 }
 
 .delivery-number.delivered {
-  background: #10b981;
+  background: hsl(var(--delivered));
 }
 
 .delivery-number.occurrence {
-  background: #ef4444;
+  background: hsl(var(--occurrence));
 }
 
 .delivery-info {
@@ -613,14 +625,14 @@ html, body {
 .delivery-info h3 {
   font-size: 16px;
   font-weight: 600;
-  color: #1f2937;
+  color: hsl(var(--foreground));
   margin-bottom: 4px;
   line-height: 1.2;
 }
 
 .delivery-info p {
   font-size: 14px;
-  color: #6b7280;
+  color: hsl(var(--muted-foreground));
   margin-bottom: 4px;
 }
 
@@ -629,8 +641,8 @@ html, body {
   font-weight: 500;
   padding: 2px 8px;
   border-radius: 6px;
-  background: #f3f4f6;
-  color: #374151;
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
 }
 
 /* Action Buttons */
@@ -653,9 +665,9 @@ html, body {
   justify-content: center !important;
   gap: 6px !important;
   transition: all 0.2s ease !important;
-  border: 1px solid #e5e7eb !important;
-  background: white !important;
-  color: #374151 !important;
+  border: 1px solid hsl(var(--border)) !important;
+  background: hsl(var(--card)) !important;
+  color: hsl(var(--foreground)) !important;
 }
 
 .action-btn:active {
@@ -663,43 +675,43 @@ html, body {
 }
 
 .nav-btn {
-  background: #3b82f6 !important;
-  color: white !important;
-  border-color: #3b82f6 !important;
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  border-color: hsl(var(--primary)) !important;
 }
 
 .nav-btn:hover {
-  background: #2563eb !important;
+  background: hsl(var(--pending)) !important;
 }
 
 .deliver-btn {
-  background: #10b981 !important;
-  color: white !important;
-  border-color: #10b981 !important;
+  background: hsl(var(--delivered)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  border-color: hsl(var(--delivered)) !important;
 }
 
 .deliver-btn:hover {
-  background: #059669 !important;
+  background: hsl(163 94% 20%) !important;
 }
 
 .occurrence-btn {
-  background: #ef4444 !important;
-  color: white !important;
-  border-color: #ef4444 !important;
+  background: hsl(var(--occurrence)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  border-color: hsl(var(--occurrence)) !important;
 }
 
 .occurrence-btn:hover {
-  background: #dc2626 !important;
+  background: hsl(var(--occurrence)) !important;
 }
 
 .undo-btn {
-  background: #f59e0b !important;
-  color: white !important;
-  border-color: #f59e0b !important;
+  background: hsl(var(--warning)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  border-color: hsl(var(--warning)) !important;
 }
 
 .undo-btn:hover {
-  background: #d97706 !important;
+  background: hsl(32 95% 30%) !important;
 }
 
 /* Mobile Dialog */
@@ -724,8 +736,8 @@ html, body {
   left: 50%;
   transform: translateX(-50%);
   z-index: 50;
-  background: #1f2937;
-  color: white;
+  background: hsl(var(--foreground));
+  color: hsl(var(--primary-foreground));
   padding: 12px 24px;
   border-radius: 8px;
   font-size: 14px;
@@ -806,5 +818,13 @@ html, body {
   
   .next-delivery-fab {
     padding: 16px 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

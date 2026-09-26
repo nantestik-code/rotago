@@ -110,7 +110,7 @@ const SubscriptionPage = () => {
 
     if (isTrialActive) {
       return (
-        <Badge className="bg-blue-100 text-blue-800">
+        <Badge className="bg-brand-100 text-brand-800">
           <Gift className="mr-1 h-3 w-3" />
           Trial Ativo
         </Badge>
@@ -417,19 +417,19 @@ const SubscriptionPage = () => {
                 {subscription ? (
                   <div className="space-y-4">
                     {isTrialActive && (
-                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                      <div className="rounded-lg border border-brand-200 bg-brand-50 p-4">
                         <div className="mb-2 flex flex-wrap items-center gap-2">
-                          <Badge className="bg-blue-100 text-blue-800">
+                          <Badge className="bg-brand-100 text-brand-800">
                             <Gift className="mr-1 h-3 w-3" />
                             Periodo Gratuito
                           </Badge>
-                          <Badge className="bg-blue-100 text-blue-800">
+                          <Badge className="bg-brand-100 text-brand-800">
                             {trialDaysRemaining} {trialDaysRemaining === 1 ? 'dia' : 'dias'}
                           </Badge>
-                          <Badge className="bg-blue-100 text-blue-800">{trialTimeRemainingLabel}</Badge>
+                          <Badge className="bg-brand-100 text-brand-800">{trialTimeRemainingLabel}</Badge>
                         </div>
                         <Progress value={getTrialProgress()} className="mb-2" />
-                        <p className="text-sm text-blue-700">
+                        <p className="text-sm text-brand-700">
                           Trial ativo por mais {trialTimeRemainingLabel}. Quando esse tempo acabar, o app trava ate uma nova assinatura.
                         </p>
                       </div>

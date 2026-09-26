@@ -15,7 +15,7 @@ const ImportHelpDialog: React.FC<ImportHelpDialogProps> = ({
 }) => {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="bg-blue-600 text-white max-w-md p-6 rounded-lg">
+      <DialogContent className="bg-brand-600 text-white max-w-md p-6 rounded-lg">
         <DialogTitle className="sr-only">Ajuda para importação</DialogTitle>
         <div className="flex flex-col items-start space-y-4 py-8">
           <h2 className="text-2xl font-bold">
@@ -31,14 +31,14 @@ const ImportHelpDialog: React.FC<ImportHelpDialogProps> = ({
           <Button
             variant="ghost"
             onClick={onCancel}
-            className="text-white hover:bg-blue-700 hover:text-white"
+            className="text-white hover:bg-brand-700 hover:text-white"
           >
             CANCELAR
           </Button>
           
           <Button
             onClick={onContinue}
-            className="bg-white text-blue-600 hover:bg-blue-100"
+            className="bg-white text-brand-600 hover:bg-brand-100"
           >
             VAMOS LÁ
           </Button>

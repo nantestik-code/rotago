@@ -592,8 +592,8 @@ const SystemSettings = () => {
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <CreditCard className="h-5 w-5 text-blue-600" />
+                <div className="p-2 bg-brand-100 rounded-lg">
+                  <CreditCard className="h-5 w-5 text-brand-600" />
                 </div>
                 <div>
                   <CardTitle>Asaas</CardTitle>
@@ -673,7 +673,7 @@ const SystemSettings = () => {
                     <Button
                       onClick={saveAsaasCredentials}
                       disabled={asaasSaving}
-                      className="bg-blue-600 hover:bg-blue-700"
+                      className="bg-brand-600 hover:bg-brand-700"
                     >
                       {asaasSaving
                         ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando...</>

@@ -294,7 +294,7 @@ const FinancialDashboard = () => {
       planCounts[planName].revenue += planPrice;
     });
 
-    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+    const colors = ['#047857', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
     
     const chartData = Object.entries(planCounts).map(([plan, data], index) => ({
       plan,
@@ -372,15 +372,15 @@ const FinancialDashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+        <Card className="bg-gradient-to-br from-brand-500 to-brand-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-blue-100">Receita Mensal</CardTitle>
+            <CardTitle className="text-sm font-medium text-brand-100">Receita Mensal</CardTitle>
             <TrendingUp className="h-5 w-5 text-white" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(metrics.monthlyRevenue)}</div>
-            <p className="text-xs text-blue-100 mt-1">Mês atual</p>
-            <Progress value={72} className="mt-2 bg-blue-400/30" />
+            <p className="text-xs text-brand-100 mt-1">Mês atual</p>
+            <Progress value={72} className="mt-2 bg-brand-400/30" />
           </CardContent>
         </Card>
 
@@ -475,7 +475,7 @@ const FinancialDashboard = () => {
         <TabsList className="grid w-full grid-cols-2 bg-gradient-to-r from-slate-100 to-gray-100 p-1 rounded-xl">
           <TabsTrigger 
             value="revenue" 
-            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white rounded-lg transition-all duration-300"
+            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-brand-500 data-[state=active]:to-brand-600 data-[state=active]:text-white rounded-lg transition-all duration-300"
           >
             📈 Receita
           </TabsTrigger>
@@ -488,13 +488,13 @@ const FinancialDashboard = () => {
         </TabsList>
 
         <TabsContent value="revenue" className="space-y-4">
-          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-t-lg">
+          <Card className="bg-gradient-to-br from-brand-50 to-brand-50 border-brand-200 shadow-lg">
+            <CardHeader className="bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-t-lg">
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5" />
                 Evolução da Receita
               </CardTitle>
-              <CardDescription className="text-blue-100">
+              <CardDescription className="text-brand-100">
                 Receita e número de assinaturas por mês
               </CardDescription>
             </CardHeader>
@@ -507,7 +507,7 @@ const FinancialDashboard = () => {
                     stroke="#64748b"
                     fontSize={12}
                   />
-                  <YAxis yAxisId="left" stroke="#3b82f6" fontSize={12} />
+                  <YAxis yAxisId="left" stroke="#047857" fontSize={12} />
                   <YAxis yAxisId="right" orientation="right" stroke="#10b981" fontSize={12} />
                   <Tooltip 
                     formatter={(value, name) => [
@@ -540,8 +540,8 @@ const FinancialDashboard = () => {
                   />
                   <defs>
                     <linearGradient id="blueGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                      <stop offset="5%" stopColor="#047857" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#047857" stopOpacity={0.3}/>
                     </linearGradient>
                   </defs>
                 </LineChart>

@@ -125,7 +125,7 @@ const PrivacyPolicy = () => (
       <p>
         Para exercer qualquer um desses direitos, escreva para <strong>contato@rotago.site</strong>.
         Respondemos em até 15 dias. Para excluir sua conta, veja a página{' '}
-        <a href="/excluir-conta" className="text-blue-600 underline">Excluir conta</a>.
+        <a href="/excluir-conta" className="text-brand-600 underline">Excluir conta</a>.
       </p>
     </Section>
 

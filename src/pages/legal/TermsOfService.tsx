@@ -111,7 +111,7 @@ const TermsOfService = () => (
     <Section title="10. Privacidade">
       <p>
         O tratamento dos seus dados pessoais é descrito na nossa{' '}
-        <a href="/privacidade" className="text-blue-600 underline">Política de Privacidade</a>, que é
+        <a href="/privacidade" className="text-brand-600 underline">Política de Privacidade</a>, que é
         parte integrante destes termos.
       </p>
     </Section>

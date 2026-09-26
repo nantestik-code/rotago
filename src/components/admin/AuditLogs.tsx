@@ -305,7 +305,7 @@ const AuditLogs = () => {
     switch (action.toLowerCase()) {
       case 'login':
       case 'logout':
-        return <LogIn className="w-4 h-4 text-blue-600" />;
+        return <LogIn className="w-4 h-4 text-brand-600" />;
       case 'create':
       case 'update':
       case 'delete':
@@ -315,7 +315,7 @@ const AuditLogs = () => {
       case 'delivery':
         return <Truck className="w-4 h-4 text-orange-600" />;
       case 'subscription':
-        return <User className="w-4 h-4 text-indigo-600" />;
+        return <User className="w-4 h-4 text-brand-600" />;
       default:
         return <Activity className="w-4 h-4 text-gray-600" />;
     }
@@ -332,7 +332,7 @@ const AuditLogs = () => {
       case 'warning':
         return <AlertTriangle className="w-4 h-4 text-yellow-600" />;
       case 'pending':
-        return <Clock className="w-4 h-4 text-blue-600" />;
+        return <Clock className="w-4 h-4 text-brand-600" />;
       default:
         return <Info className="w-4 h-4 text-gray-600" />;
     }
@@ -384,7 +384,7 @@ const AuditLogs = () => {
     switch (level.toLowerCase()) {
       case 'info':
         return (
-          <Badge className="bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-700 border-blue-200 shadow-sm">
+          <Badge className="bg-gradient-to-r from-brand-100 to-cyan-100 text-brand-700 border-brand-200 shadow-sm">
             <Info className="w-3 h-3 mr-1" />
             Info
           </Badge>
@@ -405,7 +405,7 @@ const AuditLogs = () => {
         );
       case 'debug':
         return (
-          <Badge className="bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-700 border-purple-200 shadow-sm">
+          <Badge className="bg-gradient-to-r from-purple-100 to-brand-100 text-purple-700 border-purple-200 shadow-sm">
             <Settings className="w-3 h-3 mr-1" />
             Debug
           </Badge>
@@ -479,7 +479,7 @@ const AuditLogs = () => {
         <TabsList className="grid w-full grid-cols-2 bg-gradient-to-r from-slate-100 to-gray-100 p-1 rounded-xl shadow-inner">
           <TabsTrigger 
             value="audit" 
-            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-200"
+            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-brand-500 data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-200"
           >
             <FileText className="w-4 h-4 mr-2" />
             Logs de Auditoria
@@ -495,12 +495,12 @@ const AuditLogs = () => {
 
         <TabsContent value="audit">
           <Card className="shadow-xl border-0 bg-gradient-to-br from-white to-slate-50">
-            <CardHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-t-lg">
+            <CardHeader className="bg-gradient-to-r from-brand-600 to-purple-600 text-white rounded-t-lg">
               <div className="flex items-center gap-3">
                 <Shield className="h-6 w-6" />
                 <div>
                   <CardTitle className="text-xl font-bold">Logs de Auditoria</CardTitle>
-                  <CardDescription className="text-blue-100">
+                  <CardDescription className="text-brand-100">
                     Registro detalhado de todas as ações dos usuários
                   </CardDescription>
                 </div>
@@ -520,7 +520,7 @@ const AuditLogs = () => {
                           placeholder="Buscar por usuário, ação..."
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
-                          className="pl-10 border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+                          className="pl-10 border-slate-300 focus:border-brand-500 focus:ring-brand-500"
                         />
                       </div>
                     </div>
@@ -529,7 +529,7 @@ const AuditLogs = () => {
                     <div className="space-y-2">
                       <Label className="text-sm font-semibold text-slate-700">Severidade</Label>
                       <Select value={severityFilter} onValueChange={setSeverityFilter}>
-                        <SelectTrigger className="border-slate-300 focus:border-blue-500 focus:ring-blue-500">
+                        <SelectTrigger className="border-slate-300 focus:border-brand-500 focus:ring-brand-500">
                           <SelectValue placeholder="Todas" />
                         </SelectTrigger>
                         <SelectContent>
@@ -546,7 +546,7 @@ const AuditLogs = () => {
                     <div className="space-y-2">
                       <Label className="text-sm font-semibold text-slate-700">Tipo de Ação</Label>
                       <Select value={actionFilter} onValueChange={setActionFilter}>
-                        <SelectTrigger className="border-slate-300 focus:border-blue-500 focus:ring-blue-500">
+                        <SelectTrigger className="border-slate-300 focus:border-brand-500 focus:ring-brand-500">
                           <SelectValue placeholder="Todas" />
                         </SelectTrigger>
                         <SelectContent>
@@ -603,7 +603,7 @@ const AuditLogs = () => {
                     </TableHeader>
                     <TableBody>
                       {filteredAuditLogs.map((log) => (
-                        <TableRow key={log.id} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 transition-all duration-200">
+                        <TableRow key={log.id} className="hover:bg-gradient-to-r hover:from-brand-50 hover:to-purple-50 transition-all duration-200">
                           <TableCell className="font-mono text-sm text-slate-600">
                             {formatTimestamp(log.timestamp)}
                           </TableCell>
@@ -617,7 +617,7 @@ const AuditLogs = () => {
                           <TableCell>
                             <Badge 
                               variant="outline" 
-                              className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 text-blue-700"
+                              className="bg-gradient-to-r from-brand-50 to-purple-50 border-brand-200 text-brand-700"
                             >
                               {log.resource_type}
                             </Badge>
@@ -639,7 +639,7 @@ const AuditLogs = () => {
                               <DialogTrigger asChild>
                                 <Button 
                                   size="sm"
-                                  className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white shadow-md hover:shadow-lg transition-all duration-200"
+                                  className="bg-gradient-to-r from-brand-500 to-purple-500 hover:from-brand-600 hover:to-purple-600 text-white shadow-md hover:shadow-lg transition-all duration-200"
                                 >
                                   <Eye className="w-3 h-3 mr-1" />
                                   Ver

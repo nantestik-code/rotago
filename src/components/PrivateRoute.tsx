@@ -43,7 +43,7 @@ const PrivateRoute = ({ children }: PrivateRouteProps) => {
   if (isPendingConfirmation) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-slate-50 px-6 text-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
         <p className="text-lg font-medium text-slate-800">Confirmando pagamento</p>
         <p className="max-w-sm text-sm text-slate-500">
           O Asaas ainda esta processando. Esta tela atualiza sozinha em instantes.

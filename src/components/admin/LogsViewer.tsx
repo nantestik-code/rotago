@@ -136,7 +136,7 @@ const LogsViewer = () => {
       case 'debug':
         return 'bg-gray-100 text-gray-800';
       case 'info':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-brand-100 text-brand-800';
       case 'warn':
         return 'bg-yellow-100 text-yellow-800';
       case 'error':
