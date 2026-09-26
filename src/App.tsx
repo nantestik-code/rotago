@@ -12,6 +12,7 @@ import Login from "./pages/auth/Login";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
 import AuthCallback from "./pages/auth/AuthCallback";
+import AuthConfirm from "./pages/auth/AuthConfirm";
 import { AuthProvider } from "@/hooks/use-auth";
 import { AdminAuthProvider } from "@/hooks/use-admin-auth";
 import { RouteHistoryProvider } from "@/hooks/use-route-history-provider";
@@ -42,6 +43,7 @@ const AppContent = () => {
       <Route path="/auth/forgot-password" element={<ForgotPassword />} />
       <Route path="/auth/reset-password" element={<ResetPassword />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/auth/confirm" element={<AuthConfirm />} />
 
       {/* Legal Routes */}
       <Route path="/privacidade" element={<PrivacyPolicy />} />

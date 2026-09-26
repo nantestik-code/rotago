@@ -1,11 +1,28 @@
 // E-mails de autenticação do RotaGo, enviados por nós via Resend.
 //
-// O Supabase Auth só guarda os usuários: os links de confirmação e de
+// O Supabase Auth só guarda os usuários. Os tokens de confirmação e de
 // redefinição de senha são gerados com auth.admin.generateLink, que NÃO
 // dispara o e-mail do Supabase, e o envio sai daqui, de contato@rotago.site.
-// A chave do Resend fica em system_settings (resend_api_key, is_secret).
+//
+// O link do e-mail aponta para /auth/confirm do próprio site com o token_hash;
+// a página valida com supabase.auth.verifyOtp. Não usamos o action_link do
+// generateLink porque ele volta no formato implícito (#access_token), que o
+// cliente do app (flowType 'pkce') recusa.
+//
+// A chave do Resend fica em system_settings (resend_api_key, is_secret) e cada
+// envio é registrado em auth_email_log, que também limita tentativas.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { LOGO_PNG_BASE64 } from './logo.ts';
+import {
+  type Email,
+  SITE_URL,
+  SUPPORT_EMAIL,
+  confirmEmail,
+  passwordChangedEmail,
+  recoveryEmail,
+  welcomeEmail,
+} from './templates.ts';
 
 const adminClient = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
@@ -26,82 +43,211 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-const FROM = 'RotaGo <contato@rotago.site>';
-const SITE_URL = 'https://rotago.site';
-const ALLOWED_ORIGINS = [SITE_URL, 'http://localhost:8080'];
+const FROM = `RotaGo <${SUPPORT_EMAIL}>`;
+const ALLOWED_ORIGINS = [SITE_URL, 'https://www.rotago.site', 'http://localhost:8080'];
+const MAX_EMAILS_PER_HOUR = 5;
 
-type Body =
-  | { action: 'signup'; email: string; password: string; full_name: string; cpf: string; phone: string; redirect_to?: string }
-  | { action: 'resend_signup'; email: string; redirect_to?: string }
-  | { action: 'recovery'; email: string; redirect_to?: string };
+type Action = 'signup' | 'resend_signup' | 'recovery' | 'password_changed';
+type Body = {
+  action: Action;
+  email?: string;
+  password?: string;
+  full_name?: string;
+  cpf?: string;
+  phone?: string;
+  redirect_to?: string;
+};
 
-async function resendKey(): Promise<string> {
-  const { data, error } = await adminClient
-    .from('system_settings')
-    .select('value')
-    .eq('key', 'resend_api_key')
-    .single();
-  if (error || !data?.value) throw new Error('Chave do Resend não configurada');
-  return String(data.value);
+// ---------------------------------------------------------------- helpers
+
+async function getSetting(key: string): Promise<string | null> {
+  const { data } = await adminClient.from('system_settings').select('value').eq('key', key).maybeSingle();
+  return data?.value != null ? String(data.value) : null;
 }
 
-async function send(to: string, subject: string, html: string) {
+async function log(email: string, action: Action, status: string, extra: { resend_id?: string; error?: string } = {}) {
+  const { error } = await adminClient.from('auth_email_log').insert({ email, action, status, ...extra });
+  if (error) console.error('[auth-email] falha ao registrar log', error.message);
+}
+
+async function isRateLimited(email: string) {
+  const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { count } = await adminClient
+    .from('auth_email_log')
+    .select('id', { count: 'exact', head: true })
+    .ilike('email', email)
+    .in('status', ['sent', 'failed'])
+    .gte('created_at', since);
+  return (count ?? 0) >= MAX_EMAILS_PER_HOUR;
+}
+
+async function send(to: string, action: Action, email: Email) {
+  const key = await getSetting('resend_api_key');
+  if (!key) throw new Error('Chave do Resend não configurada (system_settings.resend_api_key)');
+
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${await resendKey()}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: FROM, to: [to], subject, html }),
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from: FROM,
+      to: [to],
+      reply_to: SUPPORT_EMAIL,
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+      attachments: [
+        { filename: 'rotago.png', content: LOGO_PNG_BASE64, content_type: 'image/png', content_id: 'rotago-logo' },
+      ],
+      tags: [{ name: 'category', value: action }],
+    }),
   });
-  if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text()}`);
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message = `Resend ${res.status}: ${payload?.message ?? JSON.stringify(payload)}`;
+    await log(to, action, 'failed', { error: message });
+    throw new Error(message);
+  }
+  await log(to, action, 'sent', { resend_id: payload?.id });
 }
 
-/** Só aceita redirecionar para o próprio site, para o link não virar phishing. */
-function safeRedirect(url: string | undefined, fallbackPath: string) {
-  if (url && ALLOWED_ORIGINS.some((o) => url === o || url.startsWith(`${o}/`))) return url;
-  return `${SITE_URL}${fallbackPath}`;
+/** Origem do link: só o próprio site (ou localhost em dev), nunca outro domínio. */
+function originFrom(redirectTo?: string) {
+  if (redirectTo) {
+    try {
+      const origin = new URL(redirectTo).origin;
+      if (ALLOWED_ORIGINS.includes(origin)) return origin;
+    } catch {
+      // URL inválida: usa o site
+    }
+  }
+  return SITE_URL;
 }
 
-function layout(title: string, body: string) {
-  return `<!doctype html><html><body style="margin:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif">
-  <div style="max-width:520px;margin:32px auto;background:#ffffff;border-radius:12px;padding:32px;color:#111827">
-    <div style="font-size:24px;font-weight:800;color:#2563eb;margin-bottom:24px">RotaGo</div>
-    <h1 style="font-size:20px;margin:0 0 16px">${title}</h1>
-    ${body}
-    <p style="font-size:12px;color:#9ca3af;margin-top:32px;border-top:1px solid #e5e7eb;padding-top:16px">
-      RotaGo · <a href="${SITE_URL}" style="color:#9ca3af">rotago.site</a> · contato@rotago.site
-    </p>
-  </div></body></html>`;
-}
-
-function button(link: string, label: string) {
-  return `<p style="margin:24px 0"><a href="${link}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:8px;font-weight:700">${label}</a></p>
-  <p style="font-size:12px;color:#6b7280">Se o botão não funcionar, copie e cole este link no navegador:<br>
-  <a href="${link}" style="color:#2563eb;word-break:break-all">${link}</a></p>`;
+function confirmLink(origin: string, tokenHash: string, type: string, next: string) {
+  const params = new URLSearchParams({ token_hash: tokenHash, type, next });
+  return `${origin}/auth/confirm?${params}`;
 }
 
 function firstName(full?: unknown) {
-  return String(full ?? '').trim().split(/\s+/)[0] ?? '';
+  const first = String(full ?? '').trim().split(/\s+/)[0] ?? '';
+  return first ? first.charAt(0).toUpperCase() + first.slice(1).toLowerCase() : '';
 }
 
-function welcomeEmail(name: string, link: string) {
-  return layout(
-    `Bem-vindo ao RotaGo${name ? `, ${name}` : ''}!`,
-    `<p>Que bom ter você com a gente. Sua conta foi criada e seu <b>teste grátis</b> já está garantido.</p>
-     <p>Para começar, confirme seu e-mail:</p>
-     ${button(link, 'Confirmar meu e-mail')}
-     <p>Depois é só entrar, cadastrar suas entregas e deixar o RotaGo montar a melhor rota.</p>
-     <p style="font-size:13px;color:#6b7280">Não criou uma conta no RotaGo? Pode ignorar este e-mail.</p>`,
-  );
+async function trialDays() {
+  const n = Number(await getSetting('trial_duration_days'));
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-function recoveryEmail(name: string, link: string) {
-  return layout(
-    'Redefinição de senha',
-    `<p>Olá${name ? `, ${name}` : ''}!</p>
-     <p>Recebemos um pedido para redefinir a senha da sua conta no RotaGo.</p>
-     ${button(link, 'Criar nova senha')}
-     <p style="font-size:13px;color:#6b7280">Se não foi você, ignore este e-mail: sua senha continua a mesma.</p>`,
-  );
+// ---------------------------------------------------------------- handlers
+
+async function handleSignup(body: Body, email: string) {
+  if (!body.password || body.password.length < 6) {
+    return jsonResponse({ error: 'A senha deve ter pelo menos 6 caracteres' }, 400);
+  }
+  if (await isRateLimited(email)) {
+    await log(email, 'signup', 'rate_limited');
+    return jsonResponse({ error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' }, 429);
+  }
+
+  const { data, error } = await adminClient.auth.admin.generateLink({
+    type: 'signup',
+    email,
+    password: body.password,
+    options: {
+      // O gatilho handle_new_user cria o perfil a partir destes campos
+      // e recusa CPF/telefone inválido ou duplicado.
+      data: { full_name: body.full_name, cpf: body.cpf, phone: body.phone },
+    },
+  });
+  if (error) {
+    // Mantém a mensagem original: o front traduz "already registered",
+    // "CPF ja esta cadastrado", "telefone ja esta cadastrado" etc.
+    return jsonResponse({ error: error.message }, error.status && error.status < 500 ? error.status : 400);
+  }
+
+  const origin = originFrom(body.redirect_to);
+  const link = confirmLink(origin, data.properties.hashed_token, data.properties.verification_type, '/app');
+  try {
+    await send(email, 'signup', welcomeEmail(firstName(body.full_name), link, await trialDays()));
+  } catch (err) {
+    // A conta já existe; a pessoa pode pedir o reenvio na tela de login.
+    console.error('[auth-email] signup criado, mas e-mail falhou', err);
+    return jsonResponse({ ok: true, email_sent: false });
+  }
+  return jsonResponse({ ok: true, email_sent: true });
 }
+
+async function handleLinkRequest(body: Body, email: string, action: 'resend_signup' | 'recovery') {
+  // Resposta sempre igual, exista ou não a conta, para não revelar quem é cliente.
+  const ok = jsonResponse({ ok: true });
+
+  if (await isRateLimited(email)) {
+    await log(email, action, 'rate_limited');
+    return ok;
+  }
+
+  const { data: userRow } = await adminClient.rpc('auth_email_lookup_user', { p_email: email });
+  const user = Array.isArray(userRow) ? userRow[0] : userRow;
+  if (!user) {
+    await log(email, action, 'skipped', { error: 'usuário não encontrado' });
+    return ok;
+  }
+  if (action === 'resend_signup' && user.email_confirmed) {
+    await log(email, action, 'skipped', { error: 'e-mail já confirmado' });
+    return ok;
+  }
+
+  const isRecovery = action === 'recovery';
+  const { data, error } = await adminClient.auth.admin.generateLink({
+    type: isRecovery ? 'recovery' : 'magiclink',
+    email,
+  });
+  if (error) {
+    await log(email, action, 'failed', { error: error.message });
+    return ok;
+  }
+
+  const origin = originFrom(body.redirect_to);
+  const name = firstName(user.full_name);
+  const { hashed_token, verification_type } = data.properties;
+  if (isRecovery) {
+    const link = confirmLink(origin, hashed_token, verification_type, '/auth/reset-password?type=recovery');
+    await send(email, action, recoveryEmail(name, link));
+  } else {
+    const link = confirmLink(origin, hashed_token, verification_type, '/app');
+    await send(email, action, confirmEmail(name, link));
+  }
+  return ok;
+}
+
+async function handlePasswordChanged(req: Request) {
+  const jwt = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+  const { data, error } = await adminClient.auth.getUser(jwt);
+  if (error || !data.user?.email) return jsonResponse({ error: 'Não autenticado' }, 401);
+
+  const user = data.user;
+  const userEmail = data.user.email;
+  // Só vale logo depois de uma troca real de senha, não a qualquer momento.
+  const updatedAt = new Date(user.updated_at ?? 0).getTime();
+  if (Date.now() - updatedAt > 5 * 60 * 1000) {
+    await log(userEmail, 'password_changed', 'skipped', { error: 'sem alteração recente' });
+    return jsonResponse({ ok: true });
+  }
+  if (await isRateLimited(userEmail)) {
+    await log(userEmail, 'password_changed', 'rate_limited');
+    return jsonResponse({ ok: true });
+  }
+
+  const { data: profile } = await adminClient.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
+  await send(
+    userEmail,
+    'password_changed',
+    passwordChangedEmail(firstName(profile?.full_name ?? user.user_metadata?.full_name), new Date()),
+  );
+  return jsonResponse({ ok: true });
+}
+
+// ---------------------------------------------------------------- entrada
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -113,56 +259,20 @@ Deno.serve(async (req) => {
   } catch {
     return jsonResponse({ error: 'JSON inválido' }, 400);
   }
-  const email = String(body.email ?? '').trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return jsonResponse({ error: 'Email inválido' }, 400);
 
   try {
-    if (body.action === 'signup') {
-      if (!body.password || body.password.length < 6) {
-        return jsonResponse({ error: 'A senha deve ter pelo menos 6 caracteres' }, 400);
-      }
-      const { data, error } = await adminClient.auth.admin.generateLink({
-        type: 'signup',
-        email,
-        password: body.password,
-        options: {
-          // O gatilho handle_new_user cria o perfil a partir destes campos
-          // e recusa CPF/telefone inválido ou duplicado.
-          data: { full_name: body.full_name, cpf: body.cpf, phone: body.phone },
-          redirectTo: safeRedirect(body.redirect_to, '/app'),
-        },
-      });
-      if (error) return jsonResponse({ error: error.message }, error.status ?? 400);
+    if (body.action === 'password_changed') return await handlePasswordChanged(req);
 
-      await send(email, 'Bem-vindo ao RotaGo! Confirme seu e-mail', welcomeEmail(firstName(body.full_name), data.properties.action_link));
-      return jsonResponse({ ok: true });
-    }
+    const email = String(body.email ?? '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return jsonResponse({ error: 'Email inválido' }, 400);
 
+    if (body.action === 'signup') return await handleSignup(body, email);
     if (body.action === 'resend_signup' || body.action === 'recovery') {
-      const isRecovery = body.action === 'recovery';
-      // magiclink confirma o e-mail ao ser aberto, então serve de reenvio.
-      const { data, error } = await adminClient.auth.admin.generateLink({
-        type: isRecovery ? 'recovery' : 'magiclink',
-        email,
-        options: { redirectTo: safeRedirect(body.redirect_to, isRecovery ? '/auth/reset-password' : '/app') },
-      });
-      // Resposta igual exista ou não a conta, para não revelar quem é cliente.
-      if (error) {
-        console.warn('[auth-email] generateLink', body.action, error.message);
-        return jsonResponse({ ok: true });
-      }
-      const name = firstName(data.user?.user_metadata?.full_name);
-      if (isRecovery) {
-        await send(email, 'Redefinir sua senha do RotaGo', recoveryEmail(name, data.properties.action_link));
-      } else if (!data.user?.email_confirmed_at) {
-        await send(email, 'Confirme seu e-mail no RotaGo', welcomeEmail(name, data.properties.action_link));
-      }
-      return jsonResponse({ ok: true });
+      return await handleLinkRequest(body, email, body.action);
     }
-
     return jsonResponse({ error: 'Ação inválida' }, 400);
   } catch (err) {
     console.error('[auth-email]', err);
-    return jsonResponse({ error: 'Não foi possível enviar o e-mail agora. Tente novamente.' }, 500);
+    return jsonResponse({ error: 'Não foi possível enviar o e-mail agora. Tente novamente em instantes.' }, 500);
   }
 });

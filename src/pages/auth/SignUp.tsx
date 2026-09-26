@@ -153,7 +153,7 @@ const SignUp = () => {
       if (error) {
         
         // Tratamento específico para usuário já registrado
-        if (error.message?.includes('User already registered') || error.message?.includes('already registered')) {
+        if (/already (been )?registered/i.test(error.message ?? '')) {
           smartToast({
             title: "Email já cadastrado",
             description: "Este email já possui uma conta. Faça login ou use um email diferente.",
