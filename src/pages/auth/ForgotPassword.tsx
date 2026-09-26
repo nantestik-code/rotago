@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { smartToast } from '@/hooks/use-smart-toast';
 import { Truck, ArrowLeft, Loader2, CheckCircle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { authEmail } from '@/lib/auth-email';
 import { useAuth } from '@/hooks/use-auth';
 
 const ForgotPassword = () => {
@@ -41,8 +41,10 @@ const ForgotPassword = () => {
 
     try {
       // Request password reset
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
+      const { error } = await authEmail({
+        action: 'recovery',
+        email,
+        redirect_to: `${window.location.origin}/auth/reset-password`,
       });
 
       if (error) {

@@ -19,3 +19,6 @@ additional_redirect_urls = [
   "http://localhost:8080/auth/reset-password",
 ]
 
+
+[functions.auth-email]
+verify_jwt = false

@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { smartToast } from '@/hooks/use-smart-toast';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { authEmail } from '@/lib/auth-email';
 import { useAuth } from '@/hooks/use-auth';
 import { 
   Dialog,
@@ -236,9 +237,10 @@ const Login = () => {
     setIsLoading(true);
     
     try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
+      const { error } = await authEmail({
+        action: 'resend_signup',
         email: resendEmail,
+        redirect_to: `${window.location.origin}/app`,
       });
       
       if (error) {

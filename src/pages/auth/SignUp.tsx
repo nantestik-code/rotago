@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { smartToast } from '@/hooks/use-smart-toast';
 import { Truck, ArrowLeft, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { authEmail } from '@/lib/auth-email';
 import { useAuth } from '@/hooks/use-auth';
 import { validateCPF, maskCPF } from '@/utils/cpfUtils';
 
@@ -136,19 +137,17 @@ const SignUp = () => {
       const cpfClean = formData.cpf.replace(/[^0-9]/g, '');
       const phoneClean = formData.phone.replace(/\D/g, '');
 
-      const { data, error } = await supabase.auth.signUp({
+      // O e-mail de boas-vindas com o link de confirmacao sai pela nossa
+      // edge function (Resend). O gatilho handle_new_user cria o perfil a
+      // partir destes campos e recusa CPF/telefone invalido ou duplicado.
+      const { error } = await authEmail({
+        action: 'signup',
         email: formData.email,
         password: formData.password,
-        options: {
-          data: {
-            full_name: formData.fullName,
-            cpf: cpfClean,
-            // O gatilho handle_new_user cria o perfil a partir destes campos
-            // e recusa o cadastro se algum estiver invalido ou duplicado.
-            phone: phoneClean,
-          },
-          emailRedirectTo: `${window.location.origin}/app`,
-        },
+        full_name: formData.fullName,
+        cpf: cpfClean,
+        phone: phoneClean,
+        redirect_to: `${window.location.origin}/app`,
       });
 
       if (error) {
@@ -203,35 +202,12 @@ const SignUp = () => {
             variant: "destructive",
           });
         }
-      } else if (data.user) {
-        // O perfil e criado pelo gatilho handle_new_user, a partir do metadata
-        // enviado acima. Antes havia um insert manual aqui, que colidia com o
-        // gatilho e fazia o cadastro acusar "CPF ja cadastrado" indevidamente.
-        // O rollback tambem tentava auth.admin.deleteUser, que exige
-        // service_role e sempre falhava no navegador.
-
-        const isEmailConfirmationRequired = data.user.identities && data.user.identities.length > 0 && !data.user.email_confirmed_at;
-
-        if (isEmailConfirmationRequired) {
-          smartToast({
-            title: "Cadastro quase completo!",
-            description: "Enviamos um link de confirmação para o seu email. Por favor, verifique sua caixa de entrada.",
-          });
-          navigate('/auth/login'); // Precisa confirmar email primeiro
-        } else {
-          smartToast({
-            title: "Cadastro realizado com sucesso!",
-            description: "Bem-vindo ao RotaGo! Você será redirecionado para o app.",
-          });
-
-          navigate('/app'); // Redireciona direto para o app
-        }
       } else {
         smartToast({
-          title: "Erro inesperado",
-          description: "Não foi possível criar a conta. Tente novamente.",
-          variant: "destructive",
+          title: "Cadastro quase completo!",
+          description: "Enviamos um email de boas-vindas com o link de confirmação. Verifique sua caixa de entrada.",
         });
+        navigate('/auth/login'); // Precisa confirmar email primeiro
       }
     } catch (error: any) {
       console.error('Erro inesperado no cadastro:', error);
